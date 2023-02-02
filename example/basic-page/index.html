@@ -1,0 +1,49 @@
+<body>
+  <div id="controls"></div>
+  <div id="result"></div>
+
+  <script type="importmap">{ "imports": {
+    "d3-scale": "https://cdn.skypack.dev/d3-scale",
+    "isomorphic-fetch": "https://cdn.skypack.dev/isomorphic-fetch",
+    "lodash.memoize": "https://cdn.skypack.dev/lodash.memoize"
+  }}</script>
+  <script type="module">
+    import SpeedTest from '../../dist/speedtest.js';
+
+    const controlEl = document.getElementById('controls');
+    const resEl = document.getElementById('result');
+
+    const engine = new SpeedTest({
+      autoStart: false,
+      logAimApiUrl: undefined,
+      measurements: [
+        // { type: 'latency', numPackets: 1 },
+        { type: 'download', bytes: 1e4, count: 1 },
+        // { type: 'upload', bytes: 1e4, count: 1 }
+      ],
+      // measureDownloadLoadedLatency: false,
+      // measureUploadLoadedLatency: false,
+    });
+    engine.onRunningChange = running => controlEl.textContent = running ? 'Running...' : 'Finished!';
+    engine.onResultsChange = ({ type }) => {
+      !engine.isFinished && setResult(engine.results.raw);
+      console.log(type);
+    };
+    engine.onFinish = results => {
+      setResult(results.getSummary());
+      console.log(results.getSummary());
+    };
+
+    const playButton = document.createElement('button');
+    playButton.textContent = "Start Speed Measurement";
+    playButton.onclick = () => engine.play();
+    controlEl.appendChild(playButton);
+
+    function setResult(obj) {
+      const resTxt = document.createElement('pre');
+      resTxt.textContent = JSON.stringify(obj, null, 2);
+      resEl.textContent = '';
+      resEl.appendChild(resTxt);
+    }
+  </script>
+</body>
