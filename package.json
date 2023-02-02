@@ -1,0 +1,71 @@
+{
+  "name": "@cloudflare/speedtest",
+  "version": "0.0.1",
+  "description": "Component to perform network speed tests against Cloudflare's edge network",
+  "type": "module",
+  "exports": "./dist/speedtest.js",
+  "main": "dist/speedtest.js",
+  "module": "dist/speedtest.js",
+  "types": "dist/speedtest.d.ts",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudflare/speedtest.git"
+  },
+  "homepage": "https://github.com/cloudflare/speedtest",
+  "keywords": [
+    "cloudflare",
+    "speed",
+    "network quality",
+    "bandwidth",
+    "latency",
+    "packet loss"
+  ],
+  "author": {
+    "name": "Vasco Asturiano",
+    "email": "vasco@cloudflare.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cloudflare/speedtest/issues"
+  },
+  "scripts": {
+    "build": "rimraf dist && rollup -c",
+    "dev": "rollup -w -c",
+    "lint": "eslint \"src/**/*.js\"",
+    "format": "prettier --write \"src/**/*.js\"",
+    "prepare": "husky install .husky && npm run build"
+  },
+  "lint-staged": {
+    "*.js": "eslint"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "dependencies": {
+    "d3-scale": "^4.0.2",
+    "isomorphic-fetch": "^3.0.0",
+    "lodash.memoize": "^4.1.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.12",
+    "@babel/preset-env": "^7.20.2",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "eslint": "^8.33.0",
+    "eslint-plugin-compat": "^4.0.2",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-json": "^3.1.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.1.0",
+    "prettier": "^2.8.3",
+    "rimraf": "^4.1.2",
+    "rollup": "^3.12.1",
+    "rollup-plugin-dts": "^5.1.1",
+    "typescript": "^4.9.5"
+  },
+  "engines": {
+    "node": ">=18.2.0"
+  }
+}

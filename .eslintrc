@@ -1,0 +1,43 @@
+{
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2022": true
+  },
+  "parserOptions": {
+    "sourceType": "module",
+    "ecmaVersion": 13
+  },
+  "plugins": [
+    "compat",
+    "import",
+    "json",
+    "prettier"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:compat/recommended",
+    "plugin:import/recommended",
+    "plugin:json/recommended"
+  ],
+  "rules": {
+    "no-prototype-builtins": "off",
+
+    "default-case": "error",
+    "eqeqeq": "error",
+    "guard-for-in": "error",
+    "no-self-compare": "error",
+    "no-void": "error",
+    "radix": "error",
+    "wrap-iife": ["error", "inside"],
+
+    "import/first": "warn",
+    "import/no-absolute-path": "error",
+    "import/no-deprecated": "warn",
+    "import/no-mutable-exports": "warn",
+    "prettier/prettier": "error"
+  },
+  "settings": {
+    "targets": ">= 5%"
+  }
+}
