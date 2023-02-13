@@ -19,6 +19,7 @@ class Results {
   // Public methods
   clear() {
     this.raw = Object.assign(
+      {},
       ...[...new Set(this.#config.measurements.map(m => m.type))].map(m => ({
         [m]: { started: false, finished: false, results: {} }
       }))
