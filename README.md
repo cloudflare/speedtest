@@ -34,7 +34,6 @@ new SpeedTest()
 `SpeedTest` is a JS Class and should be instantiated with the `new` keyword. It's not required to pass a config object, all items have default values.
 
 ### Instantiation
-
 ```js
 new SpeedTest({ configOptions })
 ```
@@ -59,7 +58,6 @@ new SpeedTest({ configOptions })
 | <b>loadedLatencyMaxPoints</b>: <i>number</i> | The maximum number of data points to keep for loaded latency measurements. When more than this amount are available, the latest ones are kept. | 20 |
 
 ### Attributes
-
 | Attribute | Description |
 | --- | --- |
 | <b>results</b>: <i>[Results](#results-object)</i> | Getter of the current [test results](#results-object) object. May yield incomplete values if the test is still running. |
@@ -67,13 +65,11 @@ new SpeedTest({ configOptions })
 | <b>isFinished</b>: <i>boolean</i> | Getter of whether the test engine has finished all the measurements, and the results are considered final. |
 
 ### Methods
-
 | Method | Description |
 | --- | --- |
 | <b>play()</b> | Starts or resumes the measurements. Does nothing if the engine is already running, or is finished. |
 | <b>pause()</b> | Pauses the measurements. Does nothing if the engine is already paused, or is finished. |
 | <b>restart()</b> | Clears the current results and restarts the measurements from the beginning. |
-
 
 ### Notification Events
 | Event Method | Arguments | Description |
@@ -83,54 +79,50 @@ new SpeedTest({ configOptions })
 | <b>onFinish</b> | results: <i>[Results](#results-object)</i> | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) are included as function argument. |
 
 ### Measurement config
-
 The specific measurements to be performed by the test engine (and their sequence) can be customized using the `measurements` config option. This should be an array of objects, each with a `type` field, plus additional fields specific to that measurement type.
 
 The default set of measurements that is performed by the engine is:
 ```js
 [
-    { type: 'latency', numPackets: 1 }, // initial latency estimation
-    { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true }, // initial download estimation
-    { type: 'latency', numPackets: 20 },
-    { type: 'download', bytes: 1e5, count: 9 },
-    { type: 'download', bytes: 1e6, count: 8 },
-    { type: 'upload', bytes: 1e5, count: 8 },
-    { type: 'packetLoss', numPackets: 1e3, responsesWaitTime: 3000 },
-    { type: 'upload', bytes: 1e6, count: 6 },
-    { type: 'download', bytes: 1e7, count: 6 },
-    { type: 'upload', bytes: 1e7, count: 4 },
-    { type: 'download', bytes: 2.5e7, count: 4 },
-    { type: 'upload', bytes: 2.5e7, count: 4 },
-    { type: 'download', bytes: 1e8, count: 3 },
-    { type: 'upload', bytes: 5e7, count: 3 },
-    { type: 'download', bytes: 2.5e8, count: 2 }
-  ]
+  { type: 'latency', numPackets: 1 }, // initial latency estimation
+  { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true }, // initial download estimation
+  { type: 'latency', numPackets: 20 },
+  { type: 'download', bytes: 1e5, count: 9 },
+  { type: 'download', bytes: 1e6, count: 8 },
+  { type: 'upload', bytes: 1e5, count: 8 },
+  { type: 'packetLoss', numPackets: 1e3, responsesWaitTime: 3000 },
+  { type: 'upload', bytes: 1e6, count: 6 },
+  { type: 'download', bytes: 1e7, count: 6 },
+  { type: 'upload', bytes: 1e7, count: 4 },
+  { type: 'download', bytes: 2.5e7, count: 4 },
+  { type: 'upload', bytes: 2.5e7, count: 4 },
+  { type: 'download', bytes: 1e8, count: 3 },
+  { type: 'upload', bytes: 5e7, count: 3 },
+  { type: 'download', bytes: 2.5e8, count: 2 }
+]
 ```
 
 Here are the fields available per measurement type:
 
 #### latency
-
 | Field | Required | Description | Default |
-| --- | --- | --- | :--: |
+| --- | :--: | --- | :--: |
 | <b>numPackets</b>: <i>number</i> | yes | The number of latency GET requests to perform. These requests are performed against the download API with `bytes=0`, and then extracted the round-trip time-to-first-byte timing between `requestStart` and `responseStart`. | - |
 
 #### download / upload
-
 Each of these measurement sets are bound to a specific file size. The engine follows a ramp-up methodology per direction (download or upload). Whenever there are multiple measurement sets (with increasing file sizes) for a direction, the engine will keep on performing them until it reaches the condition specified by `bandwidthMinRequestDuration`, at which point further sets in the same direction are ignored.
 
 | Field | Required | Description | Default |
-| --- | --- | --- | :--: |
+| --- | :--: | --- | :--: |
 | <b>bytes</b>: <i>number</i> | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits-per-second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). | - |
 | <b>count</b>: <i>number</i> | yes | The number of requests to perform for this file size. | - |
 | <b>bypassMinDuration</b>: <i>boolean</i> | no | Whether the `bandwidthMinRequestDuration` check should be ignored, and the engine is instructed to proceed with the measurements of this direction in any case. | `false` |
 
 #### packetLoss
-
 Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN server in a round-trip fashion, and determining how many packets do not arrive. The submission of these packets can be done in a batching method in which there's a sleep time in between batches.
 
 | Field | Required | Description | Default |
-| --- | --- | --- | :--: |
+| --- | :--: | --- | :--: |
 | <b>numPackets</b>: <i>number</i> | no | The total number of UDP packets to send. | 100 |
 | <b>responsesWaitTime</b>: <i>number</i> | no | The interval of time (in milliseconds) to wait after the latest packet reception before determining the measurement as complete, and all non-returned packets as lost. | 5000 |
 | <b>batchSize</b>: <i>number</i> | no | The number of packets in a batch. If this value is higher than `numPackets` there will be only one batch. | 10 |
@@ -138,7 +130,6 @@ Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN serv
 | <b>connectionTimeout</b>: <i>number</i> | no | Timeout for the connection to the TURN server. | 5000 |
 
 ### Results object
-
 An instance object used to access the results of the speedtest measurements. The following methods are available on this object:
 
 | Method | Description |
