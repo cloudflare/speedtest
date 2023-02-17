@@ -11,7 +11,8 @@ export type MeasurementConfig = {
   numPackets?: number,
   batchSize?: number,
   batchWaitTime?: number,
-  responsesWaitTime?: number
+  responsesWaitTime?: number,
+  connectionTimeout?: number,
 };
 
 export interface ConfigOptions {
@@ -21,7 +22,6 @@ export interface ConfigOptions {
   downloadApiUrl?: string,
   uploadApiUrl?: string,
   turnServerUri?: string,
-  turnServerCredsApiUrl?: string,
   turnServerUser?: string,
   turnServerPass?: string,
   includeCredentials?: boolean,
@@ -73,9 +73,9 @@ export declare class Results {
   getUnloadedLatencyPoints: () => number[];
   getDownLoadedLatency: () => number | undefined;
   getDownLoadedJitter: () => number | undefined;
-  getDownLoadedLatencyPoints: number[];
-  getUpLoadedLatency: number | undefined;
-  getUpLoadedJitter: number | undefined;
+  getDownLoadedLatencyPoints: () => number[];
+  getUpLoadedLatency: () => number | undefined;
+  getUpLoadedJitter: () => number | undefined;
   getUpLoadedLatencyPoints: () => number[];
   getDownloadBandwidth: () => number | undefined;
   getDownloadBandwidthPoints: () => BandwidthPoint[];
@@ -86,7 +86,7 @@ export declare class Results {
     packetLoss: number,
     totalMessages: number,
     numMessagesSent: number,
-    lostMessages: number
+    lostMessages: number[]
   } | { error: string } | undefined;
 
   getScores: () => {
