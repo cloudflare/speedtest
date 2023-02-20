@@ -2,13 +2,8 @@
   <div id="controls"></div>
   <div id="result"></div>
 
-  <script type="importmap">{ "imports": {
-    "d3-scale": "https://cdn.skypack.dev/d3-scale",
-    "isomorphic-fetch": "https://cdn.skypack.dev/isomorphic-fetch",
-    "lodash.memoize": "https://cdn.skypack.dev/lodash.memoize"
-  }}</script>
   <script type="module">
-    import SpeedTest from 'https://unpkg.com/@cloudflare/speedtest';
+    import SpeedTest from 'https://cdn.skypack.dev/@cloudflare/speedtest';
 
     const controlEl = document.getElementById('controls');
     const resEl = document.getElementById('result');
