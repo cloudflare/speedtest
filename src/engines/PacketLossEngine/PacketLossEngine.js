@@ -8,6 +8,7 @@ export default class PacketLossEngine {
       turnServerUser: username,
       turnServerPass: credential
     }),
+    turnServerCredsApiIncludeCredentials = false,
     turnServerUser,
     turnServerPass,
     numMsgs = 100,
@@ -27,7 +28,11 @@ export default class PacketLossEngine {
 
     (!turnServerUser || !turnServerPass
       ? // Get TURN credentials from API endpoint if not statically supplied
-        fetch(turnServerCredsApi, { credentials: 'include' })
+        fetch(turnServerCredsApi, {
+          credentials: turnServerCredsApiIncludeCredentials
+            ? 'include'
+            : undefined
+        })
           .then(r => r.json())
           .then(d => {
             if (d.error) throw d.error;

@@ -227,11 +227,13 @@ class MeasurementEngine {
             turnServerUri,
             turnServerCredsApiUrl: turnServerCredsApi,
             turnServerUser,
-            turnServerPass
+            turnServerPass,
+            includeCredentials
           } = this.#config;
           engine = new PacketLossEngine({
             turnServerUri,
             turnServerCredsApi,
+            turnServerCredsApiIncludeCredentials: includeCredentials,
             turnServerUser,
             turnServerPass,
             numMsgs,
