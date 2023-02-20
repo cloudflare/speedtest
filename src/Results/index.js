@@ -64,9 +64,14 @@ class Results {
     };
 
     return Object.assign(
-      ...Object.entries(items).map(([key, fn]) => ({
-        [key]: fn()
-      }))
+      ...Object.entries(items).map(([key, fn]) => {
+        const val = fn();
+        return val === undefined
+          ? {}
+          : {
+              [key]: val
+            };
+      })
     );
   }
 
