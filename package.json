@@ -1,6 +1,6 @@
 {
   "name": "@cloudflare/speedtest",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Component to perform network speed tests against Cloudflare's edge network",
   "type": "module",
   "exports": "./dist/speedtest.js",
