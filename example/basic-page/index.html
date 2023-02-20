@@ -8,21 +8,13 @@
     "lodash.memoize": "https://cdn.skypack.dev/lodash.memoize"
   }}</script>
   <script type="module">
-    import SpeedTest from '../../dist/speedtest.js';
+    import SpeedTest from 'https://unpkg.com/@cloudflare/speedtest';
 
     const controlEl = document.getElementById('controls');
     const resEl = document.getElementById('result');
 
     const engine = new SpeedTest({
-      autoStart: false,
-      logAimApiUrl: undefined,
-      measurements: [
-        // { type: 'latency', numPackets: 1 },
-        { type: 'download', bytes: 1e4, count: 1 },
-        // { type: 'upload', bytes: 1e4, count: 1 }
-      ],
-      // measureDownloadLoadedLatency: false,
-      // measureUploadLoadedLatency: false,
+      autoStart: false
     });
     engine.onRunningChange = running => controlEl.textContent = running ? 'Running...' : 'Finished!';
     engine.onResultsChange = ({ type }) => {
@@ -32,6 +24,7 @@
     engine.onFinish = results => {
       setResult(results.getSummary());
       console.log(results.getSummary());
+      console.log(results.getScores());
     };
 
     const playButton = document.createElement('button');
