@@ -44,6 +44,7 @@ export default class PacketLossEngine {
           turnServerPass
         })
     )
+      .catch(e => this.#onCredentialsFailure(e))
       .then(({ turnServerUser, turnServerPass }) => {
         const c = (this.#webRtcConnection = new SelfWebRtcDataConnection({
           iceServers: [
@@ -57,12 +58,12 @@ export default class PacketLossEngine {
         }));
 
         let connectionSuccess = false;
-        setTimeout(
-          () =>
-            !connectionSuccess &&
-            this.#onConnectionError('ICE connection timeout!'),
-          connectionTimeout
-        );
+        setTimeout(() => {
+          if (!connectionSuccess) {
+            c.close();
+            this.#onConnectionError('ICE connection timeout!');
+          }
+        }, connectionTimeout);
 
         const msgTracker = this.#msgTracker;
         c.onOpen = () => {
@@ -117,7 +118,7 @@ export default class PacketLossEngine {
           this.onMsgReceived(msg);
         };
       })
-      .catch(e => this.#onCredentialsFailure(e));
+      .catch(e => this.#onConnectionError(e.toString()));
   }
 
   // Public attributes
