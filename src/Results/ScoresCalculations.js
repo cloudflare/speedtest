@@ -6,8 +6,11 @@ const classificationNames = ['bad', 'poor', 'average', 'good', 'great'];
 
 const customResultTypes = {
   loadedLatencyIncrease: measurements =>
-    Math.max(measurements.downLoadedLatency, measurements.upLoadedLatency) -
-    measurements.latency
+    measurements.latency &&
+    (measurements.downLoadedLatency || measurements.upLoadedLatency)
+      ? Math.max(measurements.downLoadedLatency, measurements.upLoadedLatency) -
+        measurements.latency
+      : undefined
 };
 
 class ScoresCalculations {
@@ -22,16 +25,20 @@ class ScoresCalculations {
           const val = customResultTypes.hasOwnProperty(type)
             ? customResultTypes[type](measurements)
             : measurements[type];
-          return {
-            [type]: val === undefined ? 0 : +fn(val)
-          };
+          return val === undefined
+            ? {}
+            : {
+                [type]: val === undefined ? 0 : +fn(val)
+              };
         }
       )
     );
 
     return Object.assign(
-      ...Object.entries(this.#config.aimExperiencesDefs).map(
-        ([k, { input, pointThresholds }]) => {
+      {},
+      ...Object.entries(this.#config.aimExperiencesDefs)
+        .filter(([, { input }]) => input.every(k => scores.hasOwnProperty(k)))
+        .map(([k, { input, pointThresholds }]) => {
           const sumPoints = sum(input.map(k => scores[k]));
           const classificationIdx = scaleThreshold(
             pointThresholds,
@@ -45,8 +52,7 @@ class ScoresCalculations {
               classificationName
             }
           };
-        }
-      )
+        })
     );
   }
 

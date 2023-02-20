@@ -1,7 +1,7 @@
 import 'isomorphic-fetch';
 
 const round = (num, decimals = 0) =>
-  Math.round(num * 10 ** decimals) / 10 ** decimals;
+  !num ? num : Math.round(num * 10 ** decimals) / 10 ** decimals;
 
 const latencyPointsParser = durations => durations.map(d => round(d, 2));
 const bpsPointsParser = pnts =>
@@ -10,10 +10,13 @@ const bpsPointsParser = pnts =>
     bps: round(d.bps)
   }));
 
-const packetLossParser = d => ({
-  numMessages: d.numMessagesSent,
-  lossRatio: round(d.packetLoss, 4)
-});
+const packetLossParser = d =>
+  d.error
+    ? undefined
+    : {
+        numMessages: d.numMessagesSent,
+        lossRatio: round(d.packetLoss, 4)
+      };
 
 const resultsParsers = {
   latencyMs: ['getUnloadedLatencyPoints', latencyPointsParser],
