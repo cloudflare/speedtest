@@ -1,0 +1,15 @@
+name: PR Comment
+on:
+  pull_request:
+    types:
+      - opened
+jobs:
+  add_comment:
+    name: 'Add Comment'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: mshick/add-pr-comment@v2
+        with:
+          message: Please set a [semver](https://semver.org/) versioning label of either `major`, `minor`, or `patch` on this pull request.
