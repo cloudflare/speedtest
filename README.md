@@ -5,12 +5,12 @@ Cloudflare Speedtest
 [![Build Size][build-size-img]][build-size-url]
 [![NPM Downloads][npm-downloads-img]][npm-downloads-url]
 
-`@cloudflare/speedtest` is a JavaScript module to measure the quality of the host's network connection. It's the measurement engine that powers the Cloudflare speedtest measurement application available at [https://speed.cloudflare.com](https://speed.cloudflare.com).
+`@cloudflare/speedtest` is a JavaScript module to measure the quality of a client’s Internet connection. It's the measurement engine that powers the Cloudflare speedtest measurement application available at [https://speed.cloudflare.com](https://speed.cloudflare.com).
 
-It performs test requests against the [Cloudflare](https://www.cloudflare.com/) edge network and relies on the [PerformanceResourceTiming browser api](https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming) to extract timing results.
-The network connection is characterized by items such as latency, download/upload bandwidth and packet loss.
+The module performs test requests against the [Cloudflare](https://www.cloudflare.com/) edge network and relies on the [PerformanceResourceTiming browser api](https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming) to extract timing results.
+The network connection is characterized by items such as download/upload bandwidth, latency and packet loss.
 
-Please note that measurement results are collected by Cloudflare on completion, for the purpose of calculating aggregated insights regarding global network quality. 
+Please note that measurement results are collected by Cloudflare on completion for the purpose of calculating aggregated insights regarding Internet connection quality. 
 
 ## Installation
 
@@ -31,7 +31,7 @@ new SpeedTest()
 
 ## API reference
 
-`SpeedTest` is a JS Class and should be instantiated with the `new` keyword. It's not required to pass a config object, all items have default values.
+`SpeedTest` is a JavaScript Class and should be instantiated with the `new` keyword. It's not required to pass a config object, as all items have default values.
 
 ### Instantiation
 ```js
@@ -67,16 +67,16 @@ new SpeedTest({ configOptions })
 ### Methods
 | Method | Description |
 | --- | --- |
-| <b>play()</b> | Starts or resumes the measurements. Does nothing if the engine is already running, or is finished. |
-| <b>pause()</b> | Pauses the measurements. Does nothing if the engine is already paused, or is finished. |
+| <b>play()</b> | Starts or resumes the measurements. Does nothing if the engine is already running or is finished. |
+| <b>pause()</b> | Pauses the measurements. Does nothing if the engine is already paused or is finished. |
 | <b>restart()</b> | Clears the current results and restarts the measurements from the beginning. |
 
 ### Notification Events
 | Event Method | Arguments | Description |
 | --- | --- | :--: |
-| <b>onRunningChange</b> | running: <i>boolean</i> | Invoked whenever the test engine starts or stops. The current state is included as function argument. |
+| <b>onRunningChange</b> | running: <i>boolean</i> | Invoked whenever the test engine starts or stops. The current state is included as a function argument. |
 | <b>onResultsChange</b> | { type: <i>string</i> } | Invoked whenever any item changes in the results, usually indicating the completion of a measurement. The type of measurement that changed is included as an info attribute in the function argument. |
-| <b>onFinish</b> | results: <i>[Results](#results-object)</i> | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) are included as function argument. |
+| <b>onFinish</b> | results: <i>[Results](#results-object)</i> | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) is included as a function argument. |
 
 ### Measurement config
 The specific measurements to be performed by the test engine (and their sequence) can be customized using the `measurements` config option. This should be an array of objects, each with a `type` field, plus additional fields specific to that measurement type.
@@ -107,19 +107,19 @@ Here are the fields available per measurement type:
 #### latency
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
-| <b>numPackets</b>: <i>number</i> | yes | The number of latency GET requests to perform. These requests are performed against the download API with `bytes=0`, and then extracted the round-trip time-to-first-byte timing between `requestStart` and `responseStart`. | - |
+| <b>numPackets</b>: <i>number</i> | yes | The number of latency GET requests to perform. These requests are performed against the download API with `bytes=0`, and then the round-trip time-to-first-byte timing between `requestStart` and `responseStart` is extracted. | - |
 
 #### download / upload
 Each of these measurement sets are bound to a specific file size. The engine follows a ramp-up methodology per direction (download or upload). Whenever there are multiple measurement sets (with increasing file sizes) for a direction, the engine will keep on performing them until it reaches the condition specified by `bandwidthMinRequestDuration`, at which point further sets in the same direction are ignored.
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
-| <b>bytes</b>: <i>number</i> | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits-per-second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). | - |
+| <b>bytes</b>: <i>number</i> | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits per second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). | - |
 | <b>count</b>: <i>number</i> | yes | The number of requests to perform for this file size. | - |
 | <b>bypassMinDuration</b>: <i>boolean</i> | no | Whether the `bandwidthMinRequestDuration` check should be ignored, and the engine is instructed to proceed with the measurements of this direction in any case. | `false` |
 
 #### packetLoss
-Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN server in a round-trip fashion, and determining how many packets do not arrive. The submission of these packets can be done in a batching method in which there's a sleep time in between batches.
+Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN server in a round-trip fashion, and determining how many packets do not arrive. The submission of these packets can be done in a batching method, in which there's a sleep time in between batches.
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
@@ -150,7 +150,7 @@ An instance object used to access the results of the speedtest measurements. The
 | <b>getUploadBandwidthPoints()</b> | Returns an array with all the upload measurement results. Each item will include the following fields: `{ bytes, bps, duration, ping, measTime, serverTime, transferSize }`. |
 | <b>getPacketLoss()</b> | Returns the reduced value of the measured packet loss ratio (between 0 and 1). Requires a `packetLoss` measurement set. |
 | <b>getPacketLossDetails()</b> | Returns an object with the details of the packet loss measurement. Includes the following fields: `{ packetLoss, totalMessages, numMessagesSent, lostMessages }`. Requires a `packetLoss` measurement set. |
-| <b>getScores()</b> | Returns the computed [AIM scores](https://developers.cloudflare.com/fundamentals/speed/aim/) that categorize the quality of the network connection according to use cases such as streaming, gaming or real-time communications. This score is only available after the engine has finished performing all the measurements. |
+| <b>getScores()</b> | Returns the computed [AIM scores](https://developers.cloudflare.com/fundamentals/speed/aim/) that categorize the quality of the network connection according to use cases such as streaming, gaming or real-time communications. This score is only available after the engine has finished performing all of the measurements. |
 
 [npm-img]: https://img.shields.io/npm/v/@cloudflare/speedtest
 [npm-url]: https://npmjs.org/package/@cloudflare/speedtest
