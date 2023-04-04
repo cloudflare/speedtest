@@ -35,14 +35,14 @@ jobs:
     steps: 
       - uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v3
         with:
           node-version: 18
       - name: Git config
         run: |
-          git config --global user.name "${{ secrets.GH_USERNAME }}"
-          git config --global user.email "${{ secrets.GH_EMAIL }}"
+          git config --global user.name "${{ secrets.GITHUB_USERNAME }}"
+          git config --global user.email "${{ secrets.GITHUB_EMAIL }}"
       - name: Apply version bump (major)
         if: contains(github.event.pull_request.labels.*.name, 'major')
         run: npm version major
