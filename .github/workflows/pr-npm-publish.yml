@@ -37,6 +37,10 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+      - name: Git config
+        run: |
+          git config --global user.email "team@radar.cloudflare.com"
+          git config --global user.name "Cloudflare Radar"
       - name: Apply version bump (major)
         if: contains(github.event.pull_request.labels.*.name, 'major')
         run: npm version major
