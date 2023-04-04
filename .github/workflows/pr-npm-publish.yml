@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,7 +31,6 @@ jobs:
 
   bump-version:
     needs: build
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps: 
       - uses: actions/checkout@v3
