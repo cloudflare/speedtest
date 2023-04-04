@@ -9,7 +9,7 @@ export const percentile = (vals, perc = 0.5) => {
   const idx = (vals.length - 1) * perc;
   const rem = idx % 1;
 
-  if (rem == 0) return sortedVals[Math.round(idx)];
+  if (rem === 0) return sortedVals[Math.round(idx)];
 
   // calculate weighted average
   const edges = [Math.floor, Math.ceil].map(rndFn => sortedVals[rndFn(idx)]);
