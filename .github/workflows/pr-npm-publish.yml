@@ -53,7 +53,7 @@ jobs:
         if: contains(github.event.pull_request.labels.*.name, 'patch')
         run: npm version patch
       - name: Git push version bump
-        run: git push origin main --follow-tags --force
+        run: git push origin main --follow-tags
       - id: set-version
         name: Output version change
         run: npm pkg get version
