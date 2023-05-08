@@ -20,11 +20,11 @@ export default {
     },
     gaming: {
       input: ['latency', 'packetLoss', 'loadedLatencyIncrease'],
-      pointThresholds: [5, 15, 25, 30]
+      pointThresholds: [10, 20, 35, 50]
     },
     rtc: {
       input: ['latency', 'jitter', 'packetLoss', 'loadedLatencyIncrease'],
-      pointThresholds: [5, 15, 25, 40]
+      pointThresholds: [15, 20, 30, 42.5]
     }
   }
 };
