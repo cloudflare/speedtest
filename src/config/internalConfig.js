@@ -3,10 +3,13 @@ import { scaleThreshold } from 'd3-scale';
 export default {
   // AIM
   aimMeasurementScoring: {
-    packetLoss: scaleThreshold([0.01, 0.05], [10, 5, 0]),
-    latency: scaleThreshold([10, 20, 50], [20, 10, 5, 0]),
-    loadedLatencyIncrease: scaleThreshold([10, 20, 50], [20, 10, 5, 0]),
-    jitter: scaleThreshold([10, 20], [10, 5, 0]),
+    packetLoss: scaleThreshold([0.01, 0.05, 0.25, 0.5], [10, 5, 0, -10, -20]),
+    latency: scaleThreshold([10, 20, 50, 100, 500], [20, 10, 5, 0, -10, -20]),
+    loadedLatencyIncrease: scaleThreshold(
+      [10, 20, 50, 100, 500],
+      [20, 10, 5, 0, -10, -20]
+    ),
+    jitter: scaleThreshold([10, 20, 100, 500], [10, 5, 0, -10, -20]),
     download: scaleThreshold([1e6, 10e6, 50e6, 100e6], [0, 5, 10, 20, 30]),
     upload: scaleThreshold([1e6, 10e6, 50e6, 100e6], [0, 5, 10, 20, 30])
   },

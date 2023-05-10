@@ -39,7 +39,7 @@ class ScoresCalculations {
       ...Object.entries(this.#config.aimExperiencesDefs)
         .filter(([, { input }]) => input.every(k => scores.hasOwnProperty(k)))
         .map(([k, { input, pointThresholds }]) => {
-          const sumPoints = sum(input.map(k => scores[k]));
+          const sumPoints = Math.max(0, sum(input.map(k => scores[k])));
           const classificationIdx = scaleThreshold(
             pointThresholds,
             [0, 1, 2, 3, 4]
