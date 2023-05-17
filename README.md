@@ -25,8 +25,7 @@ npm i @cloudflare/speedtest
 ```js
 import SpeedTest from '@cloudflare/speedtest';
 
-new SpeedTest()
-  .onFinish(results => console.log(results.getSummary()));
+new SpeedTest().onFinish = results => console.log(results.getSummary());
 ```
 
 ## API reference
