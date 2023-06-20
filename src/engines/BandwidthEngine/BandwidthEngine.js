@@ -26,11 +26,9 @@ const calcDownloadDuration = ({ ping, payloadDownloadTime }) =>
 const calcUploadDuration = ({ ttfb }) => ttfb;
 
 const calcDownloadSpeed = ({ duration, transferSize }, numBytes) => {
+  // use transferSize if available. if estimating from numBytes, add ~0.5% of headers.
   const bits =
-    8 *
-    (transferSize !== undefined // use transferSize if available. if estimating from numBytes, add ~0.5% of headers.
-      ? transferSize
-      : +numBytes * (1 + ESTIMATED_HEADER_FRACTION));
+    8 * (transferSize || +numBytes * (1 + ESTIMATED_HEADER_FRACTION));
   const secs = duration / 1000;
 
   return !secs ? undefined : bits / secs;

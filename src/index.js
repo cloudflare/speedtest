@@ -86,7 +86,7 @@ class MeasurementEngine {
   #setFinished(finished) {
     if (finished !== this.#finished) {
       this.#finished = finished;
-      finished && this.#onFinish(this.results);
+      finished && setTimeout(() => this.#onFinish(this.results));
     }
   }
 
