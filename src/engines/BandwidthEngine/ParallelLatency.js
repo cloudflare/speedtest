@@ -8,12 +8,14 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       parallelLatencyThrottleMs = 100,
       downloadApiUrl,
       uploadApiUrl,
+      estimatedServerTime = 0,
       ...ptProps
     } = {}
   ) {
     super(measurements, {
       downloadApiUrl,
       uploadApiUrl,
+      estimatedServerTime,
       ...ptProps
     });
 
@@ -27,7 +29,12 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
             bypassMinDuration: true
           }
         ],
-        { downloadApiUrl, uploadApiUrl, throttleMs: parallelLatencyThrottleMs }
+        {
+          downloadApiUrl,
+          uploadApiUrl,
+          estimatedServerTime,
+          throttleMs: parallelLatencyThrottleMs
+        }
       );
       this.#latencyEngine.qsParams = {
         during: `${measurements[0].dir}load`

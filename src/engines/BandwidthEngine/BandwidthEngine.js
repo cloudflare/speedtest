@@ -5,7 +5,6 @@ import memoize from 'lodash.memoize';
 const MAX_RETRIES = 20;
 
 const ESTIMATED_HEADER_FRACTION = 0.005; // ~.5% of packet header / payload size. used when transferSize is not available.
-const ESTIMATED_SERVER_TIME = 15; // ms to discount from latency calculation (if not present in response headers)
 
 const cfGetServerTime = r => {
   // extract server-timing from headers: server-timing: cfRequestDuration;dur=15.999794
@@ -48,7 +47,12 @@ const genContent = memoize(numBytes => '0'.repeat(numBytes));
 class BandwidthMeasurementEngine {
   constructor(
     measurements,
-    { downloadApiUrl, uploadApiUrl, throttleMs = 0 } = {}
+    {
+      downloadApiUrl,
+      uploadApiUrl,
+      throttleMs = 0,
+      estimatedServerTime = 0
+    } = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
     if (!downloadApiUrl) throw new Error('Missing downloadApiUrl argument');
@@ -58,6 +62,7 @@ class BandwidthMeasurementEngine {
     this.#downloadApi = downloadApiUrl;
     this.#uploadApi = uploadApiUrl;
     this.#throttleMs = throttleMs;
+    this.#estimatedServerTime = Math.max(0, estimatedServerTime);
   }
 
   // Public attributes
@@ -138,6 +143,7 @@ class BandwidthMeasurementEngine {
   #retries = 0;
   #minDuration = -Infinity; // of current measurement
   #throttleMs = 0;
+  #estimatedServerTime = 0;
   #currentFetchPromise = undefined;
   #currentNextMsmTimeoutId = undefined;
 
@@ -299,7 +305,7 @@ class BandwidthMeasurementEngine {
         };
         timing.ping = Math.max(
           1e-2,
-          timing.ttfb - (serverTime || ESTIMATED_SERVER_TIME)
+          timing.ttfb - (serverTime || this.#estimatedServerTime)
         ); // ttfb = network latency + server time
 
         timing.duration = (isDown ? calcDownloadDuration : calcUploadDuration)(

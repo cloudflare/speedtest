@@ -45,6 +45,7 @@ export default {
   measureUploadLoadedLatency: true,
   loadedLatencyThrottle: 400, // ms in between loaded latency requests
   bandwidthFinishRequestDuration: 1000, // download/upload duration (ms) to reach for stopping further measurements
+  estimatedServerTime: 10, // ms to discount from latency calculation (if not present in response headers)
 
   // Result interpretation
   latencyPercentile: 0.5, // Percentile used to calculate latency from a set of measurements
