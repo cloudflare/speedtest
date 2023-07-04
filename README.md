@@ -50,6 +50,7 @@ new SpeedTest({ configOptions })
 | <b>measureUploadLoadedLatency</b>: <i>boolean</i> | Whether to perform additional latency measurements simultaneously with upload requests, to measure loaded latency (during upload). | `true` |
 | <b>loadedLatencyThrottle</b>: <i>number</i> | Time interval to wait in between loaded latency requests (in milliseconds). | 400 |
 | <b>bandwidthFinishRequestDuration</b>: <i>number</i> | The minimum duration (in milliseconds) to reach in download/upload measurement sets for halting further measurements with larger file sizes in the same direction. | 1000 |
+| <b>estimatedServerTime</b>: <i>number</i> | If the download/upload APIs do not return a server-timing response header containing the time spent in the server, this fixed value (in milliseconds) will be subtracted from all time-to-first-byte calculations. | 10 |
 | <b>latencyPercentile</b>: <i>number</i> | The percentile (between 0 and 1) used to calculate latency from a set of measurements. | 0.5 |
 | <b>bandwidthPercentile</b>: <i>number</i> | The percentile (between 0 and 1) used to calculate bandwidth from a set of measurements. | 0.9 |
 | <b>bandwidthMinRequestDuration</b>: <i>number</i> | The minimum duration (in milliseconds) of a request to consider a measurement good enough to use in the bandwidth calculation. | 10 |

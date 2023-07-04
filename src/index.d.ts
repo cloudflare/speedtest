@@ -32,6 +32,7 @@ export interface ConfigOptions {
   measureUploadLoadedLatency?: boolean,
   loadedLatencyThrottle?: number,
   bandwidthFinishRequestDuration?: number,
+  estimatedServerTime?: number;
 
   // Result interpretation
   latencyPercentile?: number,

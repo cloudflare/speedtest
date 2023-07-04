@@ -154,7 +154,7 @@ class MeasurementEngine {
     const { type, ...msmConfig } = this.#config.measurements[this.#curMsmIdx];
     const msmResults = this.#curTypeResults();
 
-    const { downloadApiUrl, uploadApiUrl } = this.#config;
+    const { downloadApiUrl, uploadApiUrl, estimatedServerTime } = this.#config;
 
     let engine;
     switch (type) {
@@ -292,6 +292,7 @@ class MeasurementEngine {
           {
             downloadApiUrl,
             uploadApiUrl,
+            estimatedServerTime,
             logApiUrl: this.#config.logMeasurementApiUrl,
             measurementId: this.#measurementId,
 
@@ -347,6 +348,7 @@ class MeasurementEngine {
             {
               downloadApiUrl,
               uploadApiUrl,
+              estimatedServerTime,
               logApiUrl: this.#config.logMeasurementApiUrl,
               measurementId: this.#measurementId,
               measureParallelLatency,
