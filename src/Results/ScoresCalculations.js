@@ -13,6 +13,10 @@ const customResultTypes = {
       : undefined
 };
 
+const defaultPoints = {
+  packetLoss: 0
+};
+
 class ScoresCalculations {
   constructor(config) {
     this.#config = config;
@@ -26,7 +30,9 @@ class ScoresCalculations {
             ? customResultTypes[type](measurements)
             : measurements[type];
           return val === undefined
-            ? {}
+            ? defaultPoints.hasOwnProperty(type)
+              ? { [type]: defaultPoints[type] }
+              : {}
             : {
                 [type]: val === undefined ? 0 : +fn(val)
               };
