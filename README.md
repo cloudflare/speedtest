@@ -37,25 +37,25 @@ new SpeedTest().onFinish = results => console.log(results.getSummary());
 new SpeedTest({ configOptions })
 ```
 
-| Config option                                        | Description                                                                                                                                                                                                         |                Default                |
-|------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------------------:|
-| <b>autoStart</b>: <i>boolean</i>                     | Whether to automatically start the measurements on instantiation.                                                                                                                                                   |                `true`                 |
-| <b>downloadApiUrl</b>: <i>string</i>                 | The URL of the API for performing download GET requests.                                                                                                                                                            | `https://speed.cloudflare.com/__down` |
-| <b>uploadApiUrl</b>: <i>string</i>                   | The URL of the API for performing upload POST requests.                                                                                                                                                             |  `https://speed.cloudflare.com/__up`  |
-| <b>turnServerUri</b>: <i>string</i>                  | The URI of the TURN server used to measure packet loss.                                                                                                                                                             |   `turn.speed.cloudflare.com:50000`   |
-| <b>turnServerUser</b>: <i>string</i>                 | The username for the TURN server credentials.                                                                                                                                                                       |                   -                   |
-| <b>turnServerPass</b>: <i>string</i>                 | The password for the TURN server credentials.                                                                                                                                                                       |                   -                   |
-| <b>measurements</b>: <i>array</i>                    | The sequence of measurements to perform by the speedtest engine. See [below](#measurement-config) for the specific syntax of this option.                                                                           |                                       |
-| <b>measureDownloadLoadedLatency</b>: <i>boolean</i>  | Whether to perform additional latency measurements simultaneously with download requests, to measure loaded latency (during download).                                                                              |                `true`                 |
-| <b>measureUploadLoadedLatency</b>: <i>boolean</i>    | Whether to perform additional latency measurements simultaneously with upload requests, to measure loaded latency (during upload).                                                                                  |                `true`                 |
-| <b>loadedLatencyThrottle</b>: <i>number</i>          | Time interval to wait in between loaded latency requests (in milliseconds).                                                                                                                                         |                  400                  |
-| <b>bandwidthFinishRequestDuration</b>: <i>number</i> | The minimum duration (in milliseconds) to reach in download/upload measurement sets for halting further measurements with larger file sizes in the same direction.                                                  |                 1000                  |
-| <b>estimatedServerTime</b>: <i>number</i>            | If the download/upload APIs do not return a server-timing response header containing the time spent in the server, this fixed value (in milliseconds) will be subtracted from all time-to-first-byte calculations.  |                  10                   |
-| <b>latencyPercentile</b>: <i>number</i>              | The percentile (between 0 and 1) used to calculate latency from a set of measurements.                                                                                                                              |                  0.5                  |
-| <b>bandwidthPercentile</b>: <i>number</i>            | The percentile (between 0 and 1) used to calculate bandwidth from a set of measurements.                                                                                                                            |                  0.9                  |
-| <b>bandwidthMinRequestDuration</b>: <i>number</i>    | The minimum duration (in milliseconds) of a request to consider a measurement good enough to use in the bandwidth calculation.                                                                                      |                  10                   |
-| <b>loadedRequestMinDuration</b>: <i>number</i>       | The minimum duration (in milliseconds) of a request to consider it to be loading the connection.                                                                                                                    |                  250                  |
-| <b>loadedLatencyMaxPoints</b>: <i>number</i>         | The maximum number of data points to keep for loaded latency measurements. When more than this amount are available, the latest ones are kept.                                                                      |                  20                   |
+| Config option | Description | Default |
+| --- | --- | :--: |
+| <b>autoStart</b>: <i>boolean</i> | Whether to automatically start the measurements on instantiation. | `true` |
+| <b>downloadApiUrl</b>: <i>string</i> | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
+| <b>uploadApiUrl</b>: <i>string</i> | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
+| <b>turnServerUri</b>: <i>string</i> | The URI of the TURN server used to measure packet loss. | `turn.speed.cloudflare.com:50000` |
+| <b>turnServerUser</b>: <i>string</i> | The username for the TURN server credentials. | - |
+| <b>turnServerPass</b>: <i>string</i> | The password for the TURN server credentials. | - |
+| <b>measurements</b>: <i>array</i> | The sequence of measurements to perform by the speedtest engine. See [below](#measurement-config) for the specific syntax of this option. ||
+| <b>measureDownloadLoadedLatency</b>: <i>boolean</i> | Whether to perform additional latency measurements simultaneously with download requests, to measure loaded latency (during download). | `true` |
+| <b>measureUploadLoadedLatency</b>: <i>boolean</i> | Whether to perform additional latency measurements simultaneously with upload requests, to measure loaded latency (during upload). | `true` |
+| <b>loadedLatencyThrottle</b>: <i>number</i> | Time interval to wait in between loaded latency requests (in milliseconds). | 400 |
+| <b>bandwidthFinishRequestDuration</b>: <i>number</i> | The minimum duration (in milliseconds) to reach in download/upload measurement sets for halting further measurements with larger file sizes in the same direction. | 1000 |
+| <b>estimatedServerTime</b>: <i>number</i> | If the download/upload APIs do not return a server-timing response header containing the time spent in the server, this fixed value (in milliseconds) will be subtracted from all time-to-first-byte calculations. | 10 |
+| <b>latencyPercentile</b>: <i>number</i> | The percentile (between 0 and 1) used to calculate latency from a set of measurements. | 0.5 |
+| <b>bandwidthPercentile</b>: <i>number</i> | The percentile (between 0 and 1) used to calculate bandwidth from a set of measurements. | 0.9 |
+| <b>bandwidthMinRequestDuration</b>: <i>number</i> | The minimum duration (in milliseconds) of a request to consider a measurement good enough to use in the bandwidth calculation. | 10 |
+| <b>loadedRequestMinDuration</b>: <i>number</i> | The minimum duration (in milliseconds) of a request to consider it to be loading the connection. | 250 |
+| <b>loadedLatencyMaxPoints</b>: <i>number</i> | The maximum number of data points to keep for loaded latency measurements. When more than this amount are available, the latest ones are kept. | 20 |
 
 ### Attributes
 | Attribute | Description |
