@@ -123,6 +123,10 @@ class BandwidthMeasurementEngine {
     this.#setRunning(false);
   }
 
+  stop() {
+    this.pause();
+  }
+
   play() {
     if (!this.#running) {
       this.#setRunning(true);
