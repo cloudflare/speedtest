@@ -277,6 +277,9 @@ class BandwidthMeasurementEngine {
     let serverTime;
     const curPromise = (this.#currentFetchPromise = fetch(url, fetchOpt) // eslint-disable-line compat/compat
       .then(r => {
+        // Mark the end of the request and measure the duration
+        performance.mark(`${url}-end`);
+        performance.measure(url, `${url}-start`, `${url}-end`);
         if (r.ok) return r;
         throw Error(r.statusText);
       })
