@@ -271,6 +271,9 @@ class BandwidthMeasurementEngine {
       this.#fetchOptions
     );
 
+    // Mark the start of the request
+    performance.mark(`${url}-start`);
+
     let serverTime;
     const curPromise = (this.#currentFetchPromise = fetch(url, fetchOpt) // eslint-disable-line compat/compat
       .then(r => {
