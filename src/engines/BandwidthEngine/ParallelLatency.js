@@ -41,7 +41,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       };
 
       super.onRunningChange = this.#setLatencyRunning;
-      super.onConnectionError = () => this.#latencyEngine.stop();
+      super.onConnectionError = () => this.#latencyEngine.pause();
     }
   }
 
@@ -75,7 +75,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
 
   set onConnectionError(onConnectionError) {
     super.onConnectionError = (...args) => {
-      this.#latencyEngine && this.#latencyEngine.stop();
+      this.#latencyEngine && this.#latencyEngine.pause();
       onConnectionError(...args);
     };
   }
