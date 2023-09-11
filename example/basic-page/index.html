@@ -22,6 +22,8 @@
       console.log(results.getScores());
     };
 
+    engine.onError = (e) => console.log(e);
+
     const playButton = document.createElement('button');
     playButton.textContent = "Start Speed Measurement";
     playButton.onclick = () => engine.play();
