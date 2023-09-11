@@ -113,6 +113,7 @@ declare class SpeedTestEngine {
   onRunningChange: (running: boolean) => void;
   onResultsChange: ({ type: string }) => void;
   onFinish: (results: Results) => void;
+  onError: (error: string) => void;
 }
 
 export default SpeedTestEngine;

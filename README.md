@@ -72,11 +72,12 @@ new SpeedTest({ configOptions })
 | <b>restart()</b> | Clears the current results and restarts the measurements from the beginning. |
 
 ### Notification Events
-| Event Method | Arguments | Description |
-| --- | --- | :--: |
-| <b>onRunningChange</b> | running: <i>boolean</i> | Invoked whenever the test engine starts or stops. The current state is included as a function argument. |
-| <b>onResultsChange</b> | { type: <i>string</i> } | Invoked whenever any item changes in the results, usually indicating the completion of a measurement. The type of measurement that changed is included as an info attribute in the function argument. |
-| <b>onFinish</b> | results: <i>[Results](#results-object)</i> | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) is included as a function argument. |
+| Event Method           | Arguments                                  | Description |
+|------------------------|--------------------------------------------| :--: |
+| <b>onRunningChange</b> | running: <i>boolean</i>                    | Invoked whenever the test engine starts or stops. The current state is included as a function argument. |
+| <b>onResultsChange</b> | { type: <i>string</i> }                    | Invoked whenever any item changes in the results, usually indicating the completion of a measurement. The type of measurement that changed is included as an info attribute in the function argument. |
+| <b>onFinish</b>        | results: <i>[Results](#results-object)</i> | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) is included as a function argument. |
+| <b>onError</b>         | error: <i>string</i>                       | Invoked whenever an error occurs during one of the measurements. The error details are included as a function argument. |
 
 ### Measurement config
 The specific measurements to be performed by the test engine (and their sequence) can be customized using the `measurements` config option. This should be an array of objects, each with a `type` field, plus additional fields specific to that measurement type.

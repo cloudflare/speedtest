@@ -45,6 +45,11 @@ class MeasurementEngine {
     this.#onFinish = f;
   }
 
+  #onError = () => {}; // callback invoked if an error occurs during measurement
+  set onError(f) {
+    this.#onError = f;
+  }
+
   // Public methods
   pause() {
     pausableTypes.includes(this.#curType()) && this.#curEngine.pause();
@@ -266,12 +271,16 @@ class MeasurementEngine {
         engine.onConnectionError = e => {
           msmResults.error = e;
           this.onResultsChange({ type });
+          this.#onError(`Connection error while measuring packet loss: ${e}`);
           this.#next();
         };
 
         engine.onCredentialsFailure = () => {
           msmResults.error = 'unable to get turn server credentials';
           this.onResultsChange({ type });
+          this.#onError(
+            'Error while measuring packet loss: unable to get turn server credentials.'
+          );
           this.#next();
         };
 
@@ -326,6 +335,7 @@ class MeasurementEngine {
         engine.onConnectionError = e => {
           msmResults.error = e;
           this.onResultsChange({ type });
+          this.#onError(`Connection error while measuring latency: ${e}`);
           this.#next();
         };
 
@@ -438,6 +448,7 @@ class MeasurementEngine {
           engine.onConnectionError = e => {
             msmResults.error = e;
             this.onResultsChange({ type });
+            this.#onError(`Connection error while measuring ${type}: ${e}`);
             this.#next();
           };
 
