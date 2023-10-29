@@ -42,7 +42,7 @@ export interface ConfigOptions {
   loadedLatencyMaxPoints?: number
 }
 
-interface BandwidthPoint {
+export interface BandwidthPoint {
   bytes: number,
   bps: number,
   duration: number,
@@ -52,8 +52,33 @@ interface BandwidthPoint {
   transferSize: number
 }
 
+export interface ResultTiming {
+  bps: number,
+  duration: number,
+  measTime: Date,
+  payloadDownloadTime: number,
+  ping: number,
+  serverTime: number,
+  transferSize: number,
+  ttfb: number,
+}
+
+export interface ResultDownloadTiming extends ResultTiming {
+  type: string;
+}
+
+export interface ResultLatency extends ResultTiming {
+  bytes: number;
+}
+
+export interface ResultDownload {
+  numMeasurements: number,
+  sideLatency: ResultLatency[],
+  timings: ResultDownloadTiming[]
+}
+
 export declare class Results {
-  constructor();
+  constructor ();
 
   readonly isFinished: boolean;
 
@@ -67,7 +92,7 @@ export declare class Results {
     upLoadedLatency?: number,
     upLoadedJitter?: number,
     packetLoss?: number,
-  }
+  };
 
   getUnloadedLatency: () => number | undefined;
   getUnloadedJitter: () => number | undefined;
@@ -96,11 +121,51 @@ export declare class Results {
       classificationIdx: 0 | 1 | 2 | 3 | 4;
       classificationName: 'bad' | 'poor' | 'average' | 'good' | 'great';
     }
-  }
+  };
+  raw: {
+    download: {
+      finished: boolean,
+      results: {
+        '100000'?: ResultDownload,
+        '1000000'?: ResultDownload,
+        '10000000'?: ResultDownload,
+      },
+      stated: boolean
+    },
+    latency: {
+      finished: boolean,
+      results: {
+        numMeasurements: number,
+        timings: ResultTiming[],
+        start: boolean,
+      },
+      stated: boolean
+    },
+    packetLoss: {
+      finished: boolean,
+      results: {
+        lostMessages: any[],
+        numMessagesSent: number,
+        packetLoss: number,
+        totalMessages: number,
+      },
+      stated: boolean
+    },
+    upload: {
+      finished: boolean,
+      finishedCurrentRound: boolean,
+      results: {
+        '100000'?: ResultDownload,
+        '1000000'?: ResultDownload,
+        '10000000'?: ResultDownload,
+      },
+      stated: boolean
+    },
+  };
 }
 
 declare class SpeedTestEngine {
-  constructor(config?: ConfigOptions);
+  constructor (config?: ConfigOptions);
 
   play: () => void;
   pause: () => void;
