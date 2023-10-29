@@ -15,6 +15,47 @@ export type MeasurementConfig = {
   connectionTimeout?: number,
 };
 
+export interface RawResults {
+  download: {
+    finished: boolean,
+    results: {
+      '100000'?: ResultDownload,
+      '1000000'?: ResultDownload,
+      '10000000'?: ResultDownload,
+    },
+    stated: boolean
+  },
+  latency: {
+    finished: boolean,
+    results: {
+      numMeasurements: number,
+      timings: ResultTiming[],
+      start: boolean,
+    },
+    stated: boolean
+  },
+  packetLoss: {
+    finished: boolean,
+    results: {
+      lostMessages: any[],
+      numMessagesSent: number,
+      packetLoss: number,
+      totalMessages: number,
+    },
+    stated: boolean
+  },
+  upload: {
+    finished: boolean,
+    finishedCurrentRound: boolean,
+    results: {
+      '100000'?: ResultDownload,
+      '1000000'?: ResultDownload,
+      '10000000'?: ResultDownload,
+    },
+    stated: boolean
+  },
+}
+
 export interface ConfigOptions {
   autoStart?: boolean;
 
@@ -122,46 +163,7 @@ export declare class Results {
       classificationName: 'bad' | 'poor' | 'average' | 'good' | 'great';
     }
   };
-  raw: {
-    download: {
-      finished: boolean,
-      results: {
-        '100000'?: ResultDownload,
-        '1000000'?: ResultDownload,
-        '10000000'?: ResultDownload,
-      },
-      stated: boolean
-    },
-    latency: {
-      finished: boolean,
-      results: {
-        numMeasurements: number,
-        timings: ResultTiming[],
-        start: boolean,
-      },
-      stated: boolean
-    },
-    packetLoss: {
-      finished: boolean,
-      results: {
-        lostMessages: any[],
-        numMessagesSent: number,
-        packetLoss: number,
-        totalMessages: number,
-      },
-      stated: boolean
-    },
-    upload: {
-      finished: boolean,
-      finishedCurrentRound: boolean,
-      results: {
-        '100000'?: ResultDownload,
-        '1000000'?: ResultDownload,
-        '10000000'?: ResultDownload,
-      },
-      stated: boolean
-    },
-  };
+  raw: RawResults;
 }
 
 declare class SpeedTestEngine {
