@@ -93,14 +93,8 @@ export interface BandwidthPoint {
   transferSize: number
 }
 
-export interface ResultTiming {
-  bps: number,
-  duration: number,
-  measTime: Date,
+export interface ResultTiming extends BandwidthPoint {
   payloadDownloadTime: number,
-  ping: number,
-  serverTime: number,
-  transferSize: number,
   ttfb: number,
 }
 
