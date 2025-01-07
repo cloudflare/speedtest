@@ -64,7 +64,12 @@ class BandwidthMeasurementEngine {
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
 
-    document.addEventListener('visibilitychange', this.#handleVisibilityChange);
+    if (typeof document !== 'undefined') {
+      document.addEventListener(
+        'visibilitychange',
+        this.#handleVisibilityChange
+      );
+    }
   }
 
   // Public attributes
@@ -90,9 +95,15 @@ class BandwidthMeasurementEngine {
   }
 
   #handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
+    if (
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'hidden'
+    ) {
       this.pause();
-    } else if (document.visibilityState === 'visible') {
+    } else if (
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'visible'
+    ) {
       this.play();
     }
   };
@@ -383,10 +394,12 @@ class BandwidthMeasurementEngine {
   }
 
   deleteEventListener() {
-    document.removeEventListener(
-      'visibilitychange',
-      this.#handleVisibilityChange
-    );
+    if (typeof document !== 'undefined') {
+      document.removeEventListener(
+        'visibilitychange',
+        this.#handleVisibilityChange
+      );
+    }
   }
 }
 
