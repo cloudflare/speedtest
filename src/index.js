@@ -330,7 +330,6 @@ class MeasurementEngine {
           msmResults.finished = true;
           this.onResultsChange({ type });
           this.#running && this.#next();
-          engine.deleteEventListener();
         };
 
         engine.onConnectionError = e => {
@@ -444,7 +443,6 @@ class MeasurementEngine {
             }
 
             this.#running && this.#next();
-            engine.deleteEventListener();
           };
 
           engine.onConnectionError = e => {

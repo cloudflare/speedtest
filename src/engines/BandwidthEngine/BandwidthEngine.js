@@ -63,13 +63,6 @@ class BandwidthMeasurementEngine {
     this.#uploadApi = uploadApiUrl;
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
-
-    if (typeof document !== 'undefined') {
-      document.addEventListener(
-        'visibilitychange',
-        this.#handleVisibilityChange
-      );
-    }
   }
 
   // Public attributes
@@ -93,20 +86,6 @@ class BandwidthMeasurementEngine {
   set fetchOptions(v) {
     this.#fetchOptions = v;
   }
-
-  #handleVisibilityChange = () => {
-    if (
-      typeof document !== 'undefined' &&
-      document.visibilityState === 'hidden'
-    ) {
-      this.pause();
-    } else if (
-      typeof document !== 'undefined' &&
-      document.visibilityState === 'visible'
-    ) {
-      this.play();
-    }
-  };
 
   finishRequestDuration = 1000; // download/upload duration (ms) to reach for stopping further measurements
   getServerTime = cfGetServerTime; // method to extract server time from response
@@ -391,15 +370,6 @@ class BandwidthMeasurementEngine {
   #cancelCurrentMeasurement() {
     const curPromise = this.#currentFetchPromise;
     curPromise && (curPromise._cancel = true);
-  }
-
-  deleteEventListener() {
-    if (typeof document !== 'undefined') {
-      document.removeEventListener(
-        'visibilitychange',
-        this.#handleVisibilityChange
-      );
-    }
   }
 }
 
