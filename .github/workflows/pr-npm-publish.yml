@@ -32,7 +32,9 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    steps: 
+    permissions:
+      contents: write
+    steps:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

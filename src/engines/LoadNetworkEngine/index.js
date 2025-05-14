@@ -38,10 +38,9 @@ class PromiseEngine {
   }
 
   #next() {
-    const curPromise = (this.#currentPromise = this.#promiseFn() // eslint-disable-line compat/compat
-      .then(() => {
-        !curPromise._cancel && this.#next();
-      }));
+    const curPromise = (this.#currentPromise = this.#promiseFn().then(() => {
+      !curPromise._cancel && this.#next();
+    }));
   }
 
   #cancelCurrent() {
