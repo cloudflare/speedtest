@@ -4,9 +4,10 @@ export default class PacketLossEngine {
   constructor({
     turnServerUri,
     turnServerCredsApi,
-    turnServerCredsApiParser = ({ username, credential }) => ({
+    turnServerCredsApiParser = ({ username, credential, server }) => ({
       turnServerUser: username,
-      turnServerPass: credential
+      turnServerPass: credential,
+      turnServerUri: server
     }),
     turnServerCredsApiIncludeCredentials = false,
     turnServerUser,
@@ -17,7 +18,8 @@ export default class PacketLossEngine {
     responsesWaitTime = 5000, // ms (debounced time after last msg without any response)
     connectionTimeout = 5000 // ms
   } = {}) {
-    if (!turnServerUri) throw new Error('Missing turnServerUri argument');
+    if (!turnServerUri && !turnServerCredsApi)
+      throw new Error('Missing turnServerCredsApi or turnServerUri argument');
 
     if ((!turnServerUser || !turnServerPass) && !turnServerCredsApi)
       throw new Error(
@@ -45,79 +47,85 @@ export default class PacketLossEngine {
         })
     )
       .catch(e => this.#onCredentialsFailure(e))
-      .then(({ turnServerUser, turnServerPass }) => {
-        const c = (this.#webRtcConnection = new SelfWebRtcDataConnection({
-          iceServers: [
-            {
-              urls: `turn:${turnServerUri}?transport=udp`,
-              username: turnServerUser,
-              credential: turnServerPass
-            }
-          ],
-          iceTransportPolicy: 'relay'
-        }));
-
-        let connectionSuccess = false;
-        setTimeout(() => {
-          if (!connectionSuccess) {
-            c.close();
-            this.#onConnectionError('ICE connection timeout!');
-          }
-        }, connectionTimeout);
-
-        const msgTracker = this.#msgTracker;
-        c.onOpen = () => {
-          connectionSuccess = true;
-
-          const self = this;
-          (function sendNum(n) {
-            if (n <= numMsgs) {
-              let i = n;
-              while (i <= Math.min(numMsgs, n + batchSize - 1)) {
-                msgTracker[i] = false;
-                c.send(i);
-                self.onMsgSent(i);
-                i++;
+      .then(
+        ({
+          turnServerUser,
+          turnServerPass,
+          turnServerUri: credsApiTurnServerUri
+        }) => {
+          const c = (this.#webRtcConnection = new SelfWebRtcDataConnection({
+            iceServers: [
+              {
+                urls: `turn:${credsApiTurnServerUri || turnServerUri}?transport=udp`,
+                username: turnServerUser,
+                credential: turnServerPass
               }
-              setTimeout(() => sendNum(i), batchWaitTime);
-            } else {
-              self.onAllMsgsSent(Object.keys(msgTracker).length);
+            ],
+            iceTransportPolicy: 'relay'
+          }));
 
-              const finishFn = () => {
-                c.close();
-                self.#onFinished(self.results);
-              };
-              let finishTimeout = setTimeout(finishFn, responsesWaitTime);
-
-              let missingMsgs = Object.values(self.#msgTracker).filter(
-                recv => !recv
-              ).length;
-              c.onMessageReceived = msg => {
-                clearTimeout(finishTimeout);
-
-                msgTracker[msg] = true;
-                self.onMsgReceived(msg);
-
-                missingMsgs--;
-                if (
-                  missingMsgs <= 0 &&
-                  Object.values(self.#msgTracker).every(recv => recv)
-                ) {
-                  // Last msg received, shortcut out
-                  finishFn();
-                } else {
-                  // restart timeout
-                  finishTimeout = setTimeout(finishFn, responsesWaitTime);
-                }
-              };
+          let connectionSuccess = false;
+          setTimeout(() => {
+            if (!connectionSuccess) {
+              c.close();
+              this.#onConnectionError('ICE connection timeout!');
             }
-          })(1);
-        };
-        c.onMessageReceived = msg => {
-          msgTracker[msg] = true;
-          this.onMsgReceived(msg);
-        };
-      })
+          }, connectionTimeout);
+
+          const msgTracker = this.#msgTracker;
+          c.onOpen = () => {
+            connectionSuccess = true;
+
+            const self = this;
+            (function sendNum(n) {
+              if (n <= numMsgs) {
+                let i = n;
+                while (i <= Math.min(numMsgs, n + batchSize - 1)) {
+                  msgTracker[i] = false;
+                  c.send(i);
+                  self.onMsgSent(i);
+                  i++;
+                }
+                setTimeout(() => sendNum(i), batchWaitTime);
+              } else {
+                self.onAllMsgsSent(Object.keys(msgTracker).length);
+
+                const finishFn = () => {
+                  c.close();
+                  self.#onFinished(self.results);
+                };
+                let finishTimeout = setTimeout(finishFn, responsesWaitTime);
+
+                let missingMsgs = Object.values(self.#msgTracker).filter(
+                  recv => !recv
+                ).length;
+                c.onMessageReceived = msg => {
+                  clearTimeout(finishTimeout);
+
+                  msgTracker[msg] = true;
+                  self.onMsgReceived(msg);
+
+                  missingMsgs--;
+                  if (
+                    missingMsgs <= 0 &&
+                    Object.values(self.#msgTracker).every(recv => recv)
+                  ) {
+                    // Last msg received, shortcut out
+                    finishFn();
+                  } else {
+                    // restart timeout
+                    finishTimeout = setTimeout(finishFn, responsesWaitTime);
+                  }
+                };
+              }
+            })(1);
+          };
+          c.onMessageReceived = msg => {
+            msgTracker[msg] = true;
+            this.onMsgReceived(msg);
+          };
+        }
+      )
       .catch(e => this.#onConnectionError(e.toString()));
   }
 

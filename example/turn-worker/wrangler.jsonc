@@ -1,0 +1,26 @@
+/**
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "turn-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-03-11",
+	"vars": {
+		// Origins allowed to request TURN credentials, comma-separated.
+		"CALLS_TURN_ORIGINS": "http://localhost:8787,https://speed.example.com,https://staging.speed.example.com",
+
+		// TTL of the generated TURN credentials, in seconds
+		"CALLS_TURN_TOKEN_TTL_SECONDS": 240
+	},
+	//"workers_dev": false,
+	//"routes": [
+	//	{
+	//		"pattern": "turn.example.com/*",
+	//		"zone_id": "<YOUR_ZONE_ID>"
+	//	}
+	//],
+	"observability": {
+		"enabled": true
+	}
+}

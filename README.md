@@ -11,6 +11,8 @@ The network connection is characterized by items such as download/upload bandwid
 
 Please note that measurement results are collected by Cloudflare on completion for the purpose of calculating aggregated insights regarding Internet connection quality.
 
+**Warning:** The public TURN server for Packet Loss testing is deprecated and will be discontinued soon. Read the [packetLoss](#packetloss) section for more information.
+
 ## Installation
 
 Add this package to your `package.json` by running this in the root of your project's directory:
@@ -42,7 +44,8 @@ new SpeedTest({ configOptions })
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
 | **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
 | **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
-| **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.speed.cloudflare.com:50000` |
+| **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.cloudflare.com:3478` |
+| **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
 | **turnServerPass**: *string* | The password for the TURN server credentials. | - |
 | **measurements**: *array* | The sequence of measurements to perform by the speedtest engine. See [below](#measurement-config) for the specific syntax of this option. ||
@@ -129,6 +132,10 @@ Each of these measurement sets are bound to a specific file size. The engine fol
 #### packetLoss
 
 Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN server in a round-trip fashion, and determining how many packets do not arrive. The submission of these packets can be done in a batching method, in which there's a sleep time in between batches.
+
+**Note:** You must provide your own TURN server configuration if you'd like to get packet loss results from this engine.
+
+Example code to enable this feature through a Cloudflare Worker, using a [Cloudflare Calls](https://developers.cloudflare.com/calls/) TURN server, is available at [example/turn-worker](example/turn-worker). Refer to the worker's [documentation](example/turn-worker/README.md) for setup and deployment instructions.
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |

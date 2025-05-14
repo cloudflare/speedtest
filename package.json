@@ -48,22 +48,22 @@
     "lodash.memoize": "^4.1.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.22.17",
-    "@babel/preset-env": "^7.22.15",
+    "@babel/core": "^7.27.1",
+    "@babel/preset-env": "^7.27.2",
     "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-node-resolve": "^15.2.1",
     "eslint": "^8.49.0",
     "eslint-plugin-compat": "^4.2.0",
-    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-json": "^3.1.0",
-    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-prettier": "^5.4.0",
     "husky": "^8.0.3",
     "lint-staged": "^14.0.1",
-    "prettier": "^3.0.3",
+    "prettier": "^3.5.3",
     "rimraf": "^5.0.1",
     "rollup": "^3.29.1",
-    "rollup-plugin-dts": "^6.0.2",
-    "typescript": "^5.2.2"
+    "rollup-plugin-dts": "^6.2.1",
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=12"
