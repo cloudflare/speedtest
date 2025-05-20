@@ -92,8 +92,8 @@ class Results {
     !this.raw.hasOwnProperty(resKey) || !this.raw[resKey].started
       ? defaultVal
       : surfaceError && this.raw[resKey].error
-      ? { error: this.raw[resKey].error }
-      : this.#measCalc[calcFn](this.raw[resKey].results);
+        ? { error: this.raw[resKey].error }
+        : this.#measCalc[calcFn](this.raw[resKey].results);
 
   #getV4Reachability = () =>
     this.#calcGetter('getReachability', 'v4Reachability');
