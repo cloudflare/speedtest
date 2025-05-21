@@ -72,7 +72,6 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#token = null;
     this.#requestTime = null;
 
-    // eslint-disable-next-line compat/compat
     fetch(this.#logApiUrl, {
       method: 'POST',
       body: JSON.stringify(logData),
