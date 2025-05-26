@@ -135,7 +135,7 @@ Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN serv
 
 **Note:** You must provide your own TURN server configuration if you'd like to get packet loss results from this engine.
 
-Example code to enable this feature through a Cloudflare Worker, using a [Cloudflare Calls](https://developers.cloudflare.com/calls/) TURN server, is available at [example/turn-worker](example/turn-worker). Refer to the worker's [documentation](example/turn-worker/README.md) for setup and deployment instructions.
+Example code to enable this feature through a Cloudflare Worker, using a [Cloudflare Realtime TURN server](https://developers.cloudflare.com/realtime/turn/), is available at [example/turn-worker](example/turn-worker). Refer to the worker's [documentation](example/turn-worker/README.md) for setup and deployment instructions.
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
