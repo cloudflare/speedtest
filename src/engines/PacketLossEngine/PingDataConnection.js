@@ -1,9 +1,10 @@
-import ping from 'ping';
+/* global process */
+import { spawn } from 'child_process';
 
 export default class PingDataConnection {
   constructor({
     host = 'speed.cloudflare.com',
-    timeout = 1000, // 1 second timeout for ping
+    timeout = 5000, // 5 seconds timeout for ping command
     maxConcurrent = 10,
     batchDelay = 10, // ms between batches to avoid overwhelming
     ...options
@@ -63,43 +64,69 @@ export default class PingDataConnection {
     if (this.#closed) return;
 
     this.#activeRequests++;
-    // const startTime = performance.now(); // Removed unused variable
 
-    // Add small random delay to prevent ping flooding
     const jitter = Math.random() * this.#batchDelay;
 
-    setTimeout(async () => {
+    setTimeout(() => {
       if (this.#closed) {
         this.#activeRequests--;
         return;
       }
 
-      try {
-        // Send ICMP ping
-        const result = await ping.promise.probe(this.#host, {
-          timeout: this.#timeout / 1000, // ping package expects seconds
-          extra: ['-c', '1'], // Send only 1 packet
-          ...this.#options
-        });
+      // Use 'ping' command with arguments as an array for security
+      // -c 1: send 1 packet
+      // -W <timeout>: wait <timeout> seconds for response (macOS/Linux)
+      // -w <timeout>: wait <timeout> milliseconds for response (Windows)
+      const isWindows = process.platform === 'win32';
+      const pingCommand = 'ping';
+      const pingArgs = isWindows
+        ? ['-n', '1', '-w', String(this.#timeout), this.#host]
+        : ['-c', '1', '-W', String(this.#timeout / 1000), this.#host];
 
-        this.#finishRequest(msg, result.alive);
-      } catch {
-        // Ping failed - treat as packet loss
-        this.#finishRequest(msg, false);
-      }
+      const child = spawn(pingCommand, pingArgs);
+      let stdout = '';
+      let stderr = ''; // Keep stderr for logging if needed, but not for success/failure logic
+
+      child.stdout.on('data', data => {
+        stdout += data.toString();
+      });
+
+      child.stderr.on('data', data => {
+        stderr += data.toString();
+      });
+
+      child.on('error', err => {
+        // Log spawn errors, but don't treat as packet loss directly
+        // The 'close' event with a non-zero code will handle actual loss
+        console.error(
+          `PingDataConnection: Spawn error for msg ${msg}: ${err.message}`
+        ); // Re-add error logging
+      });
+
+      child.on('close', code => {
+        let alive = false;
+        let time = null; // Change to null for consistency
+
+        if (code === 0) {
+          // Ping successful exit code
+          alive = true;
+
+          // Parse output for time from the summary line (e.g., "round-trip min/avg/max/stddev = 13.775/19.479/24.519/3.814 ms")
+          const match = stdout.match(
+            /round-trip min\/avg\/max\/stddev = \d+\.?\d*\/(\d+\.?\d*)/
+          );
+          if (match && match[1]) {
+            time = parseFloat(match[1]);
+          }
+        }
+
+        // Call onMessageReceived with detailed result
+        this.onMessageReceived(msg, { alive, time, code, stdout, stderr });
+
+        this.#activeRequests--; // Decrement active requests here
+        this.#processQueue(); // Process queue after request finishes
+      });
     }, jitter);
-  }
-
-  #finishRequest(msg, success) {
-    this.#activeRequests--;
-
-    if (success && !this.#closed) {
-      // Simulate message echo (like WebRTC does)
-      this.onMessageReceived(msg);
-    }
-    // If not successful, we don't call onMessageReceived - this represents real packet loss
-
-    this.#processQueue();
   }
 
   #processQueue() {

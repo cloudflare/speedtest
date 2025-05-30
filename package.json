@@ -42,12 +42,11 @@
   "files": [
     "dist/**/*"
   ],
-  "dependencies": {
-    "d3-scale": "^4.0.2",
-    "isomorphic-fetch": "^3.0.0",
-    "lodash.memoize": "^4.1.2",
-    "ping": "^0.4.4"
-  },
+    "dependencies": {
+        "d3-scale": "^4.0.2",
+        "isomorphic-fetch": "^3.0.0",
+        "lodash.memoize": "^4.1.2"
+    },
   "devDependencies": {
     "@babel/core": "^7.27.1",
     "@babel/eslint-parser": "^7.27.1",

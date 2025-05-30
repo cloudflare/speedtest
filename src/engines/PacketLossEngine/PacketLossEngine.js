@@ -21,14 +21,15 @@ export default class PacketLossEngine {
     turnServerPass,
     numMsgs = 100,
     batchSize = 10,
-    batchWaitTime = 10, // ms (in between batches)
+    batchWaitTime = 100, // Increased from 10ms to 100ms for more stable pinging
     responsesWaitTime = 5000, // ms (debounced time after last msg without any response)
     connectionTimeout = 5000 // ms
   } = {}) {
-    // Skip TURN server validation for ping-based connections (Node.js)
+    // Define isNodeJs at the very beginning of the constructor
     const isNodeJs =
       typeof window === 'undefined' && typeof process !== 'undefined';
 
+    // Skip TURN server validation for ping-based connections (Node.js)
     if (!isNodeJs) {
       if (!turnServerUri && !turnServerCredsApi)
         throw new Error('Missing turnServerCredsApi or turnServerUri argument');
@@ -41,9 +42,9 @@ export default class PacketLossEngine {
 
     this.#numMsgs = numMsgs;
 
-    // For Node.js (ping), skip credential fetching and use simpler connection config
+    // For Node.js (ping), directly resolve the promise with a fixed host for ICMP
     const credentialsPromise = isNodeJs
-      ? Promise.resolve({ host: turnServerUri || 'speed.cloudflare.com' })
+      ? Promise.resolve({ host: 'speed.cloudflare.com' }) // Always use speed.cloudflare.com for ICMP
       : !turnServerUser || !turnServerPass
         ? // Get TURN credentials from API endpoint if not statically supplied
           fetch(turnServerCredsApi, {
@@ -63,10 +64,12 @@ export default class PacketLossEngine {
           });
 
     credentialsPromise
-      .catch(e => this.#onCredentialsFailure(e))
+      .catch(e => {
+        this.#onCredentialsFailure(e);
+      })
       .then(credentials => {
         const connectionConfig = isNodeJs
-          ? { host: credentials.host || 'speed.cloudflare.com' }
+          ? { host: credentials.host } // Use the extracted hostname
           : {
               iceServers: [
                 {
@@ -93,13 +96,17 @@ export default class PacketLossEngine {
         const msgTracker = this.#msgTracker;
         c.onOpen = () => {
           connectionSuccess = true;
-
           const self = this;
           (function sendNum(n) {
             if (n <= numMsgs) {
               let i = n;
               while (i <= Math.min(numMsgs, n + batchSize - 1)) {
-                msgTracker[i] = false;
+                msgTracker[i] = {
+                  sent: true,
+                  received: false,
+                  time: null,
+                  raw: null
+                }; // Store detailed info
                 c.send(i);
                 self.onMsgSent(i);
                 i++;
@@ -110,23 +117,30 @@ export default class PacketLossEngine {
 
               const finishFn = () => {
                 c.close();
+                // No need to call self.onMsgReceived(null) here, as it's handled by individual messages
                 self.#onFinished(self.results);
               };
               let finishTimeout = setTimeout(finishFn, responsesWaitTime);
 
               let missingMsgs = Object.values(self.#msgTracker).filter(
-                recv => !recv
-              ).length;
-              c.onMessageReceived = msg => {
+                d => !d.received
+              ).length; // Check 'received' property
+              c.onMessageReceived = (msg, data) => {
+                // Accept data object
                 clearTimeout(finishTimeout);
 
-                msgTracker[msg] = true;
-                self.onMsgReceived(msg);
+                msgTracker[msg] = {
+                  ...msgTracker[msg],
+                  received: data.alive,
+                  time: data.time,
+                  raw: data.stdout
+                }; // Update with received data
+                self.onMsgReceived(msg); // This calls the public onMsgReceived, which updates results in MeasurementEngine
 
                 missingMsgs--;
                 if (
                   missingMsgs <= 0 &&
-                  Object.values(self.#msgTracker).every(recv => recv)
+                  Object.values(self.#msgTracker).every(d => d.received) // Check 'received' property
                 ) {
                   // Last msg received, shortcut out
                   finishFn();
@@ -138,11 +152,18 @@ export default class PacketLossEngine {
             }
           })(1);
         };
-        c.onMessageReceived = msg => {
-          msgTracker[msg] = true;
+        c.onMessageReceived = (msg, data) => {
+          // Accept data object
+          msgTracker[msg] = {
+            ...msgTracker[msg],
+            received: data.alive,
+            time: data.time,
+            raw: data.stdout
+          }; // Update with received data
           this.onMsgReceived(msg);
         };
-      });
+      })
+      .catch(e => this.#onConnectionError(e.toString()));
   }
 
   // Public attributes
@@ -166,7 +187,7 @@ export default class PacketLossEngine {
     const totalMessages = this.#numMsgs;
     const numMessagesSent = Object.keys(this.#msgTracker).length;
     const lostMessages = Object.entries(this.#msgTracker)
-      .filter(([, recv]) => !recv)
+      .filter(([, data]) => !data.received) // Filter based on 'received' property
       .map(([n]) => +n);
     const packetLoss = lostMessages.length / numMessagesSent;
     return { totalMessages, numMessagesSent, packetLoss, lostMessages };
