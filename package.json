@@ -1,73 +1,74 @@
 {
-  "name": "@cloudflare/speedtest",
-  "version": "1.5.1",
-  "description": "Component to perform network speed tests against Cloudflare's edge network",
-  "type": "module",
-  "exports": "./dist/speedtest.js",
-  "main": "dist/speedtest.js",
-  "module": "dist/speedtest.js",
-  "types": "dist/speedtest.d.ts",
-  "sideEffects": false,
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cloudflare/speedtest.git"
-  },
-  "homepage": "https://github.com/cloudflare/speedtest",
-  "keywords": [
-    "cloudflare",
-    "speed",
-    "network quality",
-    "bandwidth",
-    "latency",
-    "packet loss"
-  ],
-  "author": {
-    "name": "Vasco Asturiano",
-    "email": "vasco@cloudflare.com"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/cloudflare/speedtest/issues"
-  },
-  "scripts": {
-    "build": "rimraf dist && rollup -c",
-    "dev": "rollup -w -c",
-    "lint": "eslint \"src/**/*.js\"",
-    "format": "prettier --write \"src/**/*.js\"",
-    "prepare": "husky install .husky && npm run build"
-  },
-  "lint-staged": {
-    "*.js": "eslint"
-  },
-  "files": [
-    "dist/**/*"
-  ],
-  "dependencies": {
-    "d3-scale": "^4.0.2",
-    "isomorphic-fetch": "^3.0.0",
-    "lodash.memoize": "^4.1.2"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.27.1",
-    "@babel/eslint-parser": "^7.27.1",
-    "@babel/preset-env": "^7.27.2",
-    "@eslint/js": "^9.27.0",
-    "@rollup/plugin-babel": "^6.0.4",
-    "@rollup/plugin-node-resolve": "^16.0.1",
-    "eslint": "^9.27.0",
-    "eslint-plugin-compat": "^6.0.2",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-json": "^4.0.1",
-    "eslint-plugin-prettier": "^5.4.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.0.0",
-    "prettier": "^3.5.3",
-    "rimraf": "^6.0.1",
-    "rollup": "^4.41.0",
-    "rollup-plugin-dts": "^6.2.1",
-    "typescript": "^5.8.3"
-  },
-  "engines": {
-    "node": ">=12"
-  }
+    "name": "@cloudflare/speedtest",
+    "version": "1.5.1",
+    "description": "Component to perform network speed tests against Cloudflare's edge network",
+    "type": "module",
+    "exports": "./dist/speedtest.js",
+    "main": "dist/speedtest.js",
+    "module": "dist/speedtest.js",
+    "types": "dist/speedtest.d.ts",
+    "sideEffects": false,
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cloudflare/speedtest.git"
+    },
+    "homepage": "https://github.com/cloudflare/speedtest",
+    "keywords": [
+        "cloudflare",
+        "speed",
+        "network quality",
+        "bandwidth",
+        "latency",
+        "packet loss"
+    ],
+    "author": {
+        "name": "Vasco Asturiano",
+        "email": "vasco@cloudflare.com"
+    },
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/cloudflare/speedtest/issues"
+    },
+    "scripts": {
+        "build": "rimraf dist && rollup -c",
+        "dev": "rollup -w -c",
+        "lint": "eslint \"src/**/*.js\"",
+        "format": "prettier --write \"src/**/*.js\"",
+        "prepare": "husky install .husky && npm run build"
+    },
+    "lint-staged": {
+        "*.js": "eslint"
+    },
+    "files": [
+        "dist/**/*"
+    ],
+    "dependencies": {
+        "d3-scale": "^4.0.2",
+        "isomorphic-fetch": "^3.0.0",
+        "lodash.memoize": "^4.1.2",
+        "ping": "^0.4.4"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.27.1",
+        "@babel/eslint-parser": "^7.27.1",
+        "@babel/preset-env": "^7.27.2",
+        "@eslint/js": "^9.27.0",
+        "@rollup/plugin-babel": "^6.0.4",
+        "@rollup/plugin-node-resolve": "^16.0.1",
+        "eslint": "^9.27.0",
+        "eslint-plugin-compat": "^6.0.2",
+        "eslint-plugin-import": "^2.31.0",
+        "eslint-plugin-json": "^4.0.1",
+        "eslint-plugin-prettier": "^5.4.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.0.0",
+        "prettier": "^3.5.3",
+        "rimraf": "^6.0.1",
+        "rollup": "^4.41.0",
+        "rollup-plugin-dts": "^6.2.1",
+        "typescript": "^5.8.3"
+    },
+    "engines": {
+        "node": ">=12"
+    }
 }
