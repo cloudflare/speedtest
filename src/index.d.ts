@@ -25,6 +25,9 @@ export interface ConfigOptions {
   turnServerUser?: string,
   turnServerPass?: string,
   includeCredentials?: boolean,
+  pingHost?: string,
+  pingTimeout?: number,
+  pingMaxConcurrent?: number,
 
   // Measurements
   measurements?: MeasurementConfig[],
