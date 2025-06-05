@@ -24,7 +24,7 @@ export default class PacketLossEngine {
     batchWaitTime = 10,
     responsesWaitTime = 5000, // ms (debounced time after last msg without any response)
     connectionTimeout = 5000, // ms
-    pingHost,
+    pingHost = 'speed.cloudflare.com',
     pingTimeout = 5000,
     pingMaxConcurrent = 10
   } = {}) {
