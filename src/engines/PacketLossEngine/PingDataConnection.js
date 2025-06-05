@@ -2,11 +2,7 @@
 import { spawn } from 'child_process';
 
 export default class PingDataConnection {
-  constructor({
-    host = 'speed.cloudflare.com',
-    timeout = 5000,
-    maxConcurrent = 10
-  } = {}) {
+  constructor({ host, timeout, maxConcurrent } = {}) {
     this.#host = host;
     this.#timeout = timeout;
     this.#maxConcurrent = maxConcurrent;

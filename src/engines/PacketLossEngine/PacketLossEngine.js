@@ -106,7 +106,10 @@ export default class PacketLossEngine {
         }, connectionTimeout);
 
         const msgTracker = this.#msgTracker;
-        const individualPingDelay = batchWaitTime / batchSize;
+        const individualPingDelay = Math.max(
+          Math.floor(batchWaitTime / batchSize),
+          1
+        );
 
         c.onOpen = () => {
           connectionSuccess = true;

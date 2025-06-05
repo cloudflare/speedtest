@@ -17,6 +17,7 @@ export default {
   cfTraceUrl: `${REL_API_URL}/cdn-cgi/trace`,
   includeCredentials: false,
   pingHost: 'speed.cloudflare.com',
+  pingTimeout: 5000,
 
   // Measurements
   measurements: [
@@ -30,7 +31,7 @@ export default {
       type: 'packetLoss',
       numPackets: 1e3,
       batchSize: 10,
-      batchWaitTime: 10, // ms (in between batches)
+      batchWaitTime: 10,
       responsesWaitTime: 3000 // ms (silent time after last sent msg)
     },
     { type: 'upload', bytes: 1e6, count: 6 },
