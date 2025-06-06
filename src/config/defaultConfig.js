@@ -16,7 +16,7 @@ export default {
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
   cfTraceUrl: `${REL_API_URL}/cdn-cgi/trace`,
   includeCredentials: false,
-  pingHost: REL_API_URL,
+  pingHost: 'speed.cloudflare.com',
 
   // Measurements
   measurements: [
