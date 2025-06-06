@@ -19,14 +19,14 @@ export default class PacketLossEngine {
     turnServerCredsApiIncludeCredentials = false,
     turnServerUser,
     turnServerPass,
+    pingHost,
     numMsgs = 100,
     batchSize = 10,
     batchWaitTime = 10,
     responsesWaitTime = 5000, // ms (debounced time after last msg without any response)
     connectionTimeout = 5000, // ms
-    pingHost = 'speed.cloudflare.com',
-    pingTimeout = 5000,
-    pingMaxConcurrent = 10
+    pingTimeout = 3000,
+    pingMaxConcurrent = 1000
   } = {}) {
     // Check if the current environment is suitable for ping-based connections (Node.js)
     const isPingBasedConnection =

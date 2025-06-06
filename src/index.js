@@ -233,7 +233,8 @@ class MeasurementEngine {
             turnServerCredsApiUrl: turnServerCredsApi,
             turnServerUser,
             turnServerPass,
-            includeCredentials
+            includeCredentials,
+            pingHost
           } = this.#config;
           engine = new PacketLossEngine({
             turnServerUri,
@@ -241,6 +242,7 @@ class MeasurementEngine {
             turnServerCredsApiIncludeCredentials: includeCredentials,
             turnServerUser,
             turnServerPass,
+            pingHost,
             numMsgs,
 
             // if under load
