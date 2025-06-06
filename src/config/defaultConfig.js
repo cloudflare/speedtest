@@ -16,6 +16,7 @@ export default {
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
   cfTraceUrl: `${REL_API_URL}/cdn-cgi/trace`,
   includeCredentials: false,
+  pingHost: 'speed.cloudflare.com',
 
   // Measurements
   measurements: [
@@ -29,8 +30,10 @@ export default {
       type: 'packetLoss',
       numPackets: 1e3,
       batchSize: 10,
-      batchWaitTime: 10, // ms (in between batches)
-      responsesWaitTime: 3000 // ms (silent time after last sent msg)
+      batchWaitTime: 10,
+      responsesWaitTime: 3000, // ms (silent time after last sent msg)
+      pingTimeout: 3000,
+      pingMaxConcurrent: 1000
     },
     { type: 'upload', bytes: 1e6, count: 6 },
     { type: 'download', bytes: 1e7, count: 6 },
