@@ -82,14 +82,19 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
 
   // Internal state
   #latencyEngine;
+  #latencyTimeout;
 
   // Internal methods
   #setLatencyRunning(running) {
-    this.#latencyEngine &&
-      (!running
-        ? this.#latencyEngine.pause()
-        : // slight delay in starting latency measurements
-          setTimeout(() => this.#latencyEngine.play(), 20));
+    if (this.#latencyEngine) {
+      if (!running) {
+        clearTimeout(this.#latencyTimeout);
+        this.#latencyEngine.pause();
+      } else {
+        // slight delay in starting latency measurements
+        this.#latencyTimeout = setTimeout(() => this.#latencyEngine.play(), 20);
+      }
+    }
   }
 }
 
