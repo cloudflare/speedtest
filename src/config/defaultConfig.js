@@ -16,6 +16,7 @@ export default {
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
   cfTraceUrl: `${REL_API_URL}/cdn-cgi/trace`,
   includeCredentials: false,
+  sessionId: undefined,
 
   // Measurements
   measurements: [

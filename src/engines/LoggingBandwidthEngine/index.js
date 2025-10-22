@@ -3,11 +3,15 @@ import 'isomorphic-fetch';
 import BandwidthEngine from '../BandwidthEngine';
 
 class LoggingBandwidthEngine extends BandwidthEngine {
-  constructor(measurements, { measurementId, logApiUrl, ...ptProps } = {}) {
+  constructor(
+    measurements,
+    { measurementId, logApiUrl, sessionId, ...ptProps } = {}
+  ) {
     super(measurements, ptProps);
 
     this.#measurementId = measurementId;
     this.#logApiUrl = logApiUrl;
+    this.#sessionId = sessionId;
 
     super.qsParams = logApiUrl ? { measId: this.#measurementId } : {};
     super.responseHook = r => this.#loggingResponseHook(r);
@@ -40,6 +44,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   #token;
   #requestTime;
   #logApiUrl;
+  #sessionId;
 
   // Internal methods
   #loggingResponseHook(r) {
@@ -66,7 +71,8 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       serverTime: Math.round(measData.serverTime),
       token: this.#token,
       requestTime: this.#requestTime,
-      measId: this.#measurementId
+      measId: this.#measurementId,
+      sessionId: this.#sessionId
     };
 
     this.#token = null;
