@@ -34,8 +34,10 @@ const scoreParser = d => ({
   classification: d.classificationName
 });
 
-const logAimResults = (results, { apiUrl }) => {
-  const logData = {};
+const logAimResults = (results, { apiUrl, sessionId }) => {
+  const logData = {
+    sessionId
+  };
   Object.entries(resultsParsers).forEach(([logK, [fn, parser = d => d]]) => {
     const val = results[fn]();
     val && (logData[logK] = parser(val));

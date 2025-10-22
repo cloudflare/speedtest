@@ -304,6 +304,7 @@ class MeasurementEngine {
             estimatedServerTime,
             logApiUrl: this.#config.logMeasurementApiUrl,
             measurementId: this.#measurementId,
+            sessionId: this.#config.sessionId,
 
             // if under load
             downloadChunkSize: msmConfig.loadDown
@@ -362,7 +363,8 @@ class MeasurementEngine {
               logApiUrl: this.#config.logMeasurementApiUrl,
               measurementId: this.#measurementId,
               measureParallelLatency,
-              parallelLatencyThrottleMs: this.#config.loadedLatencyThrottle
+              parallelLatencyThrottleMs: this.#config.loadedLatencyThrottle,
+              sessionId: this.#config.sessionId
             }
           );
           engine.fetchOptions = {
@@ -470,12 +472,10 @@ class LoggingMeasurementEngine extends MeasurementEngine {
     super(userConfig, ...pt);
     super.onFinish = this.#logFinalResults;
 
-    this.#logAimApiUrl = Object.assign(
-      {},
-      defaultConfig,
-      userConfig,
-      internalConfig
-    ).logAimApiUrl;
+    const config = Object.assign({}, defaultConfig, userConfig, internalConfig);
+
+    this.#logAimApiUrl = config.logAimApiUrl;
+    this.#sessionId = config.sessionId;
   }
 
   // Public attributes
@@ -488,11 +488,15 @@ class LoggingMeasurementEngine extends MeasurementEngine {
 
   // Internal state
   #logAimApiUrl;
+  #sessionId;
 
   // Internal methods
   #logFinalResults = results => {
     this.#logAimApiUrl &&
-      logFinalResults(results, { apiUrl: this.#logAimApiUrl });
+      logFinalResults(results, {
+        apiUrl: this.#logAimApiUrl,
+        sessionId: this.#sessionId
+      });
   };
 }
 
