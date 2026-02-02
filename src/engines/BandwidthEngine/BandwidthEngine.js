@@ -278,15 +278,18 @@ class BandwidthMeasurementEngine {
         return r;
       })
       .then(r =>
-        r.text().then(body => {
-          this.#responseHook &&
-            this.#responseHook({
-              url,
-              headers: r.headers,
-              body
+        r.blob().then(blob => {
+          if (this.#responseHook) {
+            blob.text().then(body => {
+              this.#responseHook({
+                url,
+                headers: r.headers,
+                body
+              });
             });
+          }
 
-          return body;
+          return blob;
         })
       )
       .then((_, reject) => {
