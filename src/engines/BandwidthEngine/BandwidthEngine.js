@@ -395,7 +395,9 @@ class BandwidthMeasurementEngine {
   }
 
   #cancelCurrentMeasurement() {
-    this.#currentAbortController.abort();
+    if (this.#currentAbortController) {
+      this.#currentAbortController.abort();
+    }
   }
 }
 
