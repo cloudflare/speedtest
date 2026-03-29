@@ -150,6 +150,7 @@ class BandwidthMeasurementEngine {
    * @type AbortController
    */
   #currentAbortController = undefined;
+  #currentAbortTimeout = undefined;
 
   // Internal methods
   #setRunning(running) {
@@ -275,7 +276,7 @@ class BandwidthMeasurementEngine {
     if (this.#retries === 0) {
       this.#currentAbortController = new AbortController();
       if (this.abortRequestDuration) {
-        const abortTimeout = setTimeout(() => {
+        this.#currentAbortTimeout = setTimeout(() => {
           this.#cancelCurrentMeasurement();
           this.#retries = 0;
           this.#setRunning(false);
@@ -284,7 +285,7 @@ class BandwidthMeasurementEngine {
           );
         }, this.abortRequestDuration);
         this.#currentAbortController.signal.addEventListener('abort', () =>
-          clearTimeout(abortTimeout)
+          clearTimeout(this.#currentAbortTimeout)
         );
       }
     }
@@ -361,6 +362,7 @@ class BandwidthMeasurementEngine {
 
         this.#counter += 1;
         this.#retries = 0;
+        clearTimeout(this.#currentAbortTimeout);
 
         if (this.#throttleMs) {
           const throttleTimeout = setTimeout(
