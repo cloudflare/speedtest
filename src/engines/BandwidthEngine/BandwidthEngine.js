@@ -119,7 +119,7 @@ class BandwidthMeasurementEngine {
 
   // Public methods
   pause() {
-    this.#cancelCurrentMeasurement();
+    this.#cancelCurrentMeasurement(`pause()`);
     this.#setRunning(false);
   }
 
@@ -156,6 +156,10 @@ class BandwidthMeasurementEngine {
     if (running !== this.#running) {
       this.#running = running;
       setTimeout(() => this.#onRunningChange(this.#running));
+    }
+
+    if (!running) {
+      this.#currentAbortController?.abort('setRunning(false)');
     }
   }
 
@@ -271,17 +275,19 @@ class BandwidthMeasurementEngine {
       this.#fetchOptions
     );
 
-    // AbortController and timeout is shared between all retries
     if (this.#retries === 0) {
+      // abort existing abort controller
+      this.#currentAbortController?.abort('restarting engine');
+
+      // create new abort controller
       this.#currentAbortController = new AbortController();
       if (this.abortRequestDuration) {
         const abortTimeout = setTimeout(() => {
-          this.#cancelCurrentMeasurement();
+          const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
+          this.#cancelCurrentMeasurement(errorMessage);
           this.#retries = 0;
           this.#setRunning(false);
-          this.#onConnectionError(
-            `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`
-          );
+          this.#onConnectionError(errorMessage);
         }, this.abortRequestDuration);
         this.#currentAbortController.signal.addEventListener('abort', () =>
           clearTimeout(abortTimeout)
@@ -392,8 +398,10 @@ class BandwidthMeasurementEngine {
       });
   }
 
-  #cancelCurrentMeasurement() {
-    this.#currentAbortController.abort();
+  #cancelCurrentMeasurement(reason) {
+    this.#currentAbortController?.abort(
+      reason || `aborted with no reason provided`
+    );
   }
 }
 
