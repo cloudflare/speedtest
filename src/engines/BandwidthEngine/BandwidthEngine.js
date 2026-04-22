@@ -10,7 +10,7 @@ const cfGetServerTime = r => {
   // extract server-timing from headers: server-timing: cfRequestDuration;dur=15.999794
   const serverTiming = r.headers.get(`server-timing`);
   if (serverTiming) {
-    const re = serverTiming.match(/dur=([0-9.]+)/);
+    const re = serverTiming.match(/(?:^|;)\s*dur=([0-9.]+)/);
     if (re) return +re[1];
   }
 };
