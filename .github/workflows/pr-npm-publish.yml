@@ -17,15 +17,15 @@ jobs:
         with:
           node-version: 24
       - name: yarn install
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: install
       - name: yarn build
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: build
       - name: yarn lint
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: lint
 
@@ -62,7 +62,7 @@ jobs:
         name: Output version change
         run: npm pkg get version
       - name: npm install
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: install
       - run: npm publish
