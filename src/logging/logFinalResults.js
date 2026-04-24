@@ -36,7 +36,8 @@ const scoreParser = d => ({
 
 const logAimResults = (results, { apiUrl, sessionId }) => {
   const logData = {
-    sessionId
+    sessionId,
+    totalDurationMs: results.getTotalDurationMs()
   };
   Object.entries(resultsParsers).forEach(([logK, [fn, parser = d => d]]) => {
     const val = results[fn]();
