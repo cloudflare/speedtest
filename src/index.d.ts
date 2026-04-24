@@ -68,6 +68,7 @@ export declare class Results {
     upLoadedLatency?: number,
     upLoadedJitter?: number,
     packetLoss?: number,
+    totalDuration?: number;
   }
 
   getUnloadedLatency: () => number | undefined;
@@ -98,6 +99,8 @@ export declare class Results {
       classificationName: 'bad' | 'poor' | 'average' | 'good' | 'great';
     }
   }
+  
+  getTotalDurationMs: () => number | undefined;
 }
 
 declare class SpeedTestEngine {
