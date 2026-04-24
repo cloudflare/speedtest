@@ -168,6 +168,7 @@ An instance object used to access the results of the speedtest measurements. The
 | **getUploadBandwidthPoints()** | Returns an array with all the upload measurement results. Each item will include the following fields: `{ bytes, bps, duration, ping, measTime, serverTime, transferSize }`. |
 | **getPacketLoss()** | Returns the reduced value of the measured packet loss ratio (between 0 and 1). Requires a `packetLoss` measurement set. |
 | **getPacketLossDetails()** | Returns an object with the details of the packet loss measurement. Includes the following fields: `{ packetLoss, totalMessages, numMessagesSent, lostMessages }`. Requires a `packetLoss` measurement set. |
+| **getTotalDurationMs()** | Returns the total time (in milliseconds) the engine spent running, excluding any time spent paused. Only available after the engine has finished. |
 | **getScores()** | Returns the computed [AIM scores](https://developers.cloudflare.com/fundamentals/speed/aim/) that categorize the quality of the network connection according to use cases such as streaming, gaming or real-time communications. This score is only available after the engine has finished performing all of the measurements. |
 
 [npm-img]: https://img.shields.io/npm/v/@cloudflare/speedtest

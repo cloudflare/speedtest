@@ -24,7 +24,8 @@ const resultsParsers = {
   upload: ['getUploadBandwidthPoints', bpsPointsParser],
   downLoadedLatencyMs: ['getDownLoadedLatencyPoints', latencyPointsParser],
   upLoadedLatencyMs: ['getUpLoadedLatencyPoints', latencyPointsParser],
-  packetLoss: ['getPacketLossDetails', packetLossParser]
+  packetLoss: ['getPacketLossDetails', packetLossParser],
+  totalDurationMs: ['getTotalDurationMs']
   // v4Reachability: ['getV4ReachabilityDetails'],
   // v6Reachability: ['getV6ReachabilityDetails']
 };

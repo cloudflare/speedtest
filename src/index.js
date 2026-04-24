@@ -84,6 +84,22 @@ class MeasurementEngine {
   #optimalDownloadChunkSize = DEFAULT_OPTIMAL_DOWNLOAD_SIZE;
   #optimalUploadChunkSize = DEFAULT_OPTIMAL_UPLOAD_SIZE;
 
+  /**
+   * High-resolution timestamp (from performance.now()) of the test start or
+   * last unpause. Used to calculate totalDurationMs in the final results.
+   *
+   * @type {number | undefined}
+   */
+  #startTime;
+
+  /**
+   * Accumulated time running the test (unpaused), in milliseconds.
+   * Used to calculate totalDurationMs in the final results.
+   *
+   * @type {number}
+   */
+  #accumulatedRuntimeMs = 0;
+
   #running = false;
   #finished = false;
 
@@ -93,12 +109,24 @@ class MeasurementEngine {
       this.#running = running;
       this.onRunningChange(this.#running);
     }
+
+    if (running) {
+      this.#startTime = performance.now();
+    } else {
+      if (typeof this.#startTime !== 'undefined') {
+        this.#accumulatedRuntimeMs += performance.now() - this.#startTime;
+        this.#startTime = undefined;
+      }
+    }
   }
 
   #setFinished(finished) {
     if (finished !== this.#finished) {
       this.#finished = finished;
-      finished && setTimeout(() => this.#onFinish(this.results));
+      if (finished) {
+        this.#results.raw.totalDurationMs = this.#accumulatedRuntimeMs;
+        setTimeout(() => this.#onFinish(this.results));
+      }
     }
   }
 
@@ -124,6 +152,7 @@ class MeasurementEngine {
     this.#setFinished(false);
 
     this.#results.clear();
+    this.#accumulatedRuntimeMs = 0;
   }
 
   #destroyCurEngine() {
