@@ -13,13 +13,17 @@ class Results {
   raw;
 
   get isFinished() {
-    return Object.values(this.raw).every(d => d.finished);
+    return Object.values(this.raw)
+      .filter(d => d && typeof d === 'object')
+      .every(d => d.finished);
   }
 
   // Public methods
   clear() {
     this.raw = Object.assign(
-      {},
+      {
+        totalDurationMs: undefined
+      },
       ...[...new Set(this.#config.measurements.map(m => m.type))].map(m => ({
         [m]: { started: false, finished: false, results: {} }
       }))
@@ -47,6 +51,7 @@ class Results {
   getPacketLoss = () => this.#calcGetter('getPacketLoss', 'packetLoss');
   getPacketLossDetails = () =>
     this.#calcGetter('getPacketLossDetails', 'packetLoss', undefined, true);
+  getTotalDurationMs = () => this.raw.totalDurationMs;
 
   getSummary() {
     const items = {
@@ -60,7 +65,8 @@ class Results {
       upLoadedJitter: this.getUpLoadedJitter,
       packetLoss: this.getPacketLoss,
       v4Reachability: this.#getV4Reachability,
-      v6Reachability: this.#getV6Reachability
+      v6Reachability: this.#getV6Reachability,
+      totalDurationMs: this.getTotalDurationMs
     };
 
     return Object.assign(

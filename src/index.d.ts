@@ -68,6 +68,7 @@ export declare class Results {
     upLoadedLatency?: number,
     upLoadedJitter?: number,
     packetLoss?: number,
+    totalDurationMs?: number,
   }
 
   getUnloadedLatency: () => number | undefined;
@@ -90,6 +91,7 @@ export declare class Results {
     numMessagesSent: number,
     lostMessages: number[]
   } | { error: string } | undefined;
+  getTotalDurationMs: () => number | undefined;
 
   getScores: () => {
     [key: string]: {
