@@ -3,7 +3,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import dts from 'rollup-plugin-dts';
 
 import pkg from './package.json' with { type: 'json' };
-const { name, dependencies } = pkg;
+const { name } = pkg;
 
 const fileName = name.split('/').slice(-1);
 
@@ -18,7 +18,7 @@ export default [
         sourcemap: true
       }
     ],
-    external: [...Object.keys(dependencies || {})],
+    external: [],
     plugins: [babel({ babelHelpers: 'bundled' }), resolve()]
   },
   {

@@ -1,4 +1,4 @@
-import { scaleThreshold } from 'd3-scale';
+import scaleThreshold from '../utils/scaleThreshold';
 
 export default {
   // AIM

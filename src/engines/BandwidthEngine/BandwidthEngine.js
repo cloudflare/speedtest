@@ -1,7 +1,3 @@
-import 'isomorphic-fetch';
-
-import memoize from 'lodash.memoize';
-
 const MAX_RETRIES = 20;
 
 const ESTIMATED_HEADER_FRACTION = 0.005; // ~.5% of packet header / payload size. used when transferSize is not available.
@@ -40,7 +36,13 @@ const calcUploadSpeed = ({ duration }, numBytes) => {
   return !secs ? undefined : bits / secs;
 };
 
-const genContent = memoize(numBytes => '0'.repeat(numBytes));
+const genContent = (() => {
+  const cache = new Map();
+  return numBytes => {
+    if (!cache.has(numBytes)) cache.set(numBytes, '0'.repeat(numBytes));
+    return cache.get(numBytes);
+  };
+})();
 
 //
 

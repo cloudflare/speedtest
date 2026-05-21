@@ -1,5 +1,3 @@
-import 'isomorphic-fetch';
-
 const round = (num, decimals = 0) =>
   !num ? num : Math.round(num * 10 ** decimals) / 10 ** decimals;
 
