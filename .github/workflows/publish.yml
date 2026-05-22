@@ -1,0 +1,55 @@
+name: Publish Package
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+jobs:
+  publish:
+    name: Publish to npm
+    if: >
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'releases/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+
+      - name: yarn install
+        uses: borales/actions-yarn@v5
+        with:
+          cmd: install
+
+      - name: yarn build
+        uses: borales/actions-yarn@v5
+        with:
+          cmd: build
+
+      - name: yarn lint
+        uses: borales/actions-yarn@v5
+        with:
+          cmd: lint
+
+      - name: Get version
+        id: version
+        run: echo "version=$(npm pkg get version | tr -d '\"')" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

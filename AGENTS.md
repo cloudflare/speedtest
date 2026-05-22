@@ -50,8 +50,12 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
 
 ## PRs and releases
 
-- PRs target `main`.
-- Every PR **must** have exactly one semver label — CI will **fail** without it.
-  When creating a PR, **always add** one of: `major`, `minor`, or `patch`.
-  Merging auto-publishes to npm with the corresponding version bump.
+- PRs target `main`. Branch protection requires 1 approval and CI to pass.
 - CI runs `yarn install && yarn build && yarn lint` on Node 22.x and 24.x.
+- Releases are **manual**, not automatic per PR:
+  1. Go to **Actions > "Create Release PR"** > pick `patch`/`minor`/`major` > Run.
+  2. The workflow creates a `releases/v*` PR with the version bump.
+  3. A team member reviews and merges the release PR.
+  4. On merge, the publish workflow auto-creates a git tag and publishes to npm.
+- **Do NOT** push directly to `main` — the branch ruleset blocks direct pushes.
+  All changes must go through a pull request.
