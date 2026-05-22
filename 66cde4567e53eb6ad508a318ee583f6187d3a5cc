@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "66cde4567e53eb6ad508a318ee583f6187d3a5cc",
+  "prompts": {
+    "906b26e248135c8a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1b616285bffeDp1mVzD96gOBuj",
+        "model": "anthropic/claude-opus-4-6"
+      },
+      "human_author": "André Jesus",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 13,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
