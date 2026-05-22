@@ -1,5 +1,3 @@
-import 'isomorphic-fetch';
-
 class PromiseEngine {
   constructor(promiseFn) {
     if (!promiseFn) throw new Error(`Missing operation to perform`);

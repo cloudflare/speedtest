@@ -1,5 +1,3 @@
-import 'isomorphic-fetch';
-
 import { defaultConfig, internalConfig } from './config';
 import BandwidthEngine from './engines/LoggingBandwidthEngine';
 import PacketLossEngine from './engines/PacketLossEngine';

@@ -32,21 +32,17 @@
   "scripts": {
     "build": "rimraf dist && rollup -c",
     "dev": "rollup -w -c",
-    "lint": "eslint \"src/**/*.js\"",
+    "lint": "eslint \"src/**/*.js\" \"*.json\"",
     "format": "prettier --write \"src/**/*.js\"",
     "prepare": "husky install .husky && npm run build"
   },
   "lint-staged": {
-    "*.js": "eslint"
+    "*.js": "eslint",
+    "*.json": "eslint"
   },
   "files": [
     "dist/**/*"
   ],
-  "dependencies": {
-    "d3-scale": "^4.0.2",
-    "isomorphic-fetch": "^3.0.0",
-    "lodash.memoize": "^4.1.2"
-  },
   "devDependencies": {
     "@babel/core": "^7.27.1",
     "@babel/eslint-parser": "^7.27.1",

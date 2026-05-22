@@ -1,5 +1,3 @@
-import 'isomorphic-fetch';
-
 import BandwidthEngine from '../BandwidthEngine';
 
 class LoggingBandwidthEngine extends BandwidthEngine {

@@ -1,5 +1,3 @@
-import 'isomorphic-fetch';
-
 export default class ReachabilityEngine {
   constructor(targetUrl, { timeout = -1, fetchOptions = {} } = {}) {
     let finished = false;

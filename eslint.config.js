@@ -18,7 +18,6 @@ export default [
       parser: babelEslintParser
     },
     plugins: {
-      json: json,
       prettier: prettier
     },
     rules: {
@@ -41,7 +40,7 @@ export default [
     },
     settings: {
       // Polyfills for compat plugin
-      polyfills: ['Array.prototype.includes', 'Promise', 'fetch'] // Adjust based on your needs
+      polyfills: ['Array.prototype.includes', 'Promise', 'fetch']
     }
   }
 ];

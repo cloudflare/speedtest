@@ -1,0 +1,57 @@
+# AGENTS.md
+
+Browser-side JS library (`@cloudflare/speedtest`) that measures connection
+quality against Cloudflare's edge. Powers speed.cloudflare.com.
+
+## Commands
+
+```sh
+yarn install        # install deps (Yarn, not npm)
+yarn build          # rimraf dist && rollup -c → dist/speedtest.js (ESM)
+yarn dev            # rollup watch mode
+yarn lint           # eslint src/**/*.js *.json
+yarn format         # prettier --write src/**/*.js
+```
+
+There are **no tests** — no test framework, no test files, no test script.
+
+## Key constraints
+
+- **Browser-only** — code uses `fetch`, `PerformanceResourceTiming`,
+  `RTCPeerConnection`, `performance.now()`. Never introduce Node.js-only APIs.
+  `eslint-plugin-compat` enforces this.
+- **Zero runtime dependencies** — do not add npm dependencies.
+- **ESM-only** (`"type": "module"`) — use `import`/`export`, never `require()`.
+- **TypeScript declarations are hand-maintained** in `src/index.d.ts`. Changes
+  to the public API require manual `.d.ts` updates.
+
+## Style
+
+Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
+
+- **No trailing commas** (`trailingComma: "none"`)
+- Single quotes, no parens on single-param arrows (`arrowParens: "avoid"`)
+- Private class fields use `#field` syntax throughout
+
+## Architecture
+
+- `src/index.js` — entrypoint. Exports `LoggingMeasurementEngine` (default),
+  which wraps `MeasurementEngine` and logs results to `aim.cloudflare.com`.
+- `src/config/` — default config and AIM scoring thresholds.
+- `src/engines/` — sub-engines for each measurement type:
+  - `BandwidthEngine/` — HTTP fetch-based download/upload via `PerformanceResourceTiming`
+  - `PacketLossEngine/` — WebRTC TURN relay for UDP packet loss
+  - `LoadNetworkEngine/` — parallel fetch load generator
+  - `ReachabilityEngine/` — simple fetch with timeout
+- `src/Results/` — aggregation, stats (percentile, jitter), and AIM scoring.
+- `src/utils/` — small math helpers (`sum`, `avg`, `percentile`, `scaleThreshold`).
+- `example/turn-worker/` — separate Cloudflare Worker sub-project with its own
+  `package.json` and Prettier config; not part of the library build.
+
+## PRs and releases
+
+- PRs target `main`.
+- Every PR **must** have exactly one semver label — CI will **fail** without it.
+  When creating a PR, **always add** one of: `major`, `minor`, or `patch`.
+  Merging auto-publishes to npm with the corresponding version bump.
+- CI runs `yarn install && yarn build && yarn lint` on Node 22.x and 24.x.
