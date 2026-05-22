@@ -33,6 +33,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
+        id: create-pr
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "chore: bump version to ${{ steps.bump.outputs.version }}"
@@ -43,3 +44,15 @@ jobs:
             Automated release PR for v${{ steps.bump.outputs.version }}.
 
             Merge this PR to publish to npm.
+
+      # PRs created by GITHUB_TOKEN don't trigger other workflows.
+      # Close and reopen the PR to trigger CI status checks.
+      - name: Trigger CI checks
+        if: steps.create-pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=${{ steps.create-pr.outputs.pull-request-number }}
+          gh pr close "$PR" --repo "${{ github.repository }}"
+          sleep 2
+          gh pr reopen "$PR" --repo "${{ github.repository }}"
