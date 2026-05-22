@@ -1,0 +1,23 @@
+.github/workflows/create-release-pr.yml
+  906b26e248135c8a 36,47-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "a08b15b5254d51ef4f02701301bb16d79b581112",
+  "prompts": {
+    "906b26e248135c8a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1b616285bffeDp1mVzD96gOBuj",
+        "model": "anthropic/claude-opus-4-6"
+      },
+      "human_author": "André Jesus",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 0,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}
