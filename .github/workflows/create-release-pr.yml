@@ -1,0 +1,45 @@
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: Version bump level
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Bump version
+        id: bump
+        run: |
+          npm version ${{ inputs.level }} --no-git-tag-version
+          VERSION=$(npm pkg get version | tr -d '"')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: bump version to ${{ steps.bump.outputs.version }}"
+          branch: releases/v${{ steps.bump.outputs.version }}
+          base: main
+          title: "Release v${{ steps.bump.outputs.version }}"
+          body: |
+            Automated release PR for v${{ steps.bump.outputs.version }}.
+
+            Merge this PR to publish to npm.
