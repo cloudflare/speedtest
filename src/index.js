@@ -35,6 +35,10 @@ class MeasurementEngine {
     return this.#finished;
   }
 
+  get measurementId() {
+    return this.#measurementId;
+  }
+
   onRunningChange = () => {};
   onResultsChange = () => {};
   onPhaseChange = () => {};
@@ -63,7 +67,21 @@ class MeasurementEngine {
       // Default is 250. This can mean the buffer is filled between measurements if many requests are being done
       // in the same page the engine is running.
       performance.setResourceTimingBufferSize(10000);
+
       this.#setRunning(true);
+
+      if (this.#config.startApiUrl && !this.#hasLoggedStart) {
+        this.#hasLoggedStart = true;
+        // credentials included because startApiUrl is typically same-origin,
+        // unlike logAimApiUrl which posts to a fixed cross-origin endpoint.
+        fetch(this.#config.startApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ measId: this.#measurementId }),
+          credentials: this.#config.includeCredentials ? 'include' : undefined
+        }).catch(() => {});
+      }
+
       this.#next();
     }
   }
@@ -77,6 +95,7 @@ class MeasurementEngine {
   #results;
 
   #measurementId = genMeasId();
+  #hasLoggedStart = false;
   #curMsmIdx = -1;
   #curEngine;
   #optimalDownloadChunkSize = DEFAULT_OPTIMAL_DOWNLOAD_SIZE;
@@ -143,6 +162,7 @@ class MeasurementEngine {
     this.#destroyCurEngine();
 
     this.#measurementId = genMeasId();
+    this.#hasLoggedStart = false;
     this.#curMsmIdx = -1;
     this.#curEngine = undefined;
 

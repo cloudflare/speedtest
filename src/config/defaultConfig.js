@@ -7,6 +7,7 @@ export default {
   // APIs
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
+  startApiUrl: null,
   logMeasurementApiUrl: null,
   logAimApiUrl: 'https://aim.cloudflare.com/__log',
   turnServerUri: 'turn.speed.cloudflare.com:50000',

@@ -21,6 +21,7 @@ export interface ConfigOptions {
   // APIs
   downloadApiUrl?: string,
   uploadApiUrl?: string,
+  startApiUrl?: string,
   turnServerUri?: string,
   turnServerUser?: string,
   turnServerPass?: string,
@@ -112,6 +113,7 @@ declare class SpeedTestEngine {
   readonly results: Results;
   readonly isRunning: boolean;
   readonly isFinished: boolean;
+  readonly measurementId: string;
 
   onRunningChange: (running: boolean) => void;
   onResultsChange: ({ type: string }) => void;

@@ -44,6 +44,7 @@ new SpeedTest({ configOptions })
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
 | **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
 | **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
+| **startApiUrl**: *string* | URL to POST `{ measId }` when a speed test begins. Fires on the first `play()` and on `restart()`, but not on resume from pause. Fire-and-forget (non-blocking). | `null` (disabled) |
 | **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.cloudflare.com:3478` |
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
@@ -68,6 +69,7 @@ new SpeedTest({ configOptions })
 | **results**: *[Results](#results-object)* | Getter of the current [test results](#results-object) object. May yield incomplete values if the test is still running. |
 | **isRunning**: *boolean* | Getter of whether the test engine is currently running. |
 | **isFinished**: *boolean* | Getter of whether the test engine has finished all the measurements, and the results are considered final. |
+| **measurementId**: *string* | Getter of the current measurement's correlation ID. Regenerated on `restart()`. Matches the `measId` value sent to the start and logging APIs. |
 
 ### Methods
 
