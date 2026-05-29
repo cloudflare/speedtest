@@ -20,25 +20,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
 
-      - name: yarn install
-        uses: borales/actions-yarn@v5
-        with:
-          cmd: install
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: yarn build
-        uses: borales/actions-yarn@v5
-        with:
-          cmd: build
+      - name: Build
+        run: pnpm build
 
-      - name: yarn lint
-        uses: borales/actions-yarn@v5
-        with:
-          cmd: lint
+      - name: Lint
+        run: pnpm lint
 
       - name: Get version
         id: version

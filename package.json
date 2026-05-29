@@ -34,7 +34,7 @@
     "dev": "rollup -w -c",
     "lint": "eslint \"src/**/*.js\" \"*.json\"",
     "format": "prettier --write \"src/**/*.js\"",
-    "prepare": "husky install .husky && npm run build"
+    "prepare": "husky install .husky && pnpm build"
   },
   "lint-staged": {
     "*.js": "eslint",
@@ -65,5 +65,6 @@
   },
   "engines": {
     "node": ">=12"
-  }
+  },
+  "packageManager": "pnpm@11.4.0"
 }
