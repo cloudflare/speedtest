@@ -7,8 +7,8 @@ quality against Cloudflare's edge. Powers speed.cloudflare.com.
 
 ```sh
 pnpm install        # install deps
-pnpm build          # rimraf dist && rollup -c → dist/speedtest.js (ESM)
-pnpm dev            # rollup watch mode
+pnpm build          # tsdown → dist/speedtest.js (ESM) + copies .d.ts
+pnpm dev            # tsdown watch mode
 pnpm lint           # eslint src/**/*.js *.json
 pnpm format         # prettier --write src/**/*.js
 ```
