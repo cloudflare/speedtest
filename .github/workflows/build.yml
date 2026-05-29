@@ -34,3 +34,12 @@ jobs:
 
     - name: Lint
       run: pnpm lint
+
+    - name: Unit tests
+      run: pnpm test:unit
+
+    - name: Install Playwright browsers
+      run: npx playwright install chromium
+
+    - name: E2E tests
+      run: pnpm test:e2e

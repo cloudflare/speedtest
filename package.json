@@ -32,6 +32,10 @@
   "scripts": {
     "build": "tsdown && cp src/index.d.ts dist/speedtest.d.ts",
     "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:e2e": "vitest run --project e2e",
+    "test:watch": "vitest",
     "lint": "eslint \"src/**/*.js\" \"*.json\"",
     "format": "prettier --write \"src/**/*.js\"",
     "prepare": "husky && pnpm build"
@@ -45,6 +49,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "^9.27.0",
+    "@vitest/browser-playwright": "^4.1.7",
     "eslint": "^9.27.0",
     "eslint-plugin-compat": "^6.0.2",
     "eslint-plugin-import": "^2.31.0",
@@ -52,9 +57,11 @@
     "eslint-plugin-prettier": "^5.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.0.0",
+    "playwright": "^1.60.0",
     "prettier": "^3.5.3",
     "tsdown": "^0.22.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.7"
   },
   "engines": {
     "node": ">=18"
