@@ -1,3 +1,10 @@
 /node_modules
 /dist
 /.idea
+
+# Test artifacts
+/test-results
+/playwright-report
+/.playwright
+/blob-report
+/coverage

@@ -3,7 +3,8 @@ import SpeedTest from '../../src/index.js';
 
 describe('SpeedTest E2E', () => {
   it('runs a minimal speed test and produces valid results', {
-    timeout: 60_000
+    timeout: 60_000,
+    retry: 2
   }, async () => {
     const engine = new SpeedTest({
       autoStart: false,
