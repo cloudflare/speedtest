@@ -17,23 +17,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+
+    - uses: pnpm/action-setup@v4
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v6
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+        cache: 'pnpm'
 
-    - name: yarn install
-      uses: borales/actions-yarn@v5
-      with:
-        cmd: install
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
 
-    - name: yarn build
-      uses: borales/actions-yarn@v5
-      with:
-        cmd: build
+    - name: Build
+      run: pnpm build
 
-    - name: yarn lint
-      uses: borales/actions-yarn@v5
-      with:
-        cmd: lint
+    - name: Lint
+      run: pnpm lint

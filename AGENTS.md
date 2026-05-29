@@ -6,11 +6,11 @@ quality against Cloudflare's edge. Powers speed.cloudflare.com.
 ## Commands
 
 ```sh
-yarn install        # install deps (Yarn, not npm)
-yarn build          # rimraf dist && rollup -c → dist/speedtest.js (ESM)
-yarn dev            # rollup watch mode
-yarn lint           # eslint src/**/*.js *.json
-yarn format         # prettier --write src/**/*.js
+pnpm install        # install deps
+pnpm build          # rimraf dist && rollup -c → dist/speedtest.js (ESM)
+pnpm dev            # rollup watch mode
+pnpm lint           # eslint src/**/*.js *.json
+pnpm format         # prettier --write src/**/*.js
 ```
 
 There are **no tests** — no test framework, no test files, no test script.
@@ -51,7 +51,7 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
 ## PRs and releases
 
 - PRs target `main`. Branch protection requires 1 approval and CI to pass.
-- CI runs `yarn install && yarn build && yarn lint` on Node 22.x and 24.x.
+- CI runs `pnpm install && pnpm build && pnpm lint` on Node 22.x and 24.x.
 - Releases are **manual**, not automatic per PR:
   1. Go to **Actions > "Create Release PR"** > pick `patch`/`minor`/`major` > Run.
   2. The workflow creates a `releases/v*` PR with the version bump.
