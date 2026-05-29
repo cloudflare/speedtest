@@ -3,7 +3,6 @@ import compat from 'eslint-plugin-compat';
 import importPlugin from 'eslint-plugin-import';
 import json from 'eslint-plugin-json';
 import prettier from 'eslint-plugin-prettier';
-import babelEslintParser from '@babel/eslint-parser';
 
 export default [
   // Base configuration
@@ -13,9 +12,8 @@ export default [
   json.configs.recommended,
   {
     languageOptions: {
-      ecmaVersion: 2022, // Matches es2022 from env and ecmaVersion 13
-      sourceType: 'module',
-      parser: babelEslintParser
+      ecmaVersion: 2022,
+      sourceType: 'module'
     },
     plugins: {
       prettier: prettier
