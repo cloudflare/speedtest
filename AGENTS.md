@@ -11,9 +11,25 @@ pnpm build          # tsdown → dist/speedtest.js (ESM) + copies .d.ts
 pnpm dev            # tsdown watch mode
 pnpm lint           # eslint src/**/*.js *.json
 pnpm format         # prettier --write src/**/*.js
+pnpm test           # run all tests (unit + e2e)
+pnpm test:unit      # run unit tests only (fast, no browser)
+pnpm test:e2e       # run e2e tests only (Playwright, needs Chromium)
+pnpm test:watch     # run tests in watch mode
 ```
 
-There are **no tests** — no test framework, no test files, no test script.
+## Tests
+
+Uses **Vitest** with two test projects:
+
+- **Unit tests** (`tests/unit/**/*.test.ts`) — pure function tests for utils,
+  config, and Results. Run in Node, no browser needed. Fast.
+- **E2E tests** (`tests/e2e/*.test.ts`) — runs a minimal speed test in a real
+  Chromium browser via Vitest Browser Mode + Playwright. Tests the full library
+  integration (fetch, PerformanceResourceTiming, module loading).
+
+Test files are written in TypeScript (`.test.ts`). Source is still JS.
+
+To run e2e tests locally, install Chromium first: `npx playwright install chromium`
 
 ## Key constraints
 
@@ -52,6 +68,7 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
 
 - PRs target `main`. Branch protection requires 1 approval and CI to pass.
 - CI runs `pnpm install && pnpm build && pnpm lint` on Node 22.x and 24.x.
+- CI also runs unit tests (`pnpm test:unit`) and e2e tests (`pnpm test:e2e`).
 - Releases are **manual**, not automatic per PR:
   1. Go to **Actions > "Create Release PR"** > pick `patch`/`minor`/`major` > Run.
   2. The workflow creates a `releases/v*` PR with the version bump.
