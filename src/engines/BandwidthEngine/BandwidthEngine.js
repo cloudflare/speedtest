@@ -262,7 +262,7 @@ class BandwidthMeasurementEngine {
       apiUrl.startsWith('http') || apiUrl.startsWith('//')
         ? ''
         : window.location.origin // use abs to match perf timing urls
-    }${apiUrl}?${Object.entries(qsParams)
+    }${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${Object.entries(qsParams)
       .map(([k, v]) => `${k}=${v}`)
       .join('&')}`;
 

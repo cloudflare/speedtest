@@ -71,7 +71,7 @@ class LoadNetworkEngine {
           apiUrl.startsWith('http') || apiUrl.startsWith('//')
             ? ''
             : window.location.origin // use abs to match perf timing urls
-        }${apiUrl}?${Object.entries(fetchQsParams)
+        }${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${Object.entries(fetchQsParams)
           .map(([k, v]) => `${k}=${v}`)
           .join('&')}`;
         const fetchOpt = Object.assign({}, fetchOptions, this.fetchOptions);
