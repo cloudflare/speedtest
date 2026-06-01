@@ -1,5 +1,4 @@
 export const sum = vals => vals.reduce((agg, val) => agg + val, 0);
-export const avg = vals => sum(vals) / vals.length;
 
 export const percentile = (vals, perc = 0.5) => {
   if (!vals.length) return 0;

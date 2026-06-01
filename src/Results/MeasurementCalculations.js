@@ -72,7 +72,6 @@ class MeasurementCalculations {
   getPacketLossDetails = plResults => plResults;
 
   getReachability = reachabilityResults => !!reachabilityResults.reachable;
-  getReachabilityDetails = d => ({ host: d.host, reachable: d.reachable });
 
   // Internal state
   #config;

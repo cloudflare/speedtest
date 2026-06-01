@@ -45,12 +45,6 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
     }
   }
 
-  // Public attributes
-  get latencyResults() {
-    // read access to latency results
-    return this.#latencyEngine && this.#latencyEngine.results.down[0].timings;
-  }
-
   // callback invoked when a new parallel latency result arrives
   set onParallelLatencyResult(f) {
     this.#latencyEngine &&
