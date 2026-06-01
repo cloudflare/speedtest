@@ -67,13 +67,11 @@ class LoadNetworkEngine {
     const getLoadEngine = ({ apiUrl, qsParams = {}, fetchOptions = {} }) =>
       new PromiseEngine(() => {
         const fetchQsParams = Object.assign({}, qsParams, this.qsParams);
-        const url = `${
-          apiUrl.startsWith('http') || apiUrl.startsWith('//')
-            ? ''
-            : window.location.origin // use abs to match perf timing urls
-        }${apiUrl}?${Object.entries(fetchQsParams)
-          .map(([k, v]) => `${k}=${v}`)
-          .join('&')}`;
+        const urlObj = new URL(apiUrl, window.location.origin);
+        Object.entries(fetchQsParams).forEach(([k, v]) =>
+          urlObj.searchParams.set(k, v)
+        );
+        const url = urlObj.href;
         const fetchOpt = Object.assign({}, fetchOptions, this.fetchOptions);
 
         return fetch(url, fetchOpt)
