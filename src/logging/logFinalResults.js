@@ -24,6 +24,8 @@ const resultsParsers = {
   upLoadedLatencyMs: ['getUpLoadedLatencyPoints', latencyPointsParser],
   packetLoss: ['getPacketLossDetails', packetLossParser],
   totalDurationMs: ['getTotalDurationMs']
+  // v4Reachability: ['getV4ReachabilityDetails'],
+  // v6Reachability: ['getV6ReachabilityDetails']
 };
 
 const scoreParser = d => ({

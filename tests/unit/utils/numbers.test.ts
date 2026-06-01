@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sum, percentile } from '../../../src/utils/numbers.js';
+import { sum, avg, percentile } from '../../../src/utils/numbers.js';
 
 describe('sum', () => {
   it('sums an array of numbers', () => {
@@ -20,6 +20,24 @@ describe('sum', () => {
 
   it('handles floating point numbers', () => {
     expect(sum([0.1, 0.2])).toBeCloseTo(0.3);
+  });
+});
+
+describe('avg', () => {
+  it('calculates the average', () => {
+    expect(avg([2, 4, 6])).toBe(4);
+  });
+
+  it('returns NaN for an empty array', () => {
+    expect(avg([])).toBeNaN();
+  });
+
+  it('returns the value for a single element', () => {
+    expect(avg([10])).toBe(10);
+  });
+
+  it('handles floating point results', () => {
+    expect(avg([1, 2])).toBe(1.5);
   });
 });
 

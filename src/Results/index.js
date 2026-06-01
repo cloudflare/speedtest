@@ -103,8 +103,12 @@ class Results {
 
   #getV4Reachability = () =>
     this.#calcGetter('getReachability', 'v4Reachability');
+  #getV4ReachabilityDetails = () =>
+    this.#calcGetter('getReachabilityDetails', 'v4Reachability');
   #getV6Reachability = () =>
     this.#calcGetter('getReachability', 'v6Reachability');
+  #getV6ReachabilityDetails = () =>
+    this.#calcGetter('getReachabilityDetails', 'v6Reachability');
 }
 
 export default Results;
