@@ -258,13 +258,9 @@ class BandwidthMeasurementEngine {
     const qsParams = Object.assign({}, this.#qsParams);
     isDown && (qsParams.bytes = `${numBytes}`);
 
-    const url = `${
-      apiUrl.startsWith('http') || apiUrl.startsWith('//')
-        ? ''
-        : window.location.origin // use abs to match perf timing urls
-    }${apiUrl}?${Object.entries(qsParams)
-      .map(([k, v]) => `${k}=${v}`)
-      .join('&')}`;
+    const urlObj = new URL(apiUrl, window.location.origin);
+    Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
+    const url = urlObj.href;
 
     const fetchOpt = Object.assign(
       {},

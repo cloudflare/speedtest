@@ -38,7 +38,13 @@ export default [
     },
     settings: {
       // Polyfills for compat plugin
-      polyfills: ['Array.prototype.includes', 'Promise', 'fetch']
+      polyfills: [
+        'Array.prototype.includes',
+        'Promise',
+        'fetch',
+        'URL',
+        'URLSearchParams'
+      ]
     }
   }
 ];
