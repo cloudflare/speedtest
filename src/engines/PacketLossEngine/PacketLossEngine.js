@@ -53,7 +53,7 @@ export default class PacketLossEngine {
           turnServerPass,
           turnServerUri: credsApiTurnServerUri
         }) => {
-          const c = (this.#webRtcConnection = new SelfWebRtcDataConnection({
+          const c = new SelfWebRtcDataConnection({
             iceServers: [
               {
                 urls: `turn:${credsApiTurnServerUri || turnServerUri}?transport=udp`,
@@ -62,7 +62,7 @@ export default class PacketLossEngine {
               }
             ],
             iceTransportPolicy: 'relay'
-          }));
+          });
 
           let connectionSuccess = false;
           setTimeout(() => {
@@ -160,6 +160,5 @@ export default class PacketLossEngine {
 
   // Internal state
   #msgTracker = {};
-  #webRtcConnection;
   #numMsgs;
 }

@@ -31,7 +31,6 @@ export default class SelfWebRtcDataConnection {
       this.onOpen();
     };
     senderDc.onclose = () => this.close();
-    // senderDc.onmessage = msg => this.#onMessage(msg.data);
 
     receiver.ondatachannel = e => {
       const dc = e.channel;
@@ -41,17 +40,12 @@ export default class SelfWebRtcDataConnection {
       this.#receiverDc = dc;
     };
 
-    // sender.onconnectionstatechange = e => console.log('connection state change', e);
-    // sender.oniceconnectionstatechange = e => console.log('ice connection state change', e);
-    // sender.onicecandidateerror = e => console.log('ice error', e);
     sender.onicecandidate = e => {
-      // console.log('sender', e.candidate);
       e.candidate &&
         acceptIceCandidate(e.candidate) &&
         receiver.addIceCandidate(e.candidate);
     };
     receiver.onicecandidate = e => {
-      // console.log('receiver', e.candidate);
       e.candidate &&
         acceptIceCandidate(e.candidate) &&
         sender.addIceCandidate(e.candidate);
@@ -68,7 +62,6 @@ export default class SelfWebRtcDataConnection {
     this.#sender = sender;
     this.#receiver = receiver;
     this.#senderDc = senderDc;
-    this.#established = false;
   }
 
   // Public attributes

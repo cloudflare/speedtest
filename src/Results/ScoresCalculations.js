@@ -34,7 +34,7 @@ class ScoresCalculations {
               ? { [type]: defaultPoints[type] }
               : {}
             : {
-                [type]: val === undefined ? 0 : +fn(val)
+                [type]: +fn(val)
               };
         }
       )

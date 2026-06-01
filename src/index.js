@@ -159,7 +159,6 @@ class MeasurementEngine {
 
     engine.onFinished =
       engine.onConnectionError =
-      engine.onFail =
       engine.onMsgReceived =
       engine.onCredentialsFailure =
       engine.onMeasurementResult =
