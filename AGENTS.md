@@ -23,9 +23,11 @@ Uses **Vitest** with two test projects:
 
 - **Unit tests** (`tests/unit/**/*.test.ts`) — pure function tests for utils,
   config, and Results. Run in Node, no browser needed. Fast.
-- **E2E tests** (`tests/e2e/*.test.ts`) — runs a minimal speed test in a real
+- **E2E tests** (`tests/e2e/*.test.ts`) — runs a realistic speed test in a real
   Chromium browser via Vitest Browser Mode + Playwright. Tests the full library
-  integration (fetch, PerformanceResourceTiming, module loading).
+  integration (fetch, PerformanceResourceTiming, module loading) with multiple
+  measurement phases (latency, download, upload), loaded latency, AIM scoring,
+  and raw data point validation. Packet loss is skipped (CORS limitation).
 
 Test files are written in TypeScript (`.test.ts`). Source is still JS.
 
