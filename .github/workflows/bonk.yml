@@ -42,4 +42,8 @@ jobs:
           model: "cloudflare-ai-gateway/anthropic/claude-opus-4-8"
           variant: "high"
           mentions: "/bonk,@ask-bonk"
+          # Only users with write access may invoke Bonk.
+          permissions: write
+          # Review-only: Bonk leaves comments/suggestions but never pushes commits.
+          token_permissions: NO_PUSH
           opencode_version: 1.15.13 # pin to this version as certain ones cause ProviderInitError issues
