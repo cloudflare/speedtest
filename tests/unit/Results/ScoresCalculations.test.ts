@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import ScoresCalculations from '../../../src/Results/ScoresCalculations.js';
-import internalConfig from '../../../src/config/internalConfig.js';
+import ScoresCalculations from '../../../src/Results/ScoresCalculations.ts';
+import internalConfig from '../../../src/config/internalConfig.ts';
 
 function createScoresCalc() {
   return new ScoresCalculations(internalConfig);

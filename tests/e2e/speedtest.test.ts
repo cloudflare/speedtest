@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import SpeedTest from '../../src/index.js';
+import SpeedTest from '../../src/index.ts';
 
 const VALID_CLASSIFICATIONS = ['bad', 'poor', 'average', 'good', 'great'];
 

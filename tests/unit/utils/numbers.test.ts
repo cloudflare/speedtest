@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sum, avg, percentile } from '../../../src/utils/numbers.js';
+import { sum, avg, percentile } from '../../../src/utils/numbers.ts';
 
 describe('sum', () => {
   it('sums an array of numbers', () => {

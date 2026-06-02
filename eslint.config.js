@@ -1,19 +1,24 @@
 import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
 import compat from 'eslint-plugin-compat';
-import importPlugin from 'eslint-plugin-import';
 import json from 'eslint-plugin-json';
 import prettier from 'eslint-plugin-prettier';
 
 export default [
   // Base configuration
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   compat.configs['flat/recommended'],
-  importPlugin.flatConfigs.recommended,
   json.configs.recommended,
   {
+    files: ['src/**/*.ts'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'module'
+      sourceType: 'module',
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true
+      }
     },
     plugins: {
       prettier: prettier
@@ -29,15 +34,27 @@ export default [
       radix: 'error',
       'wrap-iife': ['error', 'inside'],
 
-      'import/first': 'warn',
-      'import/no-absolute-path': 'error',
-      'import/no-deprecated': 'warn',
-      'import/no-mutable-exports': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_' }
+      ],
+      // Allow short-circuit expressions (e.g., `expr && fn()`) — common pattern in this codebase
+      '@typescript-eslint/no-unused-expressions': [
+        'error',
+        { allowShortCircuit: true }
+      ],
+      // Allow `const self = this` pattern (used in PacketLossEngine's IIFE)
+      '@typescript-eslint/no-this-alias': 'off',
+      // Enforce `import type` for type-only imports (helps tree-shaking and clarity)
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' }
+      ],
 
       'prettier/prettier': 'error'
     },
     settings: {
-      // Polyfills for compat plugin
       polyfills: [
         'Array.prototype.includes',
         'Promise',
