@@ -1,13 +1,14 @@
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-  entry: { speedtest: 'src/index.js' },
+  entry: { speedtest: 'src/index.ts' },
   format: 'esm',
   platform: 'browser',
   target: 'es2022',
   sourcemap: true,
-  dts: false,
+  dts: true,
   outputOptions: {
-    entryFileNames: '[name].js'
+    entryFileNames: '[name].js',
+    comments: false
   }
 });

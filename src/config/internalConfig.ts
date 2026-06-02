@@ -1,6 +1,26 @@
 import scaleThreshold from '../utils/scaleThreshold';
 
-export default {
+export type AimMetricKey =
+  | 'packetLoss'
+  | 'latency'
+  | 'loadedLatencyIncrease'
+  | 'jitter'
+  | 'download'
+  | 'upload';
+
+export type AimExperienceKey = 'streaming' | 'gaming' | 'rtc';
+
+export interface AimExperienceDef {
+  input: AimMetricKey[];
+  pointThresholds: number[];
+}
+
+export interface InternalConfig {
+  aimMeasurementScoring: Record<AimMetricKey, (value: number) => number>;
+  aimExperiencesDefs: Record<AimExperienceKey, AimExperienceDef>;
+}
+
+const internalConfig: InternalConfig = {
   // AIM
   aimMeasurementScoring: {
     packetLoss: scaleThreshold([0.01, 0.05, 0.25, 0.5], [10, 5, 0, -10, -20]),
@@ -28,3 +48,5 @@ export default {
     }
   }
 };
+
+export default internalConfig;

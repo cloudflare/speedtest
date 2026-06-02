@@ -1,8 +1,24 @@
 import BandwidthEngine from './BandwidthEngine';
+import type {
+  BandwidthMeasurement,
+  BandwidthEngineOptions,
+  BandwidthTimingResult
+} from './BandwidthEngine';
 
+export interface ParallelLatencyOptions extends BandwidthEngineOptions {
+  measureParallelLatency?: boolean;
+  parallelLatencyThrottleMs?: number;
+}
+
+/**
+ * Extends BandwidthEngine to measure latency in parallel during bandwidth tests.
+ * Runs a lightweight side-channel engine that sends zero-byte requests at a
+ * configurable interval, collecting round-trip times while the main engine
+ * saturates the connection with download or upload traffic.
+ */
 class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
   constructor(
-    measurements,
+    measurements: BandwidthMeasurement[],
     {
       measureParallelLatency = false,
       parallelLatencyThrottleMs = 100,
@@ -10,7 +26,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       uploadApiUrl,
       estimatedServerTime = 0,
       ...ptProps
-    } = {}
+    }: ParallelLatencyOptions = {}
   ) {
     super(measurements, {
       downloadApiUrl,
@@ -41,7 +57,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       };
 
       super.onRunningChange = this.#setLatencyRunning;
-      super.onConnectionError = () => this.#latencyEngine.pause();
+      super.onConnectionError = () => this.#latencyEngine!.pause();
     }
   }
 
@@ -52,50 +68,54 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
   }
 
   // callback invoked when a new parallel latency result arrives
-  set onParallelLatencyResult(f) {
+  set onParallelLatencyResult(f: (res: BandwidthTimingResult) => void) {
     this.#latencyEngine &&
-      (this.#latencyEngine.onMeasurementResult = res => f(res));
+      (this.#latencyEngine.onMeasurementResult = (res: BandwidthTimingResult) =>
+        f(res));
   }
 
   // Overridden attributes
-  get fetchOptions() {
+  get fetchOptions(): RequestInit {
     return super.fetchOptions;
   }
-  set fetchOptions(fetchOptions) {
+  set fetchOptions(fetchOptions: RequestInit) {
     super.fetchOptions = fetchOptions;
     this.#latencyEngine && (this.#latencyEngine.fetchOptions = fetchOptions);
   }
 
-  set onRunningChange(onRunningChange) {
-    super.onRunningChange = running => {
+  set onRunningChange(onRunningChange: (running: boolean) => void) {
+    super.onRunningChange = (running: boolean) => {
       this.#setLatencyRunning(running);
       onRunningChange(running);
     };
   }
 
-  set onConnectionError(onConnectionError) {
-    super.onConnectionError = (...args) => {
+  set onConnectionError(onConnectionError: (error: string) => void) {
+    super.onConnectionError = (...args: [string]) => {
       this.#latencyEngine && this.#latencyEngine.pause();
       onConnectionError(...args);
     };
   }
 
   // Internal state
-  #latencyEngine;
-  #latencyTimeout;
+  #latencyEngine: BandwidthEngine | undefined;
+  #latencyTimeout: ReturnType<typeof setTimeout> | undefined;
 
   // Internal methods
-  #setLatencyRunning(running) {
+  #setLatencyRunning = (running: boolean): void => {
     if (this.#latencyEngine) {
       if (!running) {
         clearTimeout(this.#latencyTimeout);
         this.#latencyEngine.pause();
       } else {
         // slight delay in starting latency measurements
-        this.#latencyTimeout = setTimeout(() => this.#latencyEngine.play(), 20);
+        this.#latencyTimeout = setTimeout(
+          () => this.#latencyEngine!.play(),
+          20
+        );
       }
     }
-  }
+  };
 }
 
 export default BandwidthWithParallelLatencyEngine;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import defaultConfig from '../../../src/config/defaultConfig.js';
+import defaultConfig from '../../../src/config/defaultConfig.ts';
 
 describe('defaultConfig', () => {
   it('has autoStart enabled by default', () => {
