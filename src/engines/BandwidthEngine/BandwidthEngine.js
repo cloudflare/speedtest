@@ -256,7 +256,11 @@ class BandwidthMeasurementEngine {
 
     const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
     const qsParams = Object.assign({}, this.#qsParams);
-    isDown && (qsParams.bytes = `${numBytes}`);
+    // Advertise the measurement size via `bytes=` in both directions. For
+    // downloads it tells the server how many bytes to send; for uploads it
+    // tells the server where to stop receiving (the POST body is exactly
+    // `numBytes`), letting the edge bound/measure upload volume.
+    qsParams.bytes = `${numBytes}`;
 
     const urlObj = new URL(apiUrl, window.location.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
