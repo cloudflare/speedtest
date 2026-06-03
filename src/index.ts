@@ -327,6 +327,10 @@ class MeasurementEngine {
 
     this.onPhaseChange({
       measurementId: this.#curMsmIdx,
+      // Only the user-configurable subset reaches here: `Config.measurements` is
+      // typed `MeasurementConfig[]`, so the extra runtime types in the switch
+      // below (latencyUnderLoad/packetLossUnderLoad/reachability/rpki/nxdomain)
+      // are never present in the public config and the cast is sound.
       measurement: { type, ...msmConfig } as MeasurementConfig
     });
 
