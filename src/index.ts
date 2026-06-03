@@ -1,8 +1,10 @@
 import {
   defaultConfig,
   internalConfig,
+  type Config,
   type ConfigOptions,
-  type InternalConfig
+  type InternalConfig,
+  type MeasurementConfig
 } from './config';
 import { type Engine } from './engines/Engine';
 import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
@@ -65,18 +67,10 @@ interface MeasurementStep {
 }
 
 /** The merged config object (defaultConfig + userConfig + internalConfig). */
-type SpeedTestConfig = ConfigOptions &
+type SpeedTestConfig = Config &
   InternalConfig & { measurements: MeasurementStep[] } & {
     [key: string]: unknown;
   };
-
-/**
- * Partial user-supplied configuration.
- *
- * Pass to the engine constructor to override any property from
- * {@link ConfigOptions}. Omitted properties use their defaults.
- */
-type UserConfig = Partial<SpeedTestConfig>;
 
 /** Per-type measurement result bucket stored in Results.raw. */
 interface MeasurementResult {
@@ -93,7 +87,7 @@ interface PhaseChangePayload {
   /** Index of the current measurement step within the configured measurements array. */
   measurementId: number;
   /** Configuration of the measurement phase that is starting. */
-  measurement: MeasurementStep;
+  measurement: MeasurementConfig;
 }
 
 /**
@@ -125,7 +119,7 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  * ```
  */
 class MeasurementEngine {
-  constructor(userConfig: UserConfig = {}) {
+  constructor(userConfig: ConfigOptions = {}) {
     this.#config = Object.assign(
       {},
       defaultConfig,
@@ -333,7 +327,11 @@ class MeasurementEngine {
 
     this.onPhaseChange({
       measurementId: this.#curMsmIdx,
-      measurement: { type, ...msmConfig }
+      // Only the user-configurable subset reaches here: `Config.measurements` is
+      // typed `MeasurementConfig[]`, so the extra runtime types in the switch
+      // below (latencyUnderLoad/packetLossUnderLoad/reachability/rpki/nxdomain)
+      // are never present in the public config and the cast is sound.
+      measurement: { type, ...msmConfig } as MeasurementConfig
     });
 
     const { downloadApiUrl, uploadApiUrl, estimatedServerTime } = this.#config;
@@ -709,7 +707,7 @@ class MeasurementEngine {
  * ```
  */
 class SpeedTestEngine extends MeasurementEngine {
-  constructor(userConfig: UserConfig = {}) {
+  constructor(userConfig: ConfigOptions = {}) {
     super(userConfig);
     super.onFinish = this.#logFinalResults;
 
@@ -755,7 +753,7 @@ class SpeedTestEngine extends MeasurementEngine {
 
 export default SpeedTestEngine;
 
-export type { UserConfig };
+export type { MeasurementType, PhaseChangePayload };
 export { type default as Results } from './Results';
 export type {
   BandwidthPoint,
