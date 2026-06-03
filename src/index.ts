@@ -1,6 +1,7 @@
 import {
   defaultConfig,
   internalConfig,
+  type Config,
   type ConfigOptions,
   type InternalConfig
 } from './config';
@@ -65,18 +66,10 @@ interface MeasurementStep {
 }
 
 /** The merged config object (defaultConfig + userConfig + internalConfig). */
-type SpeedTestConfig = ConfigOptions &
+type SpeedTestConfig = Config &
   InternalConfig & { measurements: MeasurementStep[] } & {
     [key: string]: unknown;
   };
-
-/**
- * Partial user-supplied configuration.
- *
- * Pass to the engine constructor to override any property from
- * {@link ConfigOptions}. Omitted properties use their defaults.
- */
-type UserConfig = Partial<SpeedTestConfig>;
 
 /** Per-type measurement result bucket stored in Results.raw. */
 interface MeasurementResult {
@@ -125,7 +118,7 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  * ```
  */
 class MeasurementEngine {
-  constructor(userConfig: UserConfig = {}) {
+  constructor(userConfig: ConfigOptions = {}) {
     this.#config = Object.assign(
       {},
       defaultConfig,
@@ -709,7 +702,7 @@ class MeasurementEngine {
  * ```
  */
 class SpeedTestEngine extends MeasurementEngine {
-  constructor(userConfig: UserConfig = {}) {
+  constructor(userConfig: ConfigOptions = {}) {
     super(userConfig);
     super.onFinish = this.#logFinalResults;
 
@@ -755,7 +748,7 @@ class SpeedTestEngine extends MeasurementEngine {
 
 export default SpeedTestEngine;
 
-export type { UserConfig };
+export type { MeasurementType, MeasurementStep, PhaseChangePayload };
 export { type default as Results } from './Results';
 export type {
   BandwidthPoint,

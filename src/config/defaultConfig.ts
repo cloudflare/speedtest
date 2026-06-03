@@ -35,12 +35,13 @@ export type MeasurementConfig =
   | PacketLossMeasurementConfig;
 
 /**
- * User-facing configuration for the speed test engine.
+ * Fully-specified speed test configuration — every option present.
  *
- * All properties have sensible defaults defined in {@link defaultConfig}.
- * Pass a partial object to the engine constructor to override individual values.
+ * This is the shape of {@link defaultConfig}. Consumers don't construct this
+ * directly; they pass a {@link ConfigOptions} (a partial) to the engine, which
+ * merges it over the defaults.
  */
-export interface ConfigOptions {
+export interface Config {
   /** Whether to start the test immediately on construction. Default: `true`. */
   autoStart: boolean;
 
@@ -108,9 +109,18 @@ export interface ConfigOptions {
   loadedLatencyMaxPoints: number;
 }
 
+/**
+ * User-facing configuration for the speed test engine.
+ *
+ * A partial of {@link Config}: pass any subset to the engine constructor to
+ * override individual options; omitted properties fall back to their defaults
+ * in {@link defaultConfig}.
+ */
+export type ConfigOptions = Partial<Config>;
+
 const REL_API_URL = 'https://speed.cloudflare.com';
 
-const defaultConfig: ConfigOptions = {
+const defaultConfig: Config = {
   // Engine
   autoStart: true,
 

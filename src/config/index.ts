@@ -2,6 +2,7 @@ export { default as defaultConfig } from './defaultConfig';
 export { default as internalConfig } from './internalConfig';
 
 export type {
+  Config,
   ConfigOptions,
   MeasurementConfig,
   LatencyMeasurementConfig,
