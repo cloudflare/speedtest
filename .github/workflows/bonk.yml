@@ -13,51 +13,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Automatic review when a PR is opened. Internal (non-fork) PRs only, because
-  # GitHub does not expose the CF_AI_GATEWAY_* secrets to fork-triggered runs.
-  auto-review:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.sender.type != 'Bot' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      id-token: write
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Run Bonk (auto review)
-        uses: ask-bonk/ask-bonk/github@main
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_AI_GATEWAY_ACCOUNT_ID }}
-          CLOUDFLARE_GATEWAY_ID: ${{ secrets.CF_AI_GATEWAY_NAME }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_AI_GATEWAY_TOKEN }}
-        with:
-          model: "cloudflare-ai-gateway/anthropic/claude-opus-4-8"
-          # Review-only: Bonk leaves comments/suggestions but never pushes commits.
-          permissions: write
-          token_permissions: NO_PUSH
-          opencode_version: 1.15.13 # pin to this version as certain ones cause ProviderInitError issues
-          prompt: |
-            Review this pull request. Summarize what it changes and flag any
-            correctness, security, or style issues as inline review comments.
-            Do not push commits.
-
-  # Manual review on demand: an org member comments /bonk or @ask-bonk.
   bonk:
+    # Runs in two situations:
+    #  - automatically when a PR is opened (internal PRs only; fork-triggered
+    #    runs don't receive the CF_AI_GATEWAY_* secrets), or
+    #  - on demand when an org member (OWNER/MEMBER) comments /bonk or @ask-bonk.
     if: >-
-      github.event_name != 'pull_request' &&
-      github.event.sender.type != 'Bot' &&
-      contains(fromJson('["OWNER","MEMBER"]'), github.event.comment.author_association) &&
-      (contains(github.event.comment.body, '/bonk') || contains(github.event.comment.body, '@ask-bonk'))
+      github.event.sender.type != 'Bot' && (
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository) ||
+        (github.event_name != 'pull_request' &&
+         contains(fromJson('["OWNER","MEMBER"]'), github.event.comment.author_association) &&
+         (contains(github.event.comment.body, '/bonk') || contains(github.event.comment.body, '@ask-bonk')))
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -81,8 +49,12 @@ jobs:
         with:
           model: "cloudflare-ai-gateway/anthropic/claude-opus-4-8"
           mentions: "/bonk,@ask-bonk"
-          # Only users with write access may invoke Bonk.
+          # Only users with write access may invoke Bonk via comment.
           permissions: write
           # Review-only: Bonk leaves comments/suggestions but never pushes commits.
           token_permissions: NO_PUSH
           opencode_version: 1.15.13 # pin to this version as certain ones cause ProviderInitError issues
+          prompt: |
+            Review this pull request. Summarize what it changes and flag any
+            correctness, security, or style issues as inline review comments.
+            Do not push commits.
