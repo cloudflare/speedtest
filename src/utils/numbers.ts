@@ -1,7 +1,8 @@
 export const sum = (vals: number[]): number =>
   vals.reduce((agg, val) => agg + val, 0);
 
-export const avg = (vals: number[]): number => sum(vals) / vals.length;
+export const avg = (vals: number[]): number =>
+  vals.length ? sum(vals) / vals.length : 0;
 
 /**
  * Returns the value at the given percentile using linear interpolation.
