@@ -3,7 +3,8 @@ import {
   internalConfig,
   type Config,
   type ConfigOptions,
-  type InternalConfig
+  type InternalConfig,
+  type MeasurementConfig
 } from './config';
 import { type Engine } from './engines/Engine';
 import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
@@ -86,7 +87,7 @@ interface PhaseChangePayload {
   /** Index of the current measurement step within the configured measurements array. */
   measurementId: number;
   /** Configuration of the measurement phase that is starting. */
-  measurement: MeasurementStep;
+  measurement: MeasurementConfig;
 }
 
 /**
@@ -326,7 +327,7 @@ class MeasurementEngine {
 
     this.onPhaseChange({
       measurementId: this.#curMsmIdx,
-      measurement: { type, ...msmConfig }
+      measurement: { type, ...msmConfig } as MeasurementConfig
     });
 
     const { downloadApiUrl, uploadApiUrl, estimatedServerTime } = this.#config;
@@ -748,7 +749,7 @@ class SpeedTestEngine extends MeasurementEngine {
 
 export default SpeedTestEngine;
 
-export type { MeasurementType, MeasurementStep, PhaseChangePayload };
+export type { MeasurementType, PhaseChangePayload };
 export { type default as Results } from './Results';
 export type {
   BandwidthPoint,
