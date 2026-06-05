@@ -1,14 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import Results from '../../../src/Results/index.js';
-import defaultConfig from '../../../src/config/defaultConfig.js';
-import internalConfig from '../../../src/config/internalConfig.js';
+import Results from '../../../src/Results/index.ts';
+import type { RawMeasurementEntry } from '../../../src/Results/index.ts';
+import defaultConfig from '../../../src/config/defaultConfig.ts';
+import internalConfig from '../../../src/config/internalConfig.ts';
+
+type ResultsConfig = ConstructorParameters<typeof Results>[0];
 
 function createResults(configOverrides = {}) {
   return new Results({
     ...defaultConfig,
     ...internalConfig,
     ...configOverrides
-  });
+  } as ResultsConfig);
 }
 
 describe('Results', () => {
@@ -25,18 +28,19 @@ describe('Results', () => {
     it('marks all measurements as not started and not finished', () => {
       const results = createResults();
       for (const key of ['latency', 'download', 'upload', 'packetLoss']) {
-        expect(results.raw[key].started).toBe(false);
-        expect(results.raw[key].finished).toBe(false);
+        const entry = results.raw[key] as RawMeasurementEntry;
+        expect(entry.started).toBe(false);
+        expect(entry.finished).toBe(false);
       }
     });
 
     it('clears results back to initial state', () => {
       const results = createResults();
-      results.raw.latency.started = true;
-      results.raw.latency.finished = true;
+      (results.raw.latency as RawMeasurementEntry).started = true;
+      (results.raw.latency as RawMeasurementEntry).finished = true;
       results.clear();
-      expect(results.raw.latency.started).toBe(false);
-      expect(results.raw.latency.finished).toBe(false);
+      expect((results.raw.latency as RawMeasurementEntry).started).toBe(false);
+      expect((results.raw.latency as RawMeasurementEntry).finished).toBe(false);
     });
   });
 
@@ -50,7 +54,7 @@ describe('Results', () => {
       const results = createResults({
         measurements: [{ type: 'latency', numPackets: 1 }]
       });
-      results.raw.latency.finished = true;
+      (results.raw.latency as RawMeasurementEntry).finished = true;
       expect(results.isFinished).toBe(true);
     });
 
@@ -61,8 +65,8 @@ describe('Results', () => {
           { type: 'download', bytes: 1e5, count: 1 }
         ]
       });
-      results.raw.latency.finished = true;
-      results.raw.download.finished = false;
+      (results.raw.latency as RawMeasurementEntry).finished = true;
+      (results.raw.download as RawMeasurementEntry).finished = false;
       expect(results.isFinished).toBe(false);
     });
   });
@@ -92,8 +96,9 @@ describe('Results', () => {
   describe('getters with populated data', () => {
     it('returns latency when measurement is started', () => {
       const results = createResults();
-      results.raw.latency.started = true;
-      results.raw.latency.results = {
+      const latency = results.raw.latency as RawMeasurementEntry;
+      latency.started = true;
+      latency.results = {
         timings: [{ ping: 10 }, { ping: 20 }, { ping: 30 }]
       };
       expect(results.getUnloadedLatency()).toBe(20); // median
@@ -101,8 +106,9 @@ describe('Results', () => {
 
     it('returns jitter when measurement is started', () => {
       const results = createResults();
-      results.raw.latency.started = true;
-      results.raw.latency.results = {
+      const latency = results.raw.latency as RawMeasurementEntry;
+      latency.started = true;
+      latency.results = {
         timings: [{ ping: 10 }, { ping: 20 }, { ping: 30 }]
       };
       expect(results.getUnloadedJitter()).toBe(10);
@@ -110,8 +116,9 @@ describe('Results', () => {
 
     it('returns bandwidth when measurement is started', () => {
       const results = createResults();
-      results.raw.download.started = true;
-      results.raw.download.results = {
+      const download = results.raw.download as RawMeasurementEntry;
+      download.started = true;
+      download.results = {
         100000: {
           timings: [
             {
@@ -130,8 +137,9 @@ describe('Results', () => {
 
     it('returns packet loss details with error when error exists', () => {
       const results = createResults();
-      results.raw.packetLoss.started = true;
-      results.raw.packetLoss.error = 'Connection failed';
+      const packetLoss = results.raw.packetLoss as RawMeasurementEntry;
+      packetLoss.started = true;
+      packetLoss.error = 'Connection failed';
       const details = results.getPacketLossDetails();
       expect(details).toEqual({ error: 'Connection failed' });
     });
@@ -147,8 +155,9 @@ describe('Results', () => {
 
     it('includes only started measurements in summary', () => {
       const results = createResults();
-      results.raw.latency.started = true;
-      results.raw.latency.results = {
+      const latency = results.raw.latency as RawMeasurementEntry;
+      latency.started = true;
+      latency.results = {
         timings: [{ ping: 15 }]
       };
 
@@ -170,12 +179,14 @@ describe('Results', () => {
   describe('getScores', () => {
     it('returns scores based on current summary', () => {
       const results = createResults();
-      results.raw.latency.started = true;
-      results.raw.latency.results = {
+      const latency = results.raw.latency as RawMeasurementEntry;
+      latency.started = true;
+      latency.results = {
         timings: [{ ping: 5 }]
       };
-      results.raw.download.started = true;
-      results.raw.download.results = {
+      const download = results.raw.download as RawMeasurementEntry;
+      download.started = true;
+      download.results = {
         100000: {
           timings: [
             {

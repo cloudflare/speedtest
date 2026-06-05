@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getLoggedBytes,
   parseUploadBytesHeader
-} from '../../../src/engines/LoggingBandwidthEngine/index.js';
+} from '../../../src/engines/BandwidthEngine/LoggingBandwidthEngine.ts';
 
 describe('LoggingBandwidthEngine', () => {
   describe('parseUploadBytesHeader', () => {

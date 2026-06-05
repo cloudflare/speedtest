@@ -1,8 +1,11 @@
+import type { Engine } from '../Engine';
+
 const MAX_RETRIES = 20;
 
 const ESTIMATED_HEADER_FRACTION = 0.005; // ~.5% of packet header / payload size. used when transferSize is not available.
 
-const cfGetServerTime = r => {
+/** Extract server processing time from the `Server-Timing` response header. */
+const cfGetServerTime = (r: Response): number | undefined => {
   // extract server-timing from headers: server-timing: cfRequestDuration;dur=15.999794
   const serverTiming = r.headers.get(`server-timing`);
   if (serverTiming) {
@@ -11,16 +14,31 @@ const cfGetServerTime = r => {
   }
 };
 
-const getTtfb = perf => perf.responseStart - perf.requestStart;
+/** Time to first byte: time from request start to first response byte (ms). */
+const getTtfb = (perf: PerformanceResourceTiming): number =>
+  perf.responseStart - perf.requestStart;
 
-const gePayloadDownload = perf => perf.responseEnd - perf.responseStart; // min 1ms
+/** Payload download time: time from first response byte to last byte (ms). */
+const getPayloadDownload = (perf: PerformanceResourceTiming): number =>
+  perf.responseEnd - perf.responseStart; // min 1ms
 
-const calcDownloadDuration = ({ ping, payloadDownloadTime }) =>
-  ping + payloadDownloadTime; // request duration excluding server time
+/** Total download duration: TTFB + payload download time (ms). */
+const calcDownloadDuration = ({
+  ping,
+  payloadDownloadTime
+}: {
+  ping: number;
+  payloadDownloadTime: number;
+}): number => ping + payloadDownloadTime; // request duration excluding server time
 
-const calcUploadDuration = ({ ttfb }) => ttfb;
+/** Total upload duration: server reports via TTFB (ms). */
+const calcUploadDuration = ({ ttfb }: { ttfb: number }): number => ttfb;
 
-const calcDownloadSpeed = ({ duration, transferSize }, numBytes) => {
+/** Download speed in bits per second. */
+const calcDownloadSpeed = (
+  { duration, transferSize }: { duration: number; transferSize: number },
+  numBytes: number
+): number | undefined => {
   // use transferSize if available. if estimating from numBytes, add ~0.5% of headers.
   const bits =
     8 * (transferSize || +numBytes * (1 + ESTIMATED_HEADER_FRACTION));
@@ -29,7 +47,11 @@ const calcDownloadSpeed = ({ duration, transferSize }, numBytes) => {
   return !secs ? undefined : bits / secs;
 };
 
-const calcUploadSpeed = ({ duration }, numBytes) => {
+/** Upload speed in bits per second. */
+const calcUploadSpeed = (
+  { duration }: { duration: number },
+  numBytes: number
+): number | undefined => {
   const bits = 8 * numBytes * (1 + ESTIMATED_HEADER_FRACTION); // take into account estimated packet headers
   const secs = duration / 1000; // subtract estimated server time
 
@@ -37,24 +59,76 @@ const calcUploadSpeed = ({ duration }, numBytes) => {
 };
 
 const genContent = (() => {
-  const cache = new Map();
-  return numBytes => {
+  const cache = new Map<number, string>();
+  return (numBytes: number): string => {
     if (!cache.has(numBytes)) cache.set(numBytes, '0'.repeat(numBytes));
-    return cache.get(numBytes);
+    return cache.get(numBytes)!;
   };
 })();
 
 //
 
-class BandwidthMeasurementEngine {
+export interface BandwidthMeasurement {
+  dir: 'down' | 'up';
+  bytes: number;
+  count: number;
+  bypassMinDuration?: boolean;
+}
+
+export interface BandwidthMeasurementTiming {
+  transferSize: number;
+  ttfb: number;
+  payloadDownloadTime: number;
+  serverTime: number;
+  measTime: Date;
+  ping: number;
+  duration: number;
+  bps: number | undefined;
+}
+
+export interface BandwidthTimingResult extends BandwidthMeasurementTiming {
+  type: 'down' | 'up';
+  bytes: number;
+}
+
+export interface BytesResult {
+  timings: BandwidthMeasurementTiming[];
+  numMeasurements: number;
+}
+
+export interface BandwidthEngineResults {
+  down: Record<number, BytesResult>;
+  up: Record<number, BytesResult>;
+}
+
+export interface ResponseHookPayload {
+  url: string;
+  headers: Headers;
+  body: string;
+}
+
+export interface BandwidthEngineOptions {
+  downloadApiUrl?: string;
+  uploadApiUrl?: string;
+  throttleMs?: number;
+  estimatedServerTime?: number;
+}
+
+/**
+ * Measures download and upload bandwidth via sequential HTTP requests.
+ * Each request's timing is extracted from the browser's PerformanceResourceTiming
+ * API, providing accurate transfer duration independent of JS execution overhead.
+ * Supports configurable retry logic and abort thresholds.
+ */
+class BandwidthMeasurementEngine implements Engine {
   constructor(
-    measurements,
+    measurements: BandwidthMeasurement[],
     {
       downloadApiUrl,
       uploadApiUrl,
       throttleMs = 0,
       estimatedServerTime = 0
-    } = {}
+    }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
     if (!downloadApiUrl) throw new Error('Missing downloadApiUrl argument');
@@ -68,64 +142,77 @@ class BandwidthMeasurementEngine {
   }
 
   // Public attributes
-  get results() {
+  get results(): BandwidthEngineResults {
     // read access to results
     return this.#results;
   }
 
-  #qsParams = {}; // additional query string params to include in the requests
-  get qsParams() {
+  #qsParams: Record<string, string> = {}; // additional query string params to include in the requests
+  get qsParams(): Record<string, string> {
     return this.#qsParams;
   }
-  set qsParams(v) {
+  set qsParams(v: Record<string, string>) {
     this.#qsParams = v;
   }
 
-  #fetchOptions = {}; // additional options included in the requests
-  get fetchOptions() {
+  #fetchOptions: RequestInit = {}; // additional options included in the requests
+  get fetchOptions(): RequestInit {
     return this.#fetchOptions;
   }
-  set fetchOptions(v) {
+  set fetchOptions(v: RequestInit) {
     this.#fetchOptions = v;
   }
 
-  finishRequestDuration = 1000; // download/upload duration (ms) to reach for stopping further measurements
-  abortRequestDuration = 0;
-  getServerTime = cfGetServerTime; // method to extract server time from response
+  finishRequestDuration: number = 1000; // download/upload duration (ms) to reach for stopping further measurements
+  abortRequestDuration: number = 0;
+  getServerTime: ((r: Response) => number | undefined) | null = cfGetServerTime; // method to extract server time from response
 
-  #responseHook = r => r; // pipe-through of response objects
-  set responseHook(f) {
+  #responseHook: (r: ResponseHookPayload) => void = () => {}; // pipe-through of response objects
+  set responseHook(f: (r: ResponseHookPayload) => void) {
     this.#responseHook = f;
   }
 
-  #onRunningChange = () => {}; // callback invoked when engine starts/stops
-  set onRunningChange(f) {
+  #onRunningChange: (running: boolean) => void = () => {}; // callback invoked when engine starts/stops
+  set onRunningChange(f: (running: boolean) => void) {
     this.#onRunningChange = f;
   }
-  #onNewMeasurementStarted = () => {}; // callback invoked when a new item in the measurement list is started
-  set onNewMeasurementStarted(f) {
+  #onNewMeasurementStarted: (
+    measurement: BandwidthMeasurement,
+    results: BandwidthEngineResults
+  ) => void = () => {}; // callback invoked when a new item in the measurement list is started
+  set onNewMeasurementStarted(
+    f: (
+      measurement: BandwidthMeasurement,
+      results: BandwidthEngineResults
+    ) => void
+  ) {
     this.#onNewMeasurementStarted = f;
   }
-  #onMeasurementResult = () => {}; // callback invoked when a new measurement result arrives
-  set onMeasurementResult(f) {
+  #onMeasurementResult: (
+    result: BandwidthTimingResult,
+    results: BandwidthEngineResults
+  ) => void = () => {}; // callback invoked when a new measurement result arrives
+  set onMeasurementResult(
+    f: (result: BandwidthTimingResult, results: BandwidthEngineResults) => void
+  ) {
     this.#onMeasurementResult = f;
   }
-  #onFinished = () => {}; // callback invoked when all the measurements are finished
-  set onFinished(f) {
+  #onFinished: (results: BandwidthEngineResults) => void = () => {}; // callback invoked when all the measurements are finished
+  set onFinished(f: (results: BandwidthEngineResults) => void) {
     this.#onFinished = f;
   }
-  #onConnectionError = () => {}; // Invoked when unable to get a response from the API
-  set onConnectionError(f) {
+  #onConnectionError: (error: string) => void = () => {}; // Invoked when unable to get a response from the API
+  set onConnectionError(f: (error: string) => void) {
     this.#onConnectionError = f;
   }
 
   // Public methods
-  pause() {
+  pause(): void {
     this.#cancelCurrentMeasurement(`pause()`);
     this.#setRunning(false);
   }
 
-  play() {
+  play(): void {
     if (!this.#running) {
       this.#setRunning(true);
       this.#nextMeasurement();
@@ -133,28 +220,27 @@ class BandwidthMeasurementEngine {
   }
 
   // Internal state
-  #measurements;
-  #downloadApi;
-  #uploadApi;
+  #measurements: BandwidthMeasurement[];
+  #downloadApi: string;
+  #uploadApi: string;
 
-  #running = false;
-  #finished = { down: false, up: false };
-  #results = { down: {}, up: {} };
-  #measIdx = 0;
-  #counter = 0;
-  #retries = 0;
-  #minDuration = -Infinity; // of current measurement
-  #throttleMs = 0;
-  #estimatedServerTime = 0;
+  #running: boolean = false;
+  #finished: Record<string, boolean> = { down: false, up: false };
+  #results: BandwidthEngineResults = { down: {}, up: {} };
+  #measIdx: number = 0;
+  #counter: number = 0;
+  #retries: number = 0;
+  #minDuration: number = -Infinity; // of current measurement
+  #throttleMs: number = 0;
+  #estimatedServerTime: number = 0;
 
   /**
    * Aborts the current measurement.
-   * @type AbortController
    */
-  #currentAbortController = undefined;
+  #currentAbortController: AbortController | undefined = undefined;
 
   // Internal methods
-  #setRunning(running) {
+  #setRunning(running: boolean): void {
     if (running !== this.#running) {
       this.#running = running;
       setTimeout(() => this.#onRunningChange(this.#running));
@@ -165,12 +251,15 @@ class BandwidthMeasurementEngine {
     }
   }
 
-  #saveMeasurementResults(measIdx, measTiming) {
+  #saveMeasurementResults(
+    measIdx: number,
+    measTiming?: BandwidthMeasurementTiming
+  ): void {
     const { bytes, dir } = this.#measurements[measIdx];
 
     const results = this.#results;
 
-    const bytesResult = results[dir].hasOwnProperty(bytes)
+    const bytesResult: BytesResult = results[dir].hasOwnProperty(bytes)
       ? results[dir][bytes]
       : {
           timings: [],
@@ -204,7 +293,7 @@ class BandwidthMeasurementEngine {
     }
   }
 
-  #nextMeasurement() {
+  #nextMeasurement(): void {
     const measurements = this.#measurements;
     let meas = measurements[this.#measIdx];
 
@@ -255,18 +344,14 @@ class BandwidthMeasurementEngine {
     const isDown = dir === 'down';
 
     const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
-    const qsParams = Object.assign({}, this.#qsParams);
-    // Advertise the measurement size via `bytes=` in both directions. For
-    // downloads it tells the server how many bytes to send; for uploads it
-    // tells the server where to stop receiving (the POST body is exactly
-    // `numBytes`), letting the edge bound/measure upload volume.
+    const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
     qsParams.bytes = `${numBytes}`;
 
     const urlObj = new URL(apiUrl, window.location.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
     const url = urlObj.href;
 
-    const fetchOpt = Object.assign(
+    const fetchOpt: RequestInit = Object.assign(
       {},
       isDown
         ? {}
@@ -297,10 +382,10 @@ class BandwidthMeasurementEngine {
       }
     }
 
-    let serverTime;
+    let serverTime: number | undefined;
     fetch(url, {
       ...fetchOpt,
-      signal: this.#currentAbortController.signal
+      signal: this.#currentAbortController!.signal
     })
       .then(r => {
         if (r.ok) return r;
@@ -312,24 +397,28 @@ class BandwidthMeasurementEngine {
       })
       .then(r =>
         r.text().then(body => {
-          this.#responseHook &&
-            this.#responseHook({
-              url,
-              headers: r.headers,
-              body
-            });
+          this.#responseHook({
+            url,
+            headers: r.headers,
+            body
+          });
 
           return body;
         })
       )
       .then(() => {
-        const perf = performance.getEntriesByName(url).slice(-1)[0]; // get latest perf timing
-        const timing = {
+        const perf = performance
+          .getEntriesByName(url)
+          .slice(-1)[0] as PerformanceResourceTiming; // get latest perf timing
+        const timing: BandwidthMeasurementTiming = {
           transferSize: perf.transferSize,
           ttfb: getTtfb(perf),
-          payloadDownloadTime: gePayloadDownload(perf),
+          payloadDownloadTime: getPayloadDownload(perf),
           serverTime: serverTime || -1,
-          measTime: new Date()
+          measTime: new Date(),
+          ping: 0,
+          duration: 0,
+          bps: undefined
         };
         timing.ping = Math.max(
           1e-2,
@@ -375,7 +464,7 @@ class BandwidthMeasurementEngine {
             () => this.#nextMeasurement(),
             this.#throttleMs
           );
-          this.#currentAbortController.signal.addEventListener('abort', () =>
+          this.#currentAbortController!.signal.addEventListener('abort', () =>
             clearTimeout(throttleTimeout)
           );
         } else {
@@ -383,7 +472,7 @@ class BandwidthMeasurementEngine {
         }
       })
       .catch(error => {
-        if (this.#currentAbortController.signal.aborted) {
+        if (this.#currentAbortController!.signal.aborted) {
           return;
         }
         console.warn(`Error fetching ${url}: ${error}`);
@@ -400,7 +489,7 @@ class BandwidthMeasurementEngine {
       });
   }
 
-  #cancelCurrentMeasurement(reason) {
+  #cancelCurrentMeasurement(reason?: string): void {
     this.#currentAbortController?.abort(
       reason || `aborted with no reason provided`
     );

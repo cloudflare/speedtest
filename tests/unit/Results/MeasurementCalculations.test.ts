@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import MeasurementCalculations from '../../../src/Results/MeasurementCalculations.js';
+import MeasurementCalculations from '../../../src/Results/MeasurementCalculations.ts';
+import type { MeasurementCalcConfig } from '../../../src/Results/MeasurementCalculations.ts';
+import type {
+  BandwidthTiming,
+  PacketLossResults,
+  ReachabilityResults
+} from '../../../src/types.ts';
 
-const defaultCalcConfig = {
+const defaultCalcConfig: MeasurementCalcConfig = {
   latencyPercentile: 0.5,
   bandwidthPercentile: 0.9,
   bandwidthMinRequestDuration: 10,
@@ -9,7 +15,7 @@ const defaultCalcConfig = {
   loadedLatencyMaxPoints: 20
 };
 
-function createCalc(configOverrides = {}) {
+function createCalc(configOverrides: Partial<MeasurementCalcConfig> = {}) {
   return new MeasurementCalculations({
     ...defaultCalcConfig,
     ...configOverrides
@@ -90,7 +96,7 @@ describe('MeasurementCalculations', () => {
               bps: 1e6,
               duration: 50,
               ping: 10,
-              measTime: 100,
+              measTime: new Date(100),
               serverTime: 5,
               transferSize: 100000
             }
@@ -102,7 +108,7 @@ describe('MeasurementCalculations', () => {
               bps: 10e6,
               duration: 100,
               ping: 12,
-              measTime: 200,
+              measTime: new Date(200),
               serverTime: 8,
               transferSize: 1000000
             }
@@ -129,7 +135,7 @@ describe('MeasurementCalculations', () => {
               bps: 1e6,
               duration: 5,
               ping: 10,
-              measTime: 100,
+              measTime: new Date(100),
               serverTime: 5,
               transferSize: 100000
             }, // filtered out (duration < 10)
@@ -137,7 +143,7 @@ describe('MeasurementCalculations', () => {
               bps: 5e6,
               duration: 50,
               ping: 10,
-              measTime: 100,
+              measTime: new Date(100),
               serverTime: 5,
               transferSize: 100000
             },
@@ -145,7 +151,7 @@ describe('MeasurementCalculations', () => {
               bps: 10e6,
               duration: 100,
               ping: 10,
-              measTime: 100,
+              measTime: new Date(100),
               serverTime: 5,
               transferSize: 100000
             }
@@ -163,14 +169,21 @@ describe('MeasurementCalculations', () => {
   describe('getPacketLoss', () => {
     it('returns the packetLoss value directly', () => {
       const calc = createCalc();
-      expect(calc.getPacketLoss({ packetLoss: 0.02 })).toBe(0.02);
+      expect(
+        calc.getPacketLoss({
+          packetLoss: 0.02,
+          totalMessages: 100,
+          numMessagesSent: 100,
+          lostMessages: [5, 10]
+        } as PacketLossResults)
+      ).toBe(0.02);
     });
   });
 
   describe('getPacketLossDetails', () => {
     it('returns the full results object', () => {
       const calc = createCalc();
-      const details = {
+      const details: PacketLossResults = {
         packetLoss: 0.02,
         totalMessages: 100,
         numMessagesSent: 100,
@@ -190,7 +203,7 @@ describe('MeasurementCalculations', () => {
 
       const result = calc.getLoadedLatency({
         100000: {
-          timings: [{ duration: 200 }], // >= minDuration
+          timings: [{ duration: 200 } as BandwidthTiming], // >= minDuration
           sideLatency: [{ ping: 50 }, { ping: 60 }]
         }
       });
@@ -207,11 +220,11 @@ describe('MeasurementCalculations', () => {
 
       const result = calc.getLoadedLatency({
         100000: {
-          timings: [{ duration: 50 }], // < 250, filtered out
+          timings: [{ duration: 50 } as BandwidthTiming], // < 250, filtered out
           sideLatency: [{ ping: 999 }]
         },
         1000000: {
-          timings: [{ duration: 300 }], // >= 250, kept
+          timings: [{ duration: 300 } as BandwidthTiming], // >= 250, kept
           sideLatency: [{ ping: 40 }, { ping: 60 }]
         }
       });
@@ -223,12 +236,16 @@ describe('MeasurementCalculations', () => {
   describe('getReachability', () => {
     it('returns true for reachable results', () => {
       const calc = createCalc();
-      expect(calc.getReachability({ reachable: true })).toBe(true);
+      expect(
+        calc.getReachability({ reachable: true } as ReachabilityResults)
+      ).toBe(true);
     });
 
     it('returns false for unreachable results', () => {
       const calc = createCalc();
-      expect(calc.getReachability({ reachable: false })).toBe(false);
+      expect(
+        calc.getReachability({ reachable: false } as ReachabilityResults)
+      ).toBe(false);
     });
   });
 });

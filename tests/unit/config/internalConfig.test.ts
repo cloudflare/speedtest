@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import internalConfig from '../../../src/config/internalConfig.js';
+import internalConfig from '../../../src/config/internalConfig.ts';
+import type { AimMetricKey } from '../../../src/config/internalConfig.ts';
 
 describe('internalConfig', () => {
   describe('aimMeasurementScoring', () => {
     const { aimMeasurementScoring } = internalConfig;
 
     it('has scoring functions for all measurement types', () => {
-      const expectedTypes = [
+      const expectedTypes: AimMetricKey[] = [
         'packetLoss',
         'latency',
         'loadedLatencyIncrease',
