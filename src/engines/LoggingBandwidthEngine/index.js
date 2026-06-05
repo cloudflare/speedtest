@@ -1,5 +1,18 @@
 import BandwidthEngine from '../BandwidthEngine';
 
+export const parseUploadBytesHeader = headers => {
+  const value = headers.get('cf-meta-upload-bytes');
+  if (!value || !/^\d+$/.test(value)) return undefined;
+
+  const bytes = Number(value);
+  return Number.isSafeInteger(bytes) ? bytes : undefined;
+};
+
+export const getLoggedBytes = (measData, uploadBytes) =>
+  measData.type === 'up' && uploadBytes !== undefined
+    ? uploadBytes
+    : measData.bytes;
+
 class LoggingBandwidthEngine extends BandwidthEngine {
   constructor(
     measurements,
@@ -41,6 +54,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   #measurementId;
   #token;
   #requestTime;
+  #uploadBytes;
   #logApiUrl;
   #sessionId;
 
@@ -50,6 +64,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
 
     // get request time
     this.#requestTime = +r.headers.get(`cf-meta-request-time`);
+    this.#uploadBytes = parseUploadBytesHeader(r.headers);
 
     // get token in payload
     this.#token = r.body.slice(-300).split('___').pop();
@@ -60,7 +75,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
 
     const logData = {
       type: measData.type,
-      bytes: measData.bytes,
+      bytes: getLoggedBytes(measData, this.#uploadBytes),
       ping: Math.round(measData.ping), // round to ms
       ttfb: Math.round(measData.ttfb), // round to ms
       payloadDownloadTime: Math.round(measData.payloadDownloadTime),
@@ -75,6 +90,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
 
     this.#token = null;
     this.#requestTime = null;
+    this.#uploadBytes = undefined;
 
     fetch(this.#logApiUrl, {
       method: 'POST',
