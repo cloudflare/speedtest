@@ -119,6 +119,27 @@ describe('MeasurementCalculations', () => {
       expect(result[0].bytes).toBe(100000);
       expect(result[1].bytes).toBe(1000000);
     });
+
+    it('surfaces server-accepted upload bytes when present', () => {
+      const calc = createCalc();
+      const result = calc.getBandwidthPoints({
+        5000000000: {
+          timings: [
+            {
+              bps: 10e6,
+              duration: 100,
+              ping: 12,
+              measTime: new Date(200),
+              serverTime: 8,
+              transferSize: 4000000000,
+              uploadBytes: 4000000000
+            }
+          ]
+        }
+      });
+      expect(result[0].bytes).toBe(5000000000);
+      expect(result[0].uploadBytes).toBe(4000000000);
+    });
   });
 
   describe('getBandwidth', () => {

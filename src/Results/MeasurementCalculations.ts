@@ -82,14 +82,23 @@ class MeasurementCalculations {
     Object.entries(bandwidthResults)
       .map(([bytes, { timings }]) =>
         timings.map(
-          ({ bps, duration, ping, measTime, serverTime, transferSize }) => ({
+          ({
+            bps,
+            duration,
+            ping,
+            measTime,
+            serverTime,
+            transferSize,
+            uploadBytes
+          }) => ({
             bytes: +bytes,
             bps,
             duration,
             ping,
             measTime,
             serverTime,
-            transferSize
+            transferSize,
+            uploadBytes
           })
         )
       )

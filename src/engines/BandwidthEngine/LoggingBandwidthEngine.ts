@@ -7,6 +7,25 @@ import type {
 } from './BandwidthEngine';
 import type { ParallelLatencyOptions } from './ParallelLatency';
 
+export const parseUploadBytesHeader = (
+  headers: Headers
+): number | undefined => {
+  const value = headers.get('cf-meta-upload-bytes');
+  if (!value || !/^\d+$/.test(value)) return undefined;
+
+  const bytes = Number(value);
+  return Number.isSafeInteger(bytes) ? bytes : undefined;
+};
+
+/** Upload logs use server-accepted bytes when the server reports a cap. */
+export const getLoggedBytes = (
+  measData: Pick<BandwidthTimingResult, 'type' | 'bytes'>,
+  uploadBytes: number | undefined
+): number =>
+  measData.type === 'up' && uploadBytes !== undefined
+    ? uploadBytes
+    : measData.bytes;
+
 export interface LoggingBandwidthEngineOptions extends ParallelLatencyOptions {
   measurementId?: string;
   logApiUrl?: string;
@@ -38,8 +57,10 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>
       this.#loggingResponseHook(r);
-    super.onMeasurementResult = (meas: BandwidthTimingResult) =>
+    super.onMeasurementResult = (meas: BandwidthTimingResult) => {
+      this.#applyUploadBytes(meas);
       this.#logMeasurement(meas);
+    };
   }
 
   // Overridden attributes
@@ -66,6 +87,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       meas: BandwidthTimingResult,
       ...restArgs: [BandwidthEngineResults]
     ) => {
+      this.#applyUploadBytes(meas);
       onMeasurementResult(meas, ...restArgs);
       this.#logMeasurement(meas);
     };
@@ -75,11 +97,27 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   #measurementId: string | undefined;
   #token: string | null | undefined;
   #requestTime: number | null | undefined;
+  #uploadBytes: number | undefined;
   #logApiUrl: string | undefined;
   #sessionId: string | undefined;
 
   // Internal methods
+
+  /**
+   * Records server-accepted upload bytes on the measurement result so the
+   * final results payload can report the actual uploaded size (uploads only).
+   */
+  #applyUploadBytes(measData: BandwidthTimingResult): void {
+    if (measData.type === 'up' && this.#uploadBytes !== undefined) {
+      measData.uploadBytes = this.#uploadBytes;
+    }
+  }
+
   #loggingResponseHook(r: ResponseHookPayload): void {
+    // Capture server-accepted upload bytes regardless of per-measurement
+    // logging, so the final results payload can report actual uploaded sizes.
+    this.#uploadBytes = parseUploadBytesHeader(r.headers);
+
     if (!this.#logApiUrl) return;
 
     // get request time
@@ -94,7 +132,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
 
     const logData = {
       type: measData.type,
-      bytes: measData.bytes,
+      bytes: getLoggedBytes(measData, this.#uploadBytes),
       ping: Math.round(measData.ping), // round to ms
       ttfb: Math.round(measData.ttfb), // round to ms
       payloadDownloadTime: Math.round(measData.payloadDownloadTime),
@@ -109,6 +147,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
 
     this.#token = null;
     this.#requestTime = null;
+    this.#uploadBytes = undefined;
 
     fetch(this.#logApiUrl, {
       method: 'POST',

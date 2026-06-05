@@ -50,10 +50,14 @@ const round = (
 const latencyPointsParser: ParserFn = durations =>
   (durations as number[]).map(d => round(d, 2));
 
-/** Extracts bytes and rounded bps from each bandwidth data point. */
+/**
+ * Extracts bytes and rounded bps from each bandwidth data point. For uploads,
+ * `bytes` is the server-accepted size (`cf-meta-upload-bytes`) when reported,
+ * falling back to the requested size; downloads always use the requested size.
+ */
 const bpsPointsParser: ParserFn = pnts =>
   (pnts as BandwidthPoint[]).map(d => ({
-    bytes: +d.bytes,
+    bytes: d.uploadBytes ?? +d.bytes,
     bps: round(d.bps)
   }));
 
