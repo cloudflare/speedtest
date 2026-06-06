@@ -63,5 +63,13 @@ export default [
         'URLSearchParams'
       ]
     }
+  },
+  {
+    // Tests run in Node and headless Chromium, not the browsers the library
+    // targets, so browser-compat checks don't apply to them.
+    files: ['tests/**/*.ts'],
+    rules: {
+      'compat/compat': 'off'
+    }
   }
 ];

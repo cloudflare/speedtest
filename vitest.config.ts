@@ -15,6 +15,7 @@ export default defineConfig({
         test: {
           name: 'e2e',
           include: ['tests/e2e/**/*.test.ts'],
+          globalSetup: ['./tests/e2e/support/globalSetup.ts'],
           browser: {
             enabled: true,
             provider: playwright(),
