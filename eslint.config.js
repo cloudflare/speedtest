@@ -63,5 +63,20 @@ export default [
         'URLSearchParams'
       ]
     }
+  },
+  {
+    // Tests run in modern environments (Node + Vitest browser mode/Chromium),
+    // so the same web APIs are available as the polyfilled set used in src.
+    files: ['tests/**/*.ts'],
+    settings: {
+      polyfills: [
+        'Array.prototype.includes',
+        'Promise',
+        'fetch',
+        'Response',
+        'URL',
+        'URLSearchParams'
+      ]
+    }
   }
 ];
