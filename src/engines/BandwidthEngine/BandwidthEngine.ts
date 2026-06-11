@@ -345,7 +345,7 @@ class BandwidthMeasurementEngine implements Engine {
 
     const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
     const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
-    isDown && (qsParams.bytes = `${numBytes}`);
+    qsParams.bytes = `${numBytes}`;
 
     const urlObj = new URL(apiUrl, window.location.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
