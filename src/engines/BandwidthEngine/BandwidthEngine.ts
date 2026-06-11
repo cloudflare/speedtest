@@ -84,6 +84,8 @@ export interface BandwidthMeasurementTiming {
   ping: number;
   duration: number;
   bps: number | undefined;
+  /** Server-accepted upload size (bytes) from `cf-meta-upload-bytes`, uploads only. */
+  uploadBytes?: number;
 }
 
 export interface BandwidthTimingResult extends BandwidthMeasurementTiming {

@@ -37,6 +37,13 @@ export interface BandwidthTiming {
 
   /** Actual number of bytes transferred (from `PerformanceResourceTiming`). */
   transferSize: number;
+
+  /**
+   * Server-accepted upload size (bytes), from the `cf-meta-upload-bytes`
+   * response header. Present only for upload requests where the server
+   * reported how much of the body it accepted (e.g. when it caps the upload).
+   */
+  uploadBytes?: number;
 }
 
 /**
@@ -87,6 +94,13 @@ export interface BandwidthPoint {
 
   /** From `PerformanceResourceTiming`. */
   transferSize: number;
+
+  /**
+   * Server-accepted upload size (bytes), from the `cf-meta-upload-bytes`
+   * response header. Present only for upload points where the server reported
+   * how much of the body it accepted.
+   */
+  uploadBytes?: number;
 }
 
 /** Results from a packet-loss measurement via WebRTC TURN relay. */
