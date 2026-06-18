@@ -59,30 +59,36 @@ describe('logAimResults', () => {
     expect(result).toEqual({ requestId });
   });
 
-  it('resolves with undefined on a non-ok response', async () => {
+  it('resolves with { requestId: undefined } on a non-ok response', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response('nope', { status: 500 }))
     );
 
-    expect(await logAimResults(makeResults(), config)).toBeUndefined();
+    expect(await logAimResults(makeResults(), config)).toEqual({
+      requestId: undefined
+    });
   });
 
-  it('resolves with undefined when the request rejects', async () => {
+  it('resolves with { requestId: undefined } when the request rejects', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockRejectedValue(new Error('network down'))
     );
 
-    expect(await logAimResults(makeResults(), config)).toBeUndefined();
+    expect(await logAimResults(makeResults(), config)).toEqual({
+      requestId: undefined
+    });
   });
 
-  it('resolves with undefined when the response body is not JSON', async () => {
+  it('resolves with { requestId: undefined } when the response body is not JSON', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response('not json', { status: 200 }))
     );
 
-    expect(await logAimResults(makeResults(), config)).toBeUndefined();
+    expect(await logAimResults(makeResults(), config)).toEqual({
+      requestId: undefined
+    });
   });
 });

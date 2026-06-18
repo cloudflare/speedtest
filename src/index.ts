@@ -744,8 +744,9 @@ class SpeedTestEngine extends MeasurementEngine {
    * Called after the final results have been logged to the AIM API, with the
    * endpoint's parsed response (e.g. the assigned `requestId`).
    *
-   * Fires only when logging is enabled (`logAimApiUrl` is set) and the request
-   * succeeds. Because the log request completes after {@link onFinish}, this
+   * Fires whenever logging is attempted (`logAimApiUrl` is set), after the log
+   * request completes — on success or failure. On failure, `requestId` is
+   * `undefined`. Because the log request completes after {@link onFinish}, this
    * callback runs slightly later.
    */
   onResultsLogged: (response: AimLogResponse) => void = () => {};
@@ -763,9 +764,7 @@ class SpeedTestEngine extends MeasurementEngine {
       apiUrl: this.#logAimApiUrl,
       sessionId: this.#sessionId
     }).then(response => {
-      if (response) {
-        this.onResultsLogged(response);
-      }
+      this.onResultsLogged(response);
     });
   };
 }

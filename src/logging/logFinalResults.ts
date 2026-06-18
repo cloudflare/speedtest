@@ -100,13 +100,14 @@ const scoreParser = (
  * Formats measurement results and AIM scores, then POSTs them to the
  * AIM logging endpoint. Best-effort — never throws.
  *
- * Resolves with the parsed JSON response from the endpoint (e.g. the assigned
- * `requestId`), or `undefined` if the request failed or returned no usable body.
+ * Always resolves with an {@link AimLogResponse}: the parsed response body on
+ * success (e.g. the assigned `requestId`), or `{ requestId: undefined }` if the
+ * request failed or returned no usable body.
  */
 const logAimResults = async (
   results: Results,
   { apiUrl, sessionId }: LogConfig
-): Promise<AimLogResponse | undefined> => {
+): Promise<AimLogResponse> => {
   const logData: LogData = {
     sessionId
   };
@@ -134,11 +135,11 @@ const logAimResults = async (
       body: JSON.stringify(logData)
     });
     if (!response.ok) {
-      return undefined;
+      return { requestId: undefined };
     }
     return (await response.json()) as AimLogResponse;
   } catch {
-    return undefined;
+    return { requestId: undefined };
   }
 };
 
