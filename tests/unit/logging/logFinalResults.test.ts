@@ -41,6 +41,9 @@ describe('logAimResults', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(config.apiUrl);
     expect(init.method).toBe('POST');
+    // The module's main job is formatting logData — assert it lands in the body.
+    const body = JSON.parse(init.body);
+    expect(body.totalDurationMs).toBe(1234);
   });
 
   it('resolves with the parsed response body (e.g. requestId)', async () => {

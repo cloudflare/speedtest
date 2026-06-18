@@ -772,7 +772,7 @@ class SpeedTestEngine extends MeasurementEngine {
 export default SpeedTestEngine;
 
 export type { MeasurementType, PhaseChangePayload };
-export type { AimLogResponse } from './logging/logFinalResults';
+export type { AimLogResponse };
 export { type default as Results } from './Results';
 export type {
   BandwidthPoint,

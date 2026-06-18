@@ -67,7 +67,8 @@ describe('SpeedTest E2E', () => {
         return originalFetch(input, init);
       };
 
-      // onResultsLogged fires after onFinish (once the log request resolves).
+      // onResultsLogged fires shortly after onFinish (once the log request
+      // resolves).
       const aimResponsePromise = new Promise<AimLogResponse>(resolve => {
         engine.onResultsLogged = resolve;
       });
@@ -95,10 +96,25 @@ describe('SpeedTest E2E', () => {
         }
       );
 
-      // Wait for the AIM log request to resolve, then restore fetch before
-      // running assertions so a failure never leaves the global patched.
-      const aimResponse = await aimResponsePromise;
-      restoreFetch();
+      // The log request resolves shortly after onFinish; bound the wait so a
+      // regression that stops onResultsLogged firing fails fast with a clear
+      // message instead of hanging until the test timeout. Restore fetch before
+      // assertions so a failure never leaves the global patched.
+      let aimLogTimer: ReturnType<typeof setTimeout> | undefined;
+      const aimLogTimeout = new Promise<never>((_, reject) => {
+        aimLogTimer = setTimeout(
+          () =>
+            reject(new Error('onResultsLogged did not fire within 15s of finish')),
+          15_000
+        );
+      });
+      let aimResponse: AimLogResponse;
+      try {
+        aimResponse = await Promise.race([aimResponsePromise, aimLogTimeout]);
+      } finally {
+        clearTimeout(aimLogTimer);
+        restoreFetch();
+      }
 
       // ── Engine state ──────────────────────────────────────────────
       expect(resultsObj.isFinished).toBe(true);
