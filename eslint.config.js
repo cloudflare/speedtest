@@ -65,18 +65,9 @@ export default [
     }
   },
   {
-    // Tests run in modern environments (Node + Vitest browser mode/Chromium),
-    // so the same web APIs are available as the polyfilled set used in src.
+    // Browser-compat checks apply to shipped library code (src), not tests,
+    // which run in Node + Vitest's Chromium.
     files: ['tests/**/*.ts'],
-    settings: {
-      polyfills: [
-        'Array.prototype.includes',
-        'Promise',
-        'fetch',
-        'Response',
-        'URL',
-        'URLSearchParams'
-      ]
-    }
+    rules: { 'compat/compat': 'off' }
   }
 ];
