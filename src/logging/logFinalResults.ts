@@ -41,7 +41,6 @@ interface LogData {
 export interface AimLogResponse {
   /** Unique identifier assigned to this measurement, used to look it up later. */
   requestId?: string;
-  [key: string]: unknown;
 }
 
 type ParserFn = (val: unknown) => unknown;
