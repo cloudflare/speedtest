@@ -63,5 +63,11 @@ export default [
         'URLSearchParams'
       ]
     }
+  },
+  {
+    // Browser-compat checks apply to shipped library code (src), not tests,
+    // which run in Node + Vitest's Chromium.
+    files: ['tests/**/*.ts'],
+    rules: { 'compat/compat': 'off' }
   }
 ];

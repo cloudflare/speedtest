@@ -12,7 +12,9 @@ import PacketLossEngine from './engines/PacketLossEngine';
 import ReachabilityEngine from './engines/ReachabilityEngine';
 
 import Results from './Results';
-import logFinalResults from './logging/logFinalResults';
+import logFinalResults, {
+  type AimLogResponse
+} from './logging/logFinalResults';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -704,6 +706,7 @@ class MeasurementEngine {
  *
  * const engine = new SpeedTest();
  * engine.onFinish = results => console.log(results.getScores());
+ * engine.onResultsLogged = ({ requestId }) => console.log('Logged as', requestId);
  * ```
  */
 class SpeedTestEngine extends MeasurementEngine {
@@ -737,23 +740,39 @@ class SpeedTestEngine extends MeasurementEngine {
     };
   }
 
+  /**
+   * Called after the final results have been logged to the AIM API, with the
+   * endpoint's parsed response (e.g. the assigned `requestId`).
+   *
+   * Fires whenever logging is attempted (`logAimApiUrl` is set), after the log
+   * request completes — on success or failure. On failure, `requestId` is
+   * `undefined`. Because the log request completes after {@link onFinish}, this
+   * callback runs slightly later.
+   */
+  onResultsLogged: (response: AimLogResponse) => void = () => {};
+
   // Internal state
   readonly #logAimApiUrl: string | null;
   readonly #sessionId: string | undefined;
 
   // Internal methods
   #logFinalResults = (results: Results): void => {
-    this.#logAimApiUrl &&
-      logFinalResults(results, {
-        apiUrl: this.#logAimApiUrl,
-        sessionId: this.#sessionId
-      });
+    if (!this.#logAimApiUrl) {
+      return;
+    }
+    logFinalResults(results, {
+      apiUrl: this.#logAimApiUrl,
+      sessionId: this.#sessionId
+    }).then(response => {
+      this.onResultsLogged(response);
+    });
   };
 }
 
 export default SpeedTestEngine;
 
 export type { MeasurementType, PhaseChangePayload };
+export type { AimLogResponse };
 export { type default as Results } from './Results';
 export type {
   BandwidthPoint,

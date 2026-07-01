@@ -37,6 +37,12 @@ interface LogData {
   [key: string]: unknown;
 }
 
+/** Response returned by the AIM logging endpoint. */
+export interface AimLogResponse {
+  /** Unique identifier assigned to this measurement, used to look it up later. */
+  requestId?: string;
+}
+
 type ParserFn = (val: unknown) => unknown;
 
 /** Rounds a number to a given number of decimal places. */
@@ -91,12 +97,16 @@ const scoreParser = (
 
 /**
  * Formats measurement results and AIM scores, then POSTs them to the
- * AIM logging endpoint. Fire-and-forget — errors are silently ignored.
+ * AIM logging endpoint. Best-effort — never throws.
+ *
+ * Always resolves with an {@link AimLogResponse}: the parsed response body on
+ * success (e.g. the assigned `requestId`), or `{ requestId: undefined }` if the
+ * request failed or returned no usable body.
  */
-const logAimResults = (
+const logAimResults = async (
   results: Results,
   { apiUrl, sessionId }: LogConfig
-): void => {
+): Promise<AimLogResponse> => {
   const logData: LogData = {
     sessionId
   };
@@ -118,10 +128,18 @@ const logAimResults = (
     );
   }
 
-  fetch(apiUrl, {
-    method: 'POST',
-    body: JSON.stringify(logData)
-  });
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify(logData)
+    });
+    if (!response.ok) {
+      return { requestId: undefined };
+    }
+    return (await response.json()) as AimLogResponse;
+  } catch {
+    return { requestId: undefined };
+  }
 };
 
 export default logAimResults;
