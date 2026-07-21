@@ -51,7 +51,7 @@ export interface Config {
   uploadApiUrl: string;
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
-  /** URL for AIM score logging. Set to `null` to disable. Default: `https://aim.cloudflare.com/__log`. */
+  /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
   logAimApiUrl: string | null;
   /** TURN server URI for packet loss measurement. Default: `turn.speed.cloudflare.com:50000`. */
   turnServerUri: string;
@@ -128,7 +128,7 @@ const defaultConfig: Config = {
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
   logMeasurementApiUrl: null,
-  logAimApiUrl: 'https://aim.cloudflare.com/__log',
+  logAimApiUrl: `${REL_API_URL}/__results`,
   turnServerUri: 'turn.speed.cloudflare.com:50000',
   turnServerCredsApiUrl: `${REL_API_URL}/turn-creds`,
   turnServerUser: null,

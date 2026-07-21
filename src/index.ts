@@ -695,7 +695,7 @@ class MeasurementEngine {
 
 /**
  * Extended {@link MeasurementEngine} that automatically logs final AIM scores
- * to `aim.cloudflare.com` when the test completes.
+ * to the configured `logAimApiUrl` when the test completes.
  *
  * This is the default export of the library and the recommended entry point
  * for most consumers.

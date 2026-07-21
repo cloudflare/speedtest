@@ -54,7 +54,7 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
 ## Architecture
 
 - `src/index.ts` — entrypoint. Exports `LoggingMeasurementEngine` (default),
-  which wraps `MeasurementEngine` and logs results to `aim.cloudflare.com`.
+  which wraps `MeasurementEngine` and logs results to `speed.cloudflare.com/__results`.
 - `src/config/` — default config and AIM scoring thresholds.
 - `src/engines/` — sub-engines for each measurement type:
   - `BandwidthEngine/` — HTTP fetch-based download/upload via `PerformanceResourceTiming`
