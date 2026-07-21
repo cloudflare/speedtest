@@ -1,0 +1,19 @@
+src/index.ts
+  s_19ff6d81fdffa4::t_bf1de9b216f9b1 208,490,513-517,528,535,566,639,688
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "416ce57f5427d89f5c641fc8cb9bfcd8f7592704",
+  "prompts": {},
+  "sessions": {
+    "s_19ff6d81fdffa4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_079dd13aeffePbaB4zPeowJtNN",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Carlos Rodrigues <crodrigues@cloudflare.com>"
+    }
+  }
+}
