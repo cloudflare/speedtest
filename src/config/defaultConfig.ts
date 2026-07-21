@@ -87,7 +87,7 @@ export interface Config {
   bandwidthFinishRequestDuration: number;
   /**
    * Estimated server processing time (ms) subtracted from raw latency when
-   * the server doesn't report its own processing time in headers. Default: `10`.
+   * the server doesn't report its own processing time in headers. Default: `0`.
    */
   estimatedServerTime: number;
 
@@ -165,7 +165,7 @@ const defaultConfig: Config = {
   measureUploadLoadedLatency: true,
   loadedLatencyThrottle: 400, // ms in between loaded latency requests
   bandwidthFinishRequestDuration: 1000, // download/upload duration (ms) to reach for stopping further measurements of that type
-  estimatedServerTime: 10, // ms to discount from latency calculation (if not present in response headers)
+  estimatedServerTime: 0, // ms to discount from latency calculation (if not present in response headers)
 
   // Test abort
   bandwidthAbortRequestDuration: 0, // download/upload duration (ms) to abort measurement early and stop further measurements of that type
