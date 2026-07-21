@@ -1,0 +1,19 @@
+src/config/defaultConfig.ts
+  s_19ff6d81fdffa4::t_30b3e11279bfbe 90,168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e4955133e25638afcd016e634b936b9a11d93eb",
+  "prompts": {},
+  "sessions": {
+    "s_19ff6d81fdffa4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_079dd13aeffePbaB4zPeowJtNN",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Carlos Rodrigues <crodrigues@cloudflare.com>"
+    }
+  }
+}
