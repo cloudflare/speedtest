@@ -4,14 +4,29 @@ const MAX_RETRIES = 20;
 
 const ESTIMATED_HEADER_FRACTION = 0.005; // ~.5% of packet header / payload size. used when transferSize is not available.
 
-/** Extract server processing time from the `Server-Timing` response header. */
+const SERVER_TIME_MIN_DURATION = 0.01; // minimum server-provided duration value to consider valid (ms)
+const SERVER_TIME_DELTA_MAX = 15; // max server time delta to accept (ms)
+const SERVER_TIME_CALIBRATION_MAX = 150; // max server time for delta calibration (ms)
+const SERVER_TIME_DELTA_WEIGHT = 0.75; // weight of new delta observations (0-1), blended with previous value
+
+// extract the server time from server-timing header(s)
 const cfGetServerTime = (r: Response): number | undefined => {
-  // extract server-timing from headers: server-timing: cfRequestDuration;dur=15.999794
   const serverTiming = r.headers.get(`server-timing`);
-  if (serverTiming) {
-    const re = serverTiming.match(/(?:^|;)\s*dur=([0-9.]+)/);
-    if (re) return +re[1];
+  if (!serverTiming) return;
+
+  const re = serverTiming.match(
+    /(?:^|,\s*)cfReq(?:uest)?Dur(?:ation)?;\s*dur=([0-9.]+)/i
+  );
+  if (re && +re[1] > SERVER_TIME_MIN_DURATION) return +re[1];
+
+  let sum = 0;
+  for (const m of serverTiming.matchAll(
+    /(?:^|,\s*)cfSpeed[a-zA-Z]*;\s*dur=([0-9.]+)/gi
+  )) {
+    sum += +m[1];
   }
+  if (sum > SERVER_TIME_MIN_DURATION) return sum;
+  return undefined;
 };
 
 /** Time to first byte: time from request start to first response byte (ms). */
@@ -112,6 +127,7 @@ export interface BandwidthEngineOptions {
   uploadApiUrl?: string;
   throttleMs?: number;
   estimatedServerTime?: number;
+  serverTimeDelta?: number;
 }
 
 /**
@@ -127,7 +143,8 @@ class BandwidthMeasurementEngine implements Engine {
       downloadApiUrl,
       uploadApiUrl,
       throttleMs = 0,
-      estimatedServerTime = 0
+      estimatedServerTime = 0,
+      serverTimeDelta = 0
     }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
@@ -139,12 +156,17 @@ class BandwidthMeasurementEngine implements Engine {
     this.#uploadApi = uploadApiUrl;
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
+    this.#serverTimeDelta = Math.max(0, serverTimeDelta);
   }
 
   // Public attributes
   get results(): BandwidthEngineResults {
     // read access to results
     return this.#results;
+  }
+
+  get serverTimeDelta(): number {
+    return this.#serverTimeDelta;
   }
 
   #qsParams: Record<string, string> = {}; // additional query string params to include in the requests
@@ -233,6 +255,7 @@ class BandwidthMeasurementEngine implements Engine {
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
+  #serverTimeDelta: number = 0;
 
   /**
    * Aborts the current measurement.
@@ -420,11 +443,45 @@ class BandwidthMeasurementEngine implements Engine {
           duration: 0,
           bps: undefined
         };
-        timing.ping = Math.max(
-          1e-2,
-          timing.ttfb - (serverTime || this.#estimatedServerTime)
-        ); // ttfb = network latency + server time
+        // Detect new TCP connection from handshake timings.
+        let connectTime = 0;
+        if (perf.secureConnectionStart > perf.connectStart) {
+          connectTime = perf.secureConnectionStart - perf.connectStart;
+        } else {
+          connectTime = perf.connectEnd - perf.connectStart;
+        }
 
+        const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
+        const httpVersion = protoMatch ? +protoMatch[1] : 0;
+
+        // Calibrate serverTimeDelta from new TCP connections (HTTP/1.1)
+        if (serverTime && connectTime && httpVersion > 0 && httpVersion < 2) {
+          const derivedTotalServerTime = Math.max(0, timing.ttfb - connectTime);
+          const delta = derivedTotalServerTime - serverTime;
+          if (
+            delta > 0 &&
+            delta <= SERVER_TIME_DELTA_MAX &&
+            delta <= serverTime &&
+            serverTime <= SERVER_TIME_CALIBRATION_MAX
+          ) {
+            this.#serverTimeDelta =
+              this.#serverTimeDelta * (1 - SERVER_TIME_DELTA_WEIGHT) +
+              delta * SERVER_TIME_DELTA_WEIGHT;
+            console.log(
+              `serverTimeDelta (estimated): ${this.#serverTimeDelta.toFixed(2)}ms`
+            );
+          } else if (delta > 0) {
+            console.log(`serverTimeDelta (skipped): ${delta.toFixed(2)}ms`);
+          }
+        }
+
+        const baseServerTime = serverTime || this.#estimatedServerTime;
+        timing.ping = timing.ttfb - baseServerTime - this.#serverTimeDelta;
+
+        // Discard the delta adjustment if it would collapse the ping
+        if (timing.ping <= 1) {
+          timing.ping = Math.max(0, timing.ttfb - baseServerTime);
+        }
         timing.duration = (isDown ? calcDownloadDuration : calcUploadDuration)(
           timing
         );
@@ -432,6 +489,27 @@ class BandwidthMeasurementEngine implements Engine {
           timing,
           numBytes
         );
+
+        // Log measurement details
+        const delta = this.#serverTimeDelta;
+        if (+numBytes === 0) {
+          console.log('latency', {
+            phase: `during ${qsParams.during || 'idle'}`,
+            ttfb: timing.ttfb,
+            serverTime: baseServerTime,
+            ...(delta && { serverTimeDelta: delta }),
+            ping: timing.ping
+          });
+        } else {
+          console.log(isDown ? 'download' : 'upload', {
+            bytes: +numBytes,
+            bps: timing.bps,
+            ttfb: timing.ttfb,
+            serverTime: baseServerTime,
+            ...(delta && { serverTimeDelta: delta }),
+            ping: timing.ping
+          });
+        }
 
         if (isDown && numBytes) {
           const reqSize = +numBytes;
@@ -496,4 +574,5 @@ class BandwidthMeasurementEngine implements Engine {
   }
 }
 
+export { cfGetServerTime };
 export default BandwidthMeasurementEngine;

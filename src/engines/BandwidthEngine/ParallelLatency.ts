@@ -25,6 +25,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       downloadApiUrl,
       uploadApiUrl,
       estimatedServerTime = 0,
+      serverTimeDelta = 0,
       ...ptProps
     }: ParallelLatencyOptions = {}
   ) {
@@ -32,6 +33,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       downloadApiUrl,
       uploadApiUrl,
       estimatedServerTime,
+      serverTimeDelta,
       ...ptProps
     });
 
@@ -49,6 +51,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
           downloadApiUrl,
           uploadApiUrl,
           estimatedServerTime,
+          serverTimeDelta,
           throttleMs: parallelLatencyThrottleMs
         }
       );

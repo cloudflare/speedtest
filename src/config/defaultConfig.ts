@@ -139,12 +139,15 @@ const defaultConfig: Config = {
 
   // Measurements
   measurements: [
-    { type: 'latency', numPackets: 1 }, // initial ttfb estimation
+    { type: 'latency', numPackets: 2 }, // initial ttfb estimation
     { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true }, // initial download estimation
     { type: 'latency', numPackets: 20 },
     { type: 'download', bytes: 1e5, count: 9 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e6, count: 8 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 1e5, count: 8 },
+    { type: 'latency', numPackets: 2 },
     {
       type: 'packetLoss',
       numPackets: 1e3,
@@ -153,12 +156,19 @@ const defaultConfig: Config = {
       responsesWaitTime: 3000 // ms (silent time after last sent msg)
     },
     { type: 'upload', bytes: 1e6, count: 6 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e7, count: 6 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 1e7, count: 4 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 2.5e7, count: 4 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 2.5e7, count: 4 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e8, count: 3 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 5e7, count: 3 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 2.5e8, count: 2 }
   ],
   measureDownloadLoadedLatency: true,
