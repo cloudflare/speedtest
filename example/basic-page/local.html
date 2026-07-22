@@ -5,23 +5,20 @@
   <script type="module">
     import SpeedTest from '../../dist/speedtest.js';
 
+    const TARGET = 'http://localhost:8787';
+
     const controlEl = document.getElementById('controls');
     const resEl = document.getElementById('result');
 
     const engine = new SpeedTest({
-      autoStart: false
+      autoStart: false,
+      downloadApiUrl: `${TARGET}/__down`,
+      uploadApiUrl: `${TARGET}/__up`
     });
     engine.onRunningChange = running => controlEl.textContent = running ? 'Running...' : 'Finished!';
     engine.onResultsChange = ({ type }) => {
-      const raw = engine.results.raw;
-      !engine.isFinished && setResult(raw);
-      const summary = engine.results.getSummary();
-      console.log(type, {
-        latency: summary.latency,
-        download: summary.download,
-        upload: summary.upload,
-        loadedLatency: summary.downLoadedLatency || summary.upLoadedLatency
-      });
+      !engine.isFinished && setResult(engine.results.raw);
+      console.log(type);
     };
     engine.onFinish = results => {
       setResult(results.getSummary());

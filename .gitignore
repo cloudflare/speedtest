@@ -8,3 +8,6 @@
 /.playwright
 /blob-report
 /coverage
+
+# Prevent temporary test pages from getting commited
+example/basic-page/*.html
