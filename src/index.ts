@@ -471,7 +471,7 @@ class MeasurementEngine {
 
         break;
       case 'latency':
-      case 'latencyUnderLoad':
+      case 'latencyUnderLoad': {
         msmResults.finished = false;
 
         engine = new BandwidthEngine(
@@ -515,12 +515,21 @@ class MeasurementEngine {
           eng.qsParams = { ...eng.qsParams, during: 'idle' };
         }
 
+        // Accumulate timings across latency phases
+        const priorTimings = (
+          (msmResults.results as { timings?: unknown[] })?.timings || []
+        ).slice();
+
         engine.onMeasurementResult = engine.onNewMeasurementStarted = (
           _meas: unknown,
           results: unknown
         ) => {
           const res = results as Record<string, Record<number, unknown>>;
           msmResults.results = Object.assign({}, res.down[0]);
+          (msmResults.results as { timings: unknown[] }).timings =
+            priorTimings.concat(
+              (msmResults.results as { timings: unknown[] }).timings
+            );
           this.onResultsChange({ type });
         };
 
@@ -541,6 +550,7 @@ class MeasurementEngine {
 
         (engine as Engine & { play: () => void }).play!();
         break;
+      }
       case 'download':
       case 'upload':
         if (msmResults.finished || msmResults.error) {

@@ -128,6 +128,8 @@ const logAimResults = async (
     );
   }
 
+  console.log('results', logData);
+
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
