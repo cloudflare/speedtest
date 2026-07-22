@@ -74,6 +74,10 @@ export interface Config {
    * Each entry describes a latency, bandwidth, or packet loss step.
    * The engine executes them sequentially, skipping further rounds of a
    * bandwidth type once its finish threshold is reached.
+   *
+   * Multiple `latency`, `download`, and `upload` steps accumulate their
+   * results. Other measurement types (e.g. `packetLoss`) replace prior
+   * results if multiple steps of the same type are configured.
    */
   measurements: MeasurementConfig[];
   measureDownloadLoadedLatency: boolean;
