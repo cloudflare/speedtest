@@ -51,7 +51,7 @@ export interface Config {
   uploadApiUrl: string;
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
-  /** URL for AIM score logging. Set to `null` to disable. Default: `https://aim.cloudflare.com/__log`. */
+  /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
   logAimApiUrl: string | null;
   /** TURN server URI for packet loss measurement. Default: `turn.speed.cloudflare.com:50000`. */
   turnServerUri: string;
@@ -87,7 +87,7 @@ export interface Config {
   bandwidthFinishRequestDuration: number;
   /**
    * Estimated server processing time (ms) subtracted from raw latency when
-   * the server doesn't report its own processing time in headers. Default: `10`.
+   * the server doesn't report its own processing time in headers. Default: `0`.
    */
   estimatedServerTime: number;
 
@@ -128,7 +128,7 @@ const defaultConfig: Config = {
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
   logMeasurementApiUrl: null,
-  logAimApiUrl: 'https://aim.cloudflare.com/__log',
+  logAimApiUrl: `${REL_API_URL}/__results`,
   turnServerUri: 'turn.speed.cloudflare.com:50000',
   turnServerCredsApiUrl: `${REL_API_URL}/turn-creds`,
   turnServerUser: null,
@@ -139,12 +139,15 @@ const defaultConfig: Config = {
 
   // Measurements
   measurements: [
-    { type: 'latency', numPackets: 1 }, // initial ttfb estimation
+    { type: 'latency', numPackets: 2 }, // initial ttfb estimation
     { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true }, // initial download estimation
     { type: 'latency', numPackets: 20 },
     { type: 'download', bytes: 1e5, count: 9 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e6, count: 8 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 1e5, count: 8 },
+    { type: 'latency', numPackets: 2 },
     {
       type: 'packetLoss',
       numPackets: 1e3,
@@ -153,19 +156,26 @@ const defaultConfig: Config = {
       responsesWaitTime: 3000 // ms (silent time after last sent msg)
     },
     { type: 'upload', bytes: 1e6, count: 6 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e7, count: 6 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 1e7, count: 4 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 2.5e7, count: 4 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 2.5e7, count: 4 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e8, count: 3 },
+    { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 5e7, count: 3 },
+    { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 2.5e8, count: 2 }
   ],
   measureDownloadLoadedLatency: true,
   measureUploadLoadedLatency: true,
   loadedLatencyThrottle: 400, // ms in between loaded latency requests
   bandwidthFinishRequestDuration: 1000, // download/upload duration (ms) to reach for stopping further measurements of that type
-  estimatedServerTime: 10, // ms to discount from latency calculation (if not present in response headers)
+  estimatedServerTime: 0, // ms to discount from latency calculation (if not present in response headers)
 
   // Test abort
   bandwidthAbortRequestDuration: 0, // download/upload duration (ms) to abort measurement early and stop further measurements of that type

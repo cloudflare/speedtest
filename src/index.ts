@@ -205,6 +205,7 @@ class MeasurementEngine {
   readonly #results: Results;
 
   #measurementId: string = genMeasId();
+  #serverTimeDelta: number = 0;
   #curMsmIdx: number = -1;
   #curEngine: Engine | undefined;
   #optimalDownloadChunkSize: number = DEFAULT_OPTIMAL_DOWNLOAD_SIZE;
@@ -486,6 +487,7 @@ class MeasurementEngine {
             downloadApiUrl,
             uploadApiUrl,
             estimatedServerTime,
+            serverTimeDelta: this.#serverTimeDelta,
             logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
             measurementId: this.#measurementId,
             sessionId: this.#config.sessionId,
@@ -508,6 +510,11 @@ class MeasurementEngine {
           engine as Engine & { abortRequestDuration: number }
         ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
 
+        if (!msmConfig.loadDown && !msmConfig.loadUp) {
+          const eng = engine as Engine & { qsParams: Record<string, string> };
+          eng.qsParams = { ...eng.qsParams, during: 'idle' };
+        }
+
         engine.onMeasurementResult = engine.onNewMeasurementStarted = (
           _meas: unknown,
           results: unknown
@@ -518,12 +525,14 @@ class MeasurementEngine {
         };
 
         engine.onFinished = () => {
+          this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
           msmResults.finished = true;
           this.onResultsChange({ type });
           this.#running && this.#next();
         };
 
         engine.onConnectionError = (e: unknown) => {
+          this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
           msmResults.error = e;
           this.onResultsChange({ type });
           this.#onError(`Connection error while measuring latency: ${e}`);
@@ -554,6 +563,7 @@ class MeasurementEngine {
               downloadApiUrl,
               uploadApiUrl,
               estimatedServerTime,
+              serverTimeDelta: this.#serverTimeDelta,
               logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
               measurementId: this.#measurementId,
               measureParallelLatency,
@@ -626,6 +636,7 @@ class MeasurementEngine {
           };
 
           engine.onFinished = (results: unknown) => {
+            this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
             const bwResults = results as Record<
               string,
               Record<
@@ -674,6 +685,7 @@ class MeasurementEngine {
           };
 
           engine.onConnectionError = (e: unknown) => {
+            this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
             msmResults.error = e;
             this.onResultsChange({ type });
             this.#onError(`Connection error while measuring ${type}: ${e}`);
@@ -695,7 +707,7 @@ class MeasurementEngine {
 
 /**
  * Extended {@link MeasurementEngine} that automatically logs final AIM scores
- * to `aim.cloudflare.com` when the test completes.
+ * to the configured `logAimApiUrl` when the test completes.
  *
  * This is the default export of the library and the recommended entry point
  * for most consumers.

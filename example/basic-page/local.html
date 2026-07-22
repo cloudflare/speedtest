@@ -1,0 +1,46 @@
+<body>
+  <div id="controls"></div>
+  <div id="result"></div>
+
+  <script type="module">
+    import SpeedTest from '../../dist/speedtest.js';
+
+    const controlEl = document.getElementById('controls');
+    const resEl = document.getElementById('result');
+
+    const engine = new SpeedTest({
+      autoStart: false
+    });
+    engine.onRunningChange = running => controlEl.textContent = running ? 'Running...' : 'Finished!';
+    engine.onResultsChange = ({ type }) => {
+      const raw = engine.results.raw;
+      !engine.isFinished && setResult(raw);
+      const summary = engine.results.getSummary();
+      console.log(type, {
+        latency: summary.latency,
+        download: summary.download,
+        upload: summary.upload,
+        loadedLatency: summary.downLoadedLatency || summary.upLoadedLatency
+      });
+    };
+    engine.onFinish = results => {
+      setResult(results.getSummary());
+      console.log(results.getSummary());
+      console.log(results.getScores());
+    };
+
+    engine.onError = (e) => console.log(e);
+
+    const playButton = document.createElement('button');
+    playButton.textContent = "Start Speed Measurement";
+    playButton.onclick = () => engine.play();
+    controlEl.appendChild(playButton);
+
+    function setResult(obj) {
+      const resTxt = document.createElement('pre');
+      resTxt.textContent = JSON.stringify(obj, null, 2);
+      resEl.textContent = '';
+      resEl.appendChild(resTxt);
+    }
+  </script>
+</body>
