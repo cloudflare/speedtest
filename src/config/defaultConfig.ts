@@ -67,6 +67,17 @@ export interface Config {
   includeCredentials: boolean;
   /** Optional session ID attached to measurement logs. */
   sessionId: string | undefined;
+  /**
+   * Opaque authorization token attributing this test to a registered customer.
+   *
+   * Sent as a `token` query-string parameter on the measurement, TURN
+   * credential and results-logging requests. Obtain it from your own backend;
+   * the engine never requests one itself. Never attached over plain HTTP, since
+   * a token seen in cleartext must be treated as compromised.
+   *
+   * Default: `null` (requests are unattributed).
+   */
+  authorizationToken: string | null;
 
   /**
    * Ordered list of measurement phases to execute.
@@ -140,6 +151,7 @@ const defaultConfig: Config = {
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
   includeCredentials: false,
   sessionId: undefined,
+  authorizationToken: null,
 
   // Measurements
   measurements: [

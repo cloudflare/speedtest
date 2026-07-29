@@ -62,7 +62,8 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
   - `LoadNetworkEngine/` — parallel fetch load generator
   - `ReachabilityEngine/` — simple fetch with timeout
 - `src/Results/` — aggregation, stats (percentile, jitter), and AIM scoring.
-- `src/utils/` — small math helpers (`sum`, `avg`, `percentile`, `scaleThreshold`).
+- `src/utils/` — small helpers: math (`sum`, `avg`, `percentile`, `scaleThreshold`)
+  and `authorization` (attaches the `authorizationToken` to billed API URLs).
 - `example/turn-worker/` — separate Cloudflare Worker sub-project with its own
   `package.json` and Prettier config; not part of the library build.
 

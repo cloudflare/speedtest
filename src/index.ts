@@ -15,6 +15,7 @@ import Results from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
+import { applyAuthorizationToken } from './utils/authorization';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -122,12 +123,14 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  */
 class MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
-    this.#config = Object.assign(
-      {},
-      defaultConfig,
-      userConfig,
-      internalConfig
-    ) as SpeedTestConfig;
+    this.#config = applyAuthorizationToken(
+      Object.assign(
+        {},
+        defaultConfig,
+        userConfig,
+        internalConfig
+      ) as SpeedTestConfig
+    );
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -736,12 +739,14 @@ class SpeedTestEngine extends MeasurementEngine {
     super(userConfig);
     super.onFinish = this.#logFinalResults;
 
-    const config = Object.assign(
-      {},
-      defaultConfig,
-      userConfig,
-      internalConfig
-    ) as SpeedTestConfig;
+    const config = applyAuthorizationToken(
+      Object.assign(
+        {},
+        defaultConfig,
+        userConfig,
+        internalConfig
+      ) as SpeedTestConfig
+    );
 
     this.#logAimApiUrl = config.logAimApiUrl;
     this.#sessionId = config.sessionId;

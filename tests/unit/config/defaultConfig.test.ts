@@ -56,4 +56,8 @@ describe('defaultConfig', () => {
     expect(defaultConfig.turnServerUser).toBeNull();
     expect(defaultConfig.turnServerPass).toBeNull();
   });
+
+  it('has no authorization token by default', () => {
+    expect(defaultConfig.authorizationToken).toBeNull();
+  });
 });
