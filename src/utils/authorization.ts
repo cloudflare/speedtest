@@ -27,40 +27,43 @@ export const withAuthorizationToken = (
   return urlObj.href;
 };
 
+/**
+ * Config URLs that carry the authorization token. Single source of truth: a new
+ * measurement endpoint must be added here to be attributed.
+ *
+ * `turnServerUri` is excluded (not HTTP), as are the reachability, RPKI and
+ * NXDOMAIN probe hosts, which are unrelated to the measurement endpoints.
+ */
+export const TOKEN_URL_KEYS = [
+  'downloadApiUrl',
+  'uploadApiUrl',
+  'turnServerCredsApiUrl',
+  'logAimApiUrl',
+  'logMeasurementApiUrl'
+] as const;
+
 /** The config fields {@link applyAuthorizationToken} rewrites. */
-interface AuthorizableUrls {
-  authorizationToken: string | null;
-  downloadApiUrl: string;
-  uploadApiUrl: string;
-  turnServerCredsApiUrl: string;
-  logAimApiUrl: string | null;
-  logMeasurementApiUrl: string | null;
-}
+type TokenizableUrls = { authorizationToken: string | null } & {
+  [K in (typeof TOKEN_URL_KEYS)[number]]: string | null;
+};
 
 /**
- * Bakes the token into every billed API URL so the engines inherit it.
- * Excludes the reachability/RPKI/NXDOMAIN probes, which hit unrelated hosts.
- * Mutates `config`, which is always a freshly merged object.
+ * Attaches the token to every URL in {@link TOKEN_URL_KEYS}, so the engines
+ * inherit it through the URLs they already receive. Mutates `config`, which is
+ * always a freshly merged object.
  */
-export const applyAuthorizationToken = <T extends AuthorizableUrls>(
+export const applyAuthorizationToken = <T extends TokenizableUrls>(
   config: T
 ): T => {
   const token = config.authorizationToken;
   if (!token) return config;
 
-  config.downloadApiUrl = withAuthorizationToken(config.downloadApiUrl, token);
-  config.uploadApiUrl = withAuthorizationToken(config.uploadApiUrl, token);
-  config.turnServerCredsApiUrl = withAuthorizationToken(
-    config.turnServerCredsApiUrl,
-    token
-  );
-  if (config.logAimApiUrl)
-    config.logAimApiUrl = withAuthorizationToken(config.logAimApiUrl, token);
-  if (config.logMeasurementApiUrl)
-    config.logMeasurementApiUrl = withAuthorizationToken(
-      config.logMeasurementApiUrl,
-      token
-    );
+  // Widened to write through the union of keys; T only narrows the field types.
+  const urls = config as TokenizableUrls;
+  for (const key of TOKEN_URL_KEYS) {
+    const url = urls[key];
+    if (url) urls[key] = withAuthorizationToken(url, token);
+  }
 
   return config;
 };

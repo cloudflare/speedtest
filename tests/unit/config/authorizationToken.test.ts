@@ -1,20 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import defaultConfig from '../../../src/config/defaultConfig.ts';
-import { applyAuthorizationToken } from '../../../src/utils/authorization.ts';
+import {
+  applyAuthorizationToken,
+  TOKEN_URL_KEYS
+} from '../../../src/utils/authorization.ts';
 
 const TOKEN = 'test-token-123';
 
 /** Merges user config over the defaults the way the engine constructors do. */
 const resolveConfig = (userConfig: Partial<typeof defaultConfig>) =>
   applyAuthorizationToken(Object.assign({}, defaultConfig, userConfig));
-
-/** Endpoints that bill against a customer and must carry the token. */
-const BILLED_URL_KEYS = [
-  'downloadApiUrl',
-  'uploadApiUrl',
-  'turnServerCredsApiUrl',
-  'logAimApiUrl'
-] as const;
 
 describe('applyAuthorizationToken', () => {
   beforeEach(() => {
@@ -27,23 +22,16 @@ describe('applyAuthorizationToken', () => {
     vi.unstubAllGlobals();
   });
 
-  it('attaches the token to every billed endpoint', () => {
-    const config = resolveConfig({ authorizationToken: TOKEN });
-
-    for (const key of BILLED_URL_KEYS) {
-      expect(new URL(config[key]!).searchParams.get('token'), key).toBe(TOKEN);
-    }
-  });
-
-  it('attaches the token to per-measurement logging when configured', () => {
+  it('attaches the token to every URL in TOKEN_URL_KEYS', () => {
     const config = resolveConfig({
       authorizationToken: TOKEN,
+      // Null by default, so set it to cover every key in the list.
       logMeasurementApiUrl: 'https://speed.cloudflare.com/__log'
     });
 
-    expect(
-      new URL(config.logMeasurementApiUrl!).searchParams.get('token')
-    ).toBe(TOKEN);
+    for (const key of TOKEN_URL_KEYS) {
+      expect(new URL(config[key]!).searchParams.get('token'), key).toBe(TOKEN);
+    }
   });
 
   it('leaves disabled logging endpoints null', () => {
@@ -57,17 +45,17 @@ describe('applyAuthorizationToken', () => {
     expect(config.logMeasurementApiUrl).toBeNull();
   });
 
-  it('does not attach the token to the RPKI probe host', () => {
-    // Reachability/RPKI probes target unrelated hosts, not billed endpoints.
+  it('does not attach the token to excluded hosts', () => {
     const config = resolveConfig({ authorizationToken: TOKEN });
 
     expect(config.rpkiInvalidHost).toBe('invalid.rpki.cloudflare.com');
+    expect(config.turnServerUri).toBe('turn.speed.cloudflare.com:50000');
   });
 
   it('leaves every URL untouched when no token is configured', () => {
     const config = resolveConfig({});
 
-    for (const key of BILLED_URL_KEYS) {
+    for (const key of TOKEN_URL_KEYS) {
       expect(config[key], key).toBe(defaultConfig[key]);
     }
   });
