@@ -99,9 +99,13 @@ describe('withAuthorizationToken', () => {
     expect(withAuthorizationToken('/__down', TOKEN)).toBe('/__down');
   });
 
-  it('does not touch `window` when there is no token', () => {
-    // Guards SSR/`autoStart: false` construction: the default config must not
-    // require a DOM just to build the engine.
+  it('tokenizes absolute URLs without a DOM', () => {
+    // Every default API URL is absolute, so constructing an engine with a token
+    // must not require a DOM.
+    expect(typeof window).toBe('undefined');
+    expect(
+      withAuthorizationToken('https://speed.example.com/__down', 'abc')
+    ).toBe('https://speed.example.com/__down?token=abc');
     expect(() => withAuthorizationToken('/__down', null)).not.toThrow();
   });
 });

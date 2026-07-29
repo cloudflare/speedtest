@@ -2,17 +2,10 @@
 export const AUTHORIZATION_TOKEN_PARAM = 'token';
 
 /**
- * Returns `apiUrl` with the authorization token appended as a query-string
- * parameter, preserving any params already present.
+ * Appends the authorization token to `apiUrl`, preserving existing params.
  *
- * The token is sent in the query string rather than a header to avoid a CORS
- * preflight on the measurement endpoints: an extra round trip there would cost
- * test time and, by reusing the TCP connection, suppress the server-time
- * calibration in `BandwidthEngine` that relies on seeing a fresh handshake.
- *
- * Returns `apiUrl` untouched when there is no token, or when the resolved URL
- * is not HTTPS — a token observed in cleartext must be treated as compromised,
- * so it must never leave the client over plain HTTP.
+ * Query string rather than a header, which would trigger a CORS preflight and
+ * suppress BandwidthEngine's server-time calibration. Never over plain HTTP.
  */
 export const withAuthorizationToken = (
   apiUrl: string,
@@ -20,7 +13,14 @@ export const withAuthorizationToken = (
 ): string => {
   if (!token) return apiUrl;
 
-  const urlObj = new URL(apiUrl, window.location.origin);
+  // Only relative URLs need the page origin, so absolute ones work without a DOM.
+  let urlObj: URL;
+  try {
+    urlObj = new URL(apiUrl);
+  } catch {
+    urlObj = new URL(apiUrl, window.location.origin);
+  }
+
   if (urlObj.protocol !== 'https:') return apiUrl;
 
   urlObj.searchParams.set(AUTHORIZATION_TOKEN_PARAM, token);
@@ -38,12 +38,9 @@ interface AuthorizableUrls {
 }
 
 /**
- * Bakes the authorization token into every API URL billed to a customer, so
- * that the engines inherit it through the URLs they already receive.
- *
- * The reachability, RPKI and NXDOMAIN probes are deliberately excluded: they
- * target unrelated hosts rather than the measurement endpoints. Mutates and
- * returns `config`, which is always a freshly merged object.
+ * Bakes the token into every billed API URL so the engines inherit it.
+ * Excludes the reachability/RPKI/NXDOMAIN probes, which hit unrelated hosts.
+ * Mutates `config`, which is always a freshly merged object.
  */
 export const applyAuthorizationToken = <T extends AuthorizableUrls>(
   config: T
