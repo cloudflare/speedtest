@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import defaultConfig from '../../../src/config/defaultConfig.ts';
 import {
   applyAuthorizationToken,
-  TOKEN_URL_KEYS
+  AUTHORIZABLE_URLS
 } from '../../../src/utils/authorization.ts';
 
 const TOKEN = 'test-token-123';
@@ -22,15 +22,15 @@ describe('applyAuthorizationToken', () => {
     vi.unstubAllGlobals();
   });
 
-  it('attaches the token to every URL in TOKEN_URL_KEYS', () => {
+  it('attaches the token to every URL in AUTHORIZABLE_URLS', () => {
     const config = resolveConfig({
       authorizationToken: TOKEN,
       // Null by default, so set it to cover every key in the list.
       logMeasurementApiUrl: 'https://speed.cloudflare.com/__log'
     });
 
-    for (const key of TOKEN_URL_KEYS) {
-      expect(new URL(config[key]!).searchParams.get('token'), key).toBe(TOKEN);
+    for (const key of AUTHORIZABLE_URLS) {
+      expect(new URL(config[key]!).searchParams.get('auth'), key).toBe(TOKEN);
     }
   });
 
@@ -55,7 +55,7 @@ describe('applyAuthorizationToken', () => {
   it('leaves every URL untouched when no token is configured', () => {
     const config = resolveConfig({});
 
-    for (const key of TOKEN_URL_KEYS) {
+    for (const key of AUTHORIZABLE_URLS) {
       expect(config[key], key).toBe(defaultConfig[key]);
     }
   });
@@ -84,6 +84,6 @@ describe('applyAuthorizationToken', () => {
     expect(config.downloadApiUrl).toBe('http://speed.cloudflare.com/__down');
     expect(config.uploadApiUrl).toBe('http://speed.cloudflare.com/__up');
     // HTTPS endpoints in the same config are still attributed.
-    expect(new URL(config.logAimApiUrl!).searchParams.get('token')).toBe(TOKEN);
+    expect(new URL(config.logAimApiUrl!).searchParams.get('auth')).toBe(TOKEN);
   });
 });

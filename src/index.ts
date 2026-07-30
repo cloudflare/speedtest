@@ -139,6 +139,11 @@ class MeasurementEngine {
     return this.#results;
   }
 
+  /** The merged config, so subclasses need not rebuild it. */
+  protected get config(): SpeedTestConfig {
+    return this.#config;
+  }
+
   /** Not paused and not finished. */
   get isRunning(): boolean {
     return this.#running;
@@ -738,18 +743,6 @@ class SpeedTestEngine extends MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
     super(userConfig);
     super.onFinish = this.#logFinalResults;
-
-    const config = applyAuthorizationToken(
-      Object.assign(
-        {},
-        defaultConfig,
-        userConfig,
-        internalConfig
-      ) as SpeedTestConfig
-    );
-
-    this.#logAimApiUrl = config.logAimApiUrl;
-    this.#sessionId = config.sessionId;
   }
 
   // Public attributes
@@ -778,18 +771,15 @@ class SpeedTestEngine extends MeasurementEngine {
    */
   onResultsLogged: (response: AimLogResponse) => void = () => {};
 
-  // Internal state
-  readonly #logAimApiUrl: string | null;
-  readonly #sessionId: string | undefined;
-
   // Internal methods
   #logFinalResults = (results: Results): void => {
-    if (!this.#logAimApiUrl) {
+    const apiUrl = this.config.logAimApiUrl;
+    if (!apiUrl) {
       return;
     }
     logFinalResults(results, {
-      apiUrl: this.#logAimApiUrl,
-      sessionId: this.#sessionId
+      apiUrl,
+      sessionId: this.config.sessionId
     }).then(response => {
       this.onResultsLogged(response);
     });

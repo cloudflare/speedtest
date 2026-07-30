@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   AUTHORIZATION_TOKEN_PARAM,
+  redactAuthorizationToken,
   withAuthorizationToken
 } from '../../../src/utils/authorization.ts';
 
@@ -29,12 +30,12 @@ describe('withAuthorizationToken', () => {
     );
   });
 
-  it('uses `token` as the param name', () => {
+  it('uses `auth` as the param name', () => {
     stubOrigin('https://speed.example.com');
 
     expect(
       withAuthorizationToken('https://speed.example.com/__up', 'abc')
-    ).toBe('https://speed.example.com/__up?token=abc');
+    ).toBe('https://speed.example.com/__up?auth=abc');
   });
 
   it('preserves query params already present on the URL', () => {
@@ -70,7 +71,7 @@ describe('withAuthorizationToken', () => {
     stubOrigin('https://speed.example.com');
 
     expect(withAuthorizationToken('/__down', TOKEN)).toBe(
-      `https://speed.example.com/__down?token=${encodeURIComponent(TOKEN)}`
+      `https://speed.example.com/__down?auth=${encodeURIComponent(TOKEN)}`
     );
   });
 
@@ -105,7 +106,47 @@ describe('withAuthorizationToken', () => {
     expect(typeof window).toBe('undefined');
     expect(
       withAuthorizationToken('https://speed.example.com/__down', 'abc')
-    ).toBe('https://speed.example.com/__down?token=abc');
+    ).toBe('https://speed.example.com/__down?auth=abc');
     expect(() => withAuthorizationToken('/__down', null)).not.toThrow();
+  });
+});
+
+describe('redactAuthorizationToken', () => {
+  const tokenized = withAuthorizationToken(
+    'https://speed.example.com/__down?bytes=100000',
+    TOKEN
+  );
+
+  it('masks the token', () => {
+    const redacted = redactAuthorizationToken(tokenized);
+
+    expect(redacted).not.toContain(TOKEN);
+    expect(new URL(redacted).searchParams.get(AUTHORIZATION_TOKEN_PARAM)).toBe(
+      'REDACTED'
+    );
+  });
+
+  it('leaves the rest of the URL intact', () => {
+    const redacted = new URL(redactAuthorizationToken(tokenized));
+
+    expect(redacted.origin + redacted.pathname).toBe(
+      'https://speed.example.com/__down'
+    );
+    expect(redacted.searchParams.get('bytes')).toBe('100000');
+  });
+
+  it('returns the URL untouched when it carries no token', () => {
+    const url = 'https://speed.example.com/__down?bytes=100000';
+
+    expect(redactAuthorizationToken(url)).toBe(url);
+  });
+
+  it('never throws on a URL it cannot parse', () => {
+    // Runs on the error path, so it must not mask the original failure.
+    expect(typeof window).toBe('undefined');
+    expect(redactAuthorizationToken('/__down?auth=abc')).toBe(
+      '/__down?auth=abc'
+    );
+    expect(redactAuthorizationToken('not a url')).toBe('not a url');
   });
 });
