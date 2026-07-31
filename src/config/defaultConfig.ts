@@ -69,7 +69,7 @@ export interface Config {
   sessionId: string | undefined;
   /**
    * Opaque token attributing this test to a registered customer, sent as a
-   * `token` query-string param on the measurement, TURN credential and
+   * `jwt` query-string param on the measurement, TURN credential and
    * results-logging requests. Not sent over plain HTTP. Default: `null`.
    */
   authorizationToken: string | null;

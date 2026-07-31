@@ -48,7 +48,7 @@ new SpeedTest({ configOptions })
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
 | **turnServerPass**: *string* | The password for the TURN server credentials. | - |
-| **authorizationToken**: *string* | An opaque token attributing the test to a registered customer, sent as a `token` query-string parameter on the measurement, TURN credential and results-logging requests. Obtain it from your own backend — the engine never requests one itself. Never sent over plain HTTP. | `null` |
+| **authorizationToken**: *string* | An opaque token attributing the test to a registered customer, sent as a `jwt` query-string parameter on the measurement, TURN credential and results-logging requests. Obtain it from your own backend — the engine never requests one itself. Never sent over plain HTTP. | `null` |
 | **measurements**: *array* | The sequence of measurements to perform by the speedtest engine. See [below](#measurement-config) for the specific syntax of this option. ||
 | **measureDownloadLoadedLatency**: *boolean* | Whether to perform additional latency measurements simultaneously with download requests, to measure loaded latency (during download). | `true` |
 | **measureUploadLoadedLatency**: *boolean* | Whether to perform additional latency measurements simultaneously with upload requests, to measure loaded latency (during upload). | `true` |
