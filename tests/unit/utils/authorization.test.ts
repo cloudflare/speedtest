@@ -30,12 +30,12 @@ describe('withAuthorizationToken', () => {
     );
   });
 
-  it('uses `auth` as the param name', () => {
+  it('uses `jwt` as the param name', () => {
     stubOrigin('https://speed.example.com');
 
     expect(
       withAuthorizationToken('https://speed.example.com/__up', 'abc')
-    ).toBe('https://speed.example.com/__up?auth=abc');
+    ).toBe('https://speed.example.com/__up?jwt=abc');
   });
 
   it('preserves query params already present on the URL', () => {
@@ -71,7 +71,7 @@ describe('withAuthorizationToken', () => {
     stubOrigin('https://speed.example.com');
 
     expect(withAuthorizationToken('/__down', TOKEN)).toBe(
-      `https://speed.example.com/__down?auth=${encodeURIComponent(TOKEN)}`
+      `https://speed.example.com/__down?jwt=${encodeURIComponent(TOKEN)}`
     );
   });
 
@@ -106,7 +106,7 @@ describe('withAuthorizationToken', () => {
     expect(typeof window).toBe('undefined');
     expect(
       withAuthorizationToken('https://speed.example.com/__down', 'abc')
-    ).toBe('https://speed.example.com/__down?auth=abc');
+    ).toBe('https://speed.example.com/__down?jwt=abc');
     expect(() => withAuthorizationToken('/__down', null)).not.toThrow();
   });
 });
@@ -144,8 +144,8 @@ describe('redactAuthorizationToken', () => {
   it('never throws on a URL it cannot parse', () => {
     // Runs on the error path, so it must not mask the original failure.
     expect(typeof window).toBe('undefined');
-    expect(redactAuthorizationToken('/__down?auth=abc')).toBe(
-      '/__down?auth=abc'
+    expect(redactAuthorizationToken('/__down?jwt=abc')).toBe(
+      '/__down?jwt=abc'
     );
     expect(redactAuthorizationToken('not a url')).toBe('not a url');
   });

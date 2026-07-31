@@ -1,11 +1,11 @@
 /**
  * Query-string parameter carrying the authorization token.
  *
- * Named `auth`, not `token`: the measurement log POST body already has a
+ * Named `jwt`, not `token`: the measurement log POST body already has a
  * `token` field holding a server-issued per-measurement value, and both are
  * sent to `logMeasurementApiUrl`.
  */
-export const AUTHORIZATION_TOKEN_PARAM = 'auth';
+export const AUTHORIZATION_TOKEN_PARAM = 'jwt';
 
 /** Placeholder substituted for the token in error messages. */
 const REDACTED = 'REDACTED';

@@ -30,7 +30,7 @@ describe('applyAuthorizationToken', () => {
     });
 
     for (const key of AUTHORIZABLE_URLS) {
-      expect(new URL(config[key]!).searchParams.get('auth'), key).toBe(TOKEN);
+      expect(new URL(config[key]!).searchParams.get('jwt'), key).toBe(TOKEN);
     }
   });
 
@@ -84,6 +84,6 @@ describe('applyAuthorizationToken', () => {
     expect(config.downloadApiUrl).toBe('http://speed.cloudflare.com/__down');
     expect(config.uploadApiUrl).toBe('http://speed.cloudflare.com/__up');
     // HTTPS endpoints in the same config are still attributed.
-    expect(new URL(config.logAimApiUrl!).searchParams.get('auth')).toBe(TOKEN);
+    expect(new URL(config.logAimApiUrl!).searchParams.get('jwt')).toBe(TOKEN);
   });
 });
