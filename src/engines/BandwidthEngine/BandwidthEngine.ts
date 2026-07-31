@@ -1,4 +1,5 @@
 import type { Engine } from '../Engine';
+import { redactAuthorizationToken } from '../../utils/authorization';
 
 const MAX_RETRIES = 20;
 
@@ -553,7 +554,8 @@ class BandwidthMeasurementEngine implements Engine {
         if (this.#currentAbortController!.signal.aborted) {
           return;
         }
-        console.warn(`Error fetching ${url}: ${error}`);
+        const safeUrl = redactAuthorizationToken(url);
+        console.warn(`Error fetching ${safeUrl}: ${error}`);
 
         if (this.#retries++ < MAX_RETRIES) {
           this.#nextMeasurement(); // keep trying
@@ -561,7 +563,7 @@ class BandwidthMeasurementEngine implements Engine {
           this.#retries = 0;
           this.#setRunning(false);
           this.#onConnectionError(
-            `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
+            `Connection failed to ${safeUrl}. Gave up after ${MAX_RETRIES} retries.`
           );
         }
       });

@@ -110,11 +110,13 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#token = null;
     this.#requestTime = null;
 
+    // Swallowed: logging is best-effort, and an unhandled rejection would print
+    // the URL, which carries the authorization token.
     fetch(this.#logApiUrl, {
       method: 'POST',
       body: JSON.stringify(logData),
       ...this.fetchOptions
-    });
+    }).catch(() => {});
   }
 }
 

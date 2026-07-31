@@ -67,6 +67,12 @@ export interface Config {
   includeCredentials: boolean;
   /** Optional session ID attached to measurement logs. */
   sessionId: string | undefined;
+  /**
+   * Opaque token attributing this test to a registered customer, sent as a
+   * `jwt` query-string param on the measurement, TURN credential and
+   * results-logging requests. Not sent over plain HTTP. Default: `null`.
+   */
+  authorizationToken: string | null;
 
   /**
    * Ordered list of measurement phases to execute.
@@ -140,6 +146,7 @@ const defaultConfig: Config = {
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
   includeCredentials: false,
   sessionId: undefined,
+  authorizationToken: null,
 
   // Measurements
   measurements: [

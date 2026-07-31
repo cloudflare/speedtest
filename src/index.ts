@@ -15,6 +15,7 @@ import Results from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
+import { applyAuthorizationToken } from './utils/authorization';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -122,18 +123,25 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  */
 class MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
-    this.#config = Object.assign(
-      {},
-      defaultConfig,
-      userConfig,
-      internalConfig
-    ) as SpeedTestConfig;
+    this.#config = applyAuthorizationToken(
+      Object.assign(
+        {},
+        defaultConfig,
+        userConfig,
+        internalConfig
+      ) as SpeedTestConfig
+    );
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
 
   get results(): Results {
     return this.#results;
+  }
+
+  /** The merged config, so subclasses need not rebuild it. */
+  protected get config(): SpeedTestConfig {
+    return this.#config;
   }
 
   /** Not paused and not finished. */
@@ -735,16 +743,6 @@ class SpeedTestEngine extends MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
     super(userConfig);
     super.onFinish = this.#logFinalResults;
-
-    const config = Object.assign(
-      {},
-      defaultConfig,
-      userConfig,
-      internalConfig
-    ) as SpeedTestConfig;
-
-    this.#logAimApiUrl = config.logAimApiUrl;
-    this.#sessionId = config.sessionId;
   }
 
   // Public attributes
@@ -773,18 +771,15 @@ class SpeedTestEngine extends MeasurementEngine {
    */
   onResultsLogged: (response: AimLogResponse) => void = () => {};
 
-  // Internal state
-  readonly #logAimApiUrl: string | null;
-  readonly #sessionId: string | undefined;
-
   // Internal methods
   #logFinalResults = (results: Results): void => {
-    if (!this.#logAimApiUrl) {
+    const apiUrl = this.config.logAimApiUrl;
+    if (!apiUrl) {
       return;
     }
     logFinalResults(results, {
-      apiUrl: this.#logAimApiUrl,
-      sessionId: this.#sessionId
+      apiUrl,
+      sessionId: this.config.sessionId
     }).then(response => {
       this.onResultsLogged(response);
     });
