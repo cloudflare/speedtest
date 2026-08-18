@@ -6,6 +6,7 @@ import type {
   ResponseHookPayload
 } from './BandwidthEngine';
 import type { ParallelLatencyOptions } from './ParallelLatency';
+import { withAuthorizationHeader } from '../../utils/authorization';
 
 export interface LoggingBandwidthEngineOptions extends ParallelLatencyOptions {
   measurementId?: string;
@@ -34,6 +35,8 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#measurementId = measurementId;
     this.#logApiUrl = logApiUrl;
     this.#sessionId = sessionId;
+    // Read without destructuring, so `super` receives it too.
+    this.#authorizationToken = ptProps.authorizationToken ?? null;
 
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>
@@ -77,6 +80,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   #requestTime: number | null | undefined;
   #logApiUrl: string | undefined;
   #sessionId: string | undefined;
+  #authorizationToken: string | null;
 
   // Internal methods
   #loggingResponseHook(r: ResponseHookPayload): void {
@@ -110,13 +114,21 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#token = null;
     this.#requestTime = null;
 
-    // Swallowed: logging is best-effort, and an unhandled rejection would print
-    // the URL, which carries the authorization token.
-    fetch(this.#logApiUrl, {
-      method: 'POST',
-      body: JSON.stringify(logData),
-      ...this.fetchOptions
-    }).catch(() => {});
+    // Swallowed: logging is best-effort and must never surface as a test error.
+    fetch(
+      this.#logApiUrl,
+      // Resolved against the log URL, not the measurement URL the inherited
+      // fetchOptions were built for — the two may not share a scheme.
+      withAuthorizationHeader(
+        {
+          method: 'POST',
+          body: JSON.stringify(logData),
+          ...this.fetchOptions
+        },
+        this.#authorizationToken,
+        this.#logApiUrl
+      )
+    ).catch(() => {});
   }
 }
 

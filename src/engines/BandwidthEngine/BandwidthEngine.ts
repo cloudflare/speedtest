@@ -1,5 +1,5 @@
 import type { Engine } from '../Engine';
-import { redactAuthorizationToken } from '../../utils/authorization';
+import { withAuthorizationHeader } from '../../utils/authorization';
 
 const MAX_RETRIES = 20;
 
@@ -129,6 +129,7 @@ export interface BandwidthEngineOptions {
   throttleMs?: number;
   estimatedServerTime?: number;
   serverTimeDelta?: number;
+  authorizationToken?: string | null;
 }
 
 /**
@@ -145,7 +146,8 @@ class BandwidthMeasurementEngine implements Engine {
       uploadApiUrl,
       throttleMs = 0,
       estimatedServerTime = 0,
-      serverTimeDelta = 0
+      serverTimeDelta = 0,
+      authorizationToken = null
     }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
@@ -158,6 +160,7 @@ class BandwidthMeasurementEngine implements Engine {
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
     this.#serverTimeDelta = Math.max(0, serverTimeDelta);
+    this.#authorizationToken = authorizationToken;
   }
 
   // Public attributes
@@ -257,6 +260,7 @@ class BandwidthMeasurementEngine implements Engine {
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
   #serverTimeDelta: number = 0;
+  #authorizationToken: string | null = null;
 
   /**
    * Aborts the current measurement.
@@ -375,15 +379,19 @@ class BandwidthMeasurementEngine implements Engine {
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
     const url = urlObj.href;
 
-    const fetchOpt: RequestInit = Object.assign(
-      {},
-      isDown
-        ? {}
-        : {
-            method: 'POST',
-            body: genContent(numBytes)
-          },
-      this.#fetchOptions
+    const fetchOpt: RequestInit = withAuthorizationHeader(
+      Object.assign(
+        {},
+        isDown
+          ? {}
+          : {
+              method: 'POST',
+              body: genContent(numBytes)
+            },
+        this.#fetchOptions
+      ),
+      this.#authorizationToken,
+      url
     );
 
     if (this.#retries === 0) {
@@ -554,8 +562,7 @@ class BandwidthMeasurementEngine implements Engine {
         if (this.#currentAbortController!.signal.aborted) {
           return;
         }
-        const safeUrl = redactAuthorizationToken(url);
-        console.warn(`Error fetching ${safeUrl}: ${error}`);
+        console.warn(`Error fetching ${url}: ${error}`);
 
         if (this.#retries++ < MAX_RETRIES) {
           this.#nextMeasurement(); // keep trying
@@ -563,7 +570,7 @@ class BandwidthMeasurementEngine implements Engine {
           this.#retries = 0;
           this.#setRunning(false);
           this.#onConnectionError(
-            `Connection failed to ${safeUrl}. Gave up after ${MAX_RETRIES} retries.`
+            `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
           );
         }
       });

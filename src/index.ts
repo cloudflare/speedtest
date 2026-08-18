@@ -15,7 +15,6 @@ import Results from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
-import { applyAuthorizationToken } from './utils/authorization';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -123,14 +122,12 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  */
 class MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
-    this.#config = applyAuthorizationToken(
-      Object.assign(
-        {},
-        defaultConfig,
-        userConfig,
-        internalConfig
-      ) as SpeedTestConfig
-    );
+    this.#config = Object.assign(
+      {},
+      defaultConfig,
+      userConfig,
+      internalConfig
+    ) as SpeedTestConfig;
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -431,6 +428,7 @@ class MeasurementEngine {
             turnServerCredsApiIncludeCredentials: includeCredentials,
             turnServerUser: turnServerUser ?? undefined,
             turnServerPass: turnServerPass ?? undefined,
+            authorizationToken: this.#config.authorizationToken,
             numMsgs,
 
             // if under load
@@ -499,6 +497,7 @@ class MeasurementEngine {
             logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
             measurementId: this.#measurementId,
             sessionId: this.#config.sessionId,
+            authorizationToken: this.#config.authorizationToken,
 
             // if under load
             downloadChunkSize: msmConfig.loadDown
@@ -586,7 +585,8 @@ class MeasurementEngine {
               measurementId: this.#measurementId,
               measureParallelLatency,
               parallelLatencyThrottleMs: this.#config.loadedLatencyThrottle,
-              sessionId: this.#config.sessionId
+              sessionId: this.#config.sessionId,
+              authorizationToken: this.#config.authorizationToken
             }
           ) as Engine;
           (
@@ -779,7 +779,8 @@ class SpeedTestEngine extends MeasurementEngine {
     }
     logFinalResults(results, {
       apiUrl,
-      sessionId: this.config.sessionId
+      sessionId: this.config.sessionId,
+      authorizationToken: this.config.authorizationToken
     }).then(response => {
       this.onResultsLogged(response);
     });
