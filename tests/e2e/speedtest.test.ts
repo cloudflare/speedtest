@@ -138,22 +138,23 @@ describe('SpeedTest E2E', () => {
 
       // Loaded latency (download): may be absent on very fast connections
       // where the parallel latency engine doesn't collect data before
-      // downloads finish. When present, should be reasonable.
-      if (summary.downLoadedLatency !== undefined) {
+      // downloads finish. Jitter is additionally `null` with fewer than 2
+      // samples, so these check for a number rather than for `undefined`.
+      if (typeof summary.downLoadedLatency === 'number') {
         expect(summary.downLoadedLatency).toBeGreaterThanOrEqual(0);
         expect(summary.downLoadedLatency).toBeLessThan(5000);
       }
-      if (summary.downLoadedJitter !== undefined) {
+      if (typeof summary.downLoadedJitter === 'number') {
         expect(summary.downLoadedJitter).toBeGreaterThanOrEqual(0);
         expect(summary.downLoadedJitter).toBeLessThan(2000);
       }
 
       // Loaded latency (upload): same caveat as download
-      if (summary.upLoadedLatency !== undefined) {
+      if (typeof summary.upLoadedLatency === 'number') {
         expect(summary.upLoadedLatency).toBeGreaterThanOrEqual(0);
         expect(summary.upLoadedLatency).toBeLessThan(5000);
       }
-      if (summary.upLoadedJitter !== undefined) {
+      if (typeof summary.upLoadedJitter === 'number') {
         expect(summary.upLoadedJitter).toBeGreaterThanOrEqual(0);
         expect(summary.upLoadedJitter).toBeLessThan(2000);
       }
