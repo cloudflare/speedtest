@@ -1,5 +1,8 @@
 import type { Engine } from '../Engine';
-import { withAuthorizationHeader } from '../../utils/authorization';
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../../utils/authorization';
 
 const MAX_RETRIES = 20;
 
@@ -129,7 +132,7 @@ export interface BandwidthEngineOptions {
   throttleMs?: number;
   estimatedServerTime?: number;
   serverTimeDelta?: number;
-  authorizationToken?: string | null;
+  authorization?: AuthorizationOptions | null;
 }
 
 /**
@@ -147,7 +150,7 @@ class BandwidthMeasurementEngine implements Engine {
       throttleMs = 0,
       estimatedServerTime = 0,
       serverTimeDelta = 0,
-      authorizationToken = null
+      authorization = null
     }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
@@ -160,7 +163,7 @@ class BandwidthMeasurementEngine implements Engine {
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
     this.#serverTimeDelta = Math.max(0, serverTimeDelta);
-    this.#authorizationToken = authorizationToken;
+    this.#authorization = authorization;
   }
 
   // Public attributes
@@ -260,7 +263,7 @@ class BandwidthMeasurementEngine implements Engine {
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
   #serverTimeDelta: number = 0;
-  #authorizationToken: string | null = null;
+  #authorization: AuthorizationOptions | null = null;
 
   /**
    * Aborts the current measurement.
@@ -390,7 +393,7 @@ class BandwidthMeasurementEngine implements Engine {
             },
         this.#fetchOptions
       ),
-      this.#authorizationToken,
+      this.#authorization,
       url
     );
 

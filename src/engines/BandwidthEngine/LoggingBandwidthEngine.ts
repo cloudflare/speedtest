@@ -6,7 +6,10 @@ import type {
   ResponseHookPayload
 } from './BandwidthEngine';
 import type { ParallelLatencyOptions } from './ParallelLatency';
-import { withAuthorizationHeader } from '../../utils/authorization';
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../../utils/authorization';
 
 export interface LoggingBandwidthEngineOptions extends ParallelLatencyOptions {
   measurementId?: string;
@@ -36,7 +39,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#logApiUrl = logApiUrl;
     this.#sessionId = sessionId;
     // Read without destructuring, so `super` receives it too.
-    this.#authorizationToken = ptProps.authorizationToken ?? null;
+    this.#authorization = ptProps.authorization ?? null;
 
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>
@@ -80,7 +83,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   #requestTime: number | null | undefined;
   #logApiUrl: string | undefined;
   #sessionId: string | undefined;
-  #authorizationToken: string | null;
+  #authorization: AuthorizationOptions | null;
 
   // Internal methods
   #loggingResponseHook(r: ResponseHookPayload): void {
@@ -125,7 +128,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
           body: JSON.stringify(logData),
           ...this.fetchOptions
         },
-        this.#authorizationToken,
+        this.#authorization,
         this.#logApiUrl
       )
     ).catch(() => {});

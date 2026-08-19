@@ -64,7 +64,8 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
 - `src/Results/` — aggregation, stats (percentile, jitter), and AIM scoring.
 - `src/utils/` — small helpers: math (`sum`, `avg`, `percentile`, `scaleThreshold`)
   and `authorization` (attaches the `authorizationToken` as an `Authorization`
-  header to the requests that carry it).
+  header to the requests that carry it, withholding it from non-HTTPS endpoints
+  unless `allowInsecureAuthorizationToken` is set).
 - `example/turn-worker/` — separate Cloudflare Worker sub-project with its own
   `package.json` and Prettier config; not part of the library build.
 

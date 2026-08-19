@@ -73,6 +73,14 @@ export interface Config {
    * results-logging requests. Not sent over plain HTTP. Default: `null`.
    */
   authorizationToken: string | null;
+  /**
+   * Sends {@link authorizationToken} even when the endpoint is not HTTPS, for
+   * local development against an `http://` server.
+   *
+   * Never enable this in production: the server treats a token seen over
+   * plaintext as compromised and revokes it. Default: `false`.
+   */
+  allowInsecureAuthorizationToken: boolean;
 
   /**
    * Ordered list of measurement phases to execute.
@@ -147,6 +155,7 @@ const defaultConfig: Config = {
   includeCredentials: false,
   sessionId: undefined,
   authorizationToken: null,
+  allowInsecureAuthorizationToken: false,
 
   // Measurements
   measurements: [

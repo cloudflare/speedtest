@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import SpeedTestEngine from '../../../src/index.ts';
-import defaultConfig from '../../../src/config/defaultConfig.ts';
+import defaultConfig, {
+  type ConfigOptions
+} from '../../../src/config/defaultConfig.ts';
 
 const TOKEN = 'test-token-123';
 
@@ -19,7 +21,7 @@ const API_URL_KEYS = [
   'logMeasurementApiUrl'
 ] as const;
 
-const resolveConfig = (userConfig: Parameters<typeof SpeedTestEngine>[0]) =>
+const resolveConfig = (userConfig: ConfigOptions = {}) =>
   new InspectableEngine({ autoStart: false, ...userConfig }).resolvedConfig;
 
 describe('authorizationToken', () => {
@@ -52,6 +54,34 @@ describe('authorizationToken', () => {
   it('defaults to null', () => {
     expect(resolveConfig({}).authorizationToken).toBeNull();
     expect(defaultConfig.authorizationToken).toBeNull();
+  });
+
+  describe('allowInsecureAuthorizationToken', () => {
+    it('defaults to false, so the token is HTTPS-only unless asked otherwise', () => {
+      expect(resolveConfig({}).allowInsecureAuthorizationToken).toBe(false);
+      expect(defaultConfig.allowInsecureAuthorizationToken).toBe(false);
+    });
+
+    it('survives the config merge when opted into', () => {
+      expect(
+        resolveConfig({
+          authorizationToken: TOKEN,
+          allowInsecureAuthorizationToken: true
+        }).allowInsecureAuthorizationToken
+      ).toBe(true);
+    });
+
+    it('still keeps the token out of every URL', () => {
+      const config = resolveConfig({
+        authorizationToken: TOKEN,
+        allowInsecureAuthorizationToken: true,
+        logMeasurementApiUrl: 'http://localhost:8787/__log'
+      });
+
+      for (const key of API_URL_KEYS) {
+        expect(config[key] ?? '', key).not.toContain(TOKEN);
+      }
+    });
   });
 
   it('leaves the non-HTTP endpoints untouched', () => {

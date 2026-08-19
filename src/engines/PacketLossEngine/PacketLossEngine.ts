@@ -1,7 +1,10 @@
 import SelfWebRtcDataConnection from './SelfWebRtcDataConnection';
 import type { Engine } from '../Engine';
 import type { PacketLossResults } from '../../types';
-import { withAuthorizationHeader } from '../../utils/authorization';
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../../utils/authorization';
 
 export type { PacketLossResults };
 
@@ -28,7 +31,7 @@ export interface PacketLossEngineOptions {
   turnServerCredsApiIncludeCredentials?: boolean;
   turnServerUser?: string;
   turnServerPass?: string;
-  authorizationToken?: string | null;
+  authorization?: AuthorizationOptions | null;
   numMsgs?: number;
   batchSize?: number;
   batchWaitTime?: number;
@@ -58,7 +61,7 @@ export default class PacketLossEngine implements Engine {
     turnServerCredsApiIncludeCredentials = false,
     turnServerUser,
     turnServerPass,
-    authorizationToken = null,
+    authorization = null,
     numMsgs = 100,
     batchSize = 10,
     batchWaitTime = 10, // ms (in between batches)
@@ -85,7 +88,7 @@ export default class PacketLossEngine implements Engine {
                 ? 'include'
                 : undefined
             },
-            authorizationToken,
+            authorization,
             turnServerCredsApi
           )
         )

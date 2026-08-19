@@ -15,6 +15,7 @@ import Results from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
+import type { AuthorizationOptions } from './utils/authorization';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -139,6 +140,14 @@ class MeasurementEngine {
   /** The merged config, so subclasses need not rebuild it. */
   protected get config(): SpeedTestConfig {
     return this.#config;
+  }
+
+  /** The token and its transport policy, as one unit for the sub-engines. */
+  protected get authorization(): AuthorizationOptions {
+    return {
+      token: this.#config.authorizationToken,
+      allowInsecure: this.#config.allowInsecureAuthorizationToken
+    };
   }
 
   /** Not paused and not finished. */
@@ -428,7 +437,7 @@ class MeasurementEngine {
             turnServerCredsApiIncludeCredentials: includeCredentials,
             turnServerUser: turnServerUser ?? undefined,
             turnServerPass: turnServerPass ?? undefined,
-            authorizationToken: this.#config.authorizationToken,
+            authorization: this.authorization,
             numMsgs,
 
             // if under load
@@ -497,7 +506,7 @@ class MeasurementEngine {
             logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
             measurementId: this.#measurementId,
             sessionId: this.#config.sessionId,
-            authorizationToken: this.#config.authorizationToken,
+            authorization: this.authorization,
 
             // if under load
             downloadChunkSize: msmConfig.loadDown
@@ -586,7 +595,7 @@ class MeasurementEngine {
               measureParallelLatency,
               parallelLatencyThrottleMs: this.#config.loadedLatencyThrottle,
               sessionId: this.#config.sessionId,
-              authorizationToken: this.#config.authorizationToken
+              authorization: this.authorization
             }
           ) as Engine;
           (
@@ -780,7 +789,7 @@ class SpeedTestEngine extends MeasurementEngine {
     logFinalResults(results, {
       apiUrl,
       sessionId: this.config.sessionId,
-      authorizationToken: this.config.authorizationToken
+      authorization: this.authorization
     }).then(response => {
       this.onResultsLogged(response);
     });
