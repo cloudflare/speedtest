@@ -83,11 +83,9 @@ export default class PacketLossEngine implements Engine {
         fetch(
           turnServerCredsApi!,
           withAuthorizationHeader(
-            {
-              credentials: turnServerCredsApiIncludeCredentials
-                ? 'include'
-                : undefined
-            },
+            turnServerCredsApiIncludeCredentials
+              ? { credentials: 'include' }
+              : {},
             authorization,
             turnServerCredsApi
           )

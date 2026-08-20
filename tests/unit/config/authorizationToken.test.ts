@@ -56,6 +56,28 @@ describe('authorizationToken', () => {
     expect(defaultConfig.authorizationToken).toBeNull();
   });
 
+  describe('authorizationEnabled', () => {
+    it('defaults to undefined, so a token alone is never sent', () => {
+      expect(resolveConfig({}).authorizationEnabled).toBeUndefined();
+      expect(defaultConfig.authorizationEnabled).toBeUndefined();
+      expect(
+        resolveConfig({ authorizationToken: TOKEN }).authorizationEnabled
+      ).toBeUndefined();
+    });
+
+    it.each(['header', true, false] as const)(
+      'survives the config merge as %o',
+      value => {
+        expect(
+          resolveConfig({
+            authorizationToken: TOKEN,
+            authorizationEnabled: value
+          }).authorizationEnabled
+        ).toBe(value);
+      }
+    );
+  });
+
   describe('allowInsecureAuthorizationToken', () => {
     it('defaults to false, so the token is HTTPS-only unless asked otherwise', () => {
       expect(resolveConfig({}).allowInsecureAuthorizationToken).toBe(false);

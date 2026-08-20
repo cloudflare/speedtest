@@ -70,15 +70,32 @@ export interface Config {
   /**
    * Opaque token attributing this test to a registered customer, sent as an
    * `Authorization: Bearer` header on the measurement, TURN credential and
-   * results-logging requests. Not sent over plain HTTP. Default: `null`.
+   * results-logging requests. Requires {@link authorizationEnabled}; on its own
+   * it is never sent. Not sent over plain HTTP. Default: `null`.
+   *
+   * @experimental Unstable — may change or be removed in any release.
    */
   authorizationToken: string | null;
+  /**
+   * Opts in to sending {@link authorizationToken}, which is otherwise withheld
+   * even when set.
+   *
+   * `'header'` and `true` both send it as `Authorization: Bearer`; `true` is a
+   * permanent alias for `'header'`, so a future transport can be added without
+   * changing what an existing config does. `false` and `undefined` send
+   * nothing. Default: `undefined`.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  authorizationEnabled: 'header' | boolean | undefined;
   /**
    * Sends {@link authorizationToken} even when the endpoint is not HTTPS, for
    * local development against an `http://` server.
    *
    * Never enable this in production: the server treats a token seen over
    * plaintext as compromised and revokes it. Default: `false`.
+   *
+   * @experimental Unstable — may change or be removed in any release.
    */
   allowInsecureAuthorizationToken: boolean;
 
@@ -155,6 +172,7 @@ const defaultConfig: Config = {
   includeCredentials: false,
   sessionId: undefined,
   authorizationToken: null,
+  authorizationEnabled: undefined,
   allowInsecureAuthorizationToken: false,
 
   // Measurements

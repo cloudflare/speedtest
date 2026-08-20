@@ -30,16 +30,17 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       measurementId,
       logApiUrl,
       sessionId,
+      authorization,
       ...ptProps
     }: LoggingBandwidthEngineOptions = {}
   ) {
-    super(measurements, ptProps);
+    // Destructured out of `ptProps`, so it has to be passed back explicitly.
+    super(measurements, { ...ptProps, authorization });
 
     this.#measurementId = measurementId;
     this.#logApiUrl = logApiUrl;
     this.#sessionId = sessionId;
-    // Read without destructuring, so `super` receives it too.
-    this.#authorization = ptProps.authorization ?? null;
+    this.#authorization = authorization ?? null;
 
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>

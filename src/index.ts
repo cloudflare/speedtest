@@ -129,6 +129,13 @@ class MeasurementEngine {
       userConfig,
       internalConfig
     ) as SpeedTestConfig;
+    // Built once: the insecure-transport warning is latched per object, so a
+    // fresh one per access would warn on every request.
+    this.#authorization = {
+      token: this.#config.authorizationToken,
+      enabled: this.#config.authorizationEnabled,
+      allowInsecure: this.#config.allowInsecureAuthorizationToken
+    };
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -144,10 +151,7 @@ class MeasurementEngine {
 
   /** The token and its transport policy, as one unit for the sub-engines. */
   protected get authorization(): AuthorizationOptions {
-    return {
-      token: this.#config.authorizationToken,
-      allowInsecure: this.#config.allowInsecureAuthorizationToken
-    };
+    return this.#authorization;
   }
 
   /** Not paused and not finished. */
@@ -216,6 +220,7 @@ class MeasurementEngine {
 
   // Internal state
   readonly #config: SpeedTestConfig;
+  readonly #authorization: AuthorizationOptions;
   readonly #results: Results;
 
   #measurementId: string = genMeasId();
@@ -519,9 +524,9 @@ class MeasurementEngine {
         ) as Engine;
         (
           engine as Engine & { fetchOptions: Record<string, unknown> }
-        ).fetchOptions = {
-          credentials: this.#config.includeCredentials ? 'include' : undefined
-        };
+        ).fetchOptions = this.#config.includeCredentials
+          ? { credentials: 'include' }
+          : {};
         (
           engine as Engine & { abortRequestDuration: number }
         ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
@@ -600,9 +605,9 @@ class MeasurementEngine {
           ) as Engine;
           (
             engine as Engine & { fetchOptions: Record<string, unknown> }
-          ).fetchOptions = {
-            credentials: this.#config.includeCredentials ? 'include' : undefined
-          };
+          ).fetchOptions = this.#config.includeCredentials
+            ? { credentials: 'include' }
+            : {};
           (
             engine as Engine & { finishRequestDuration: number }
           ).finishRequestDuration = this.#config.bandwidthFinishRequestDuration;

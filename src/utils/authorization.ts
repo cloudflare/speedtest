@@ -1,10 +1,12 @@
 /**
- * The token and the single policy decision that governs it, passed as one unit
- * so a transport change touches this module instead of every call site.
+ * The token and the policy decisions that govern it, passed as one unit so a
+ * transport change touches this module instead of every call site.
  */
 export interface AuthorizationOptions {
   /** See config `authorizationToken`. */
   token: string | null;
+  /** See config `authorizationEnabled`. */
+  enabled: 'header' | boolean | undefined;
   /** See config `allowInsecureAuthorizationToken`. */
   allowInsecure: boolean;
 }
@@ -26,12 +28,15 @@ const isSecureApiUrl = (apiUrl: string): boolean => {
   }
 };
 
-/** Latched: a test issues hundreds of requests, and one warning is enough. */
-let warnedInsecure = false;
+/**
+ * Latched per options object — which is one per engine — so a run warns once
+ * rather than once per request, and a second run warns again.
+ */
+const warnedInsecure = new WeakSet<AuthorizationOptions>();
 
-const warnInsecureOnce = (): void => {
-  if (warnedInsecure) return;
-  warnedInsecure = true;
+const warnInsecureOnce = (authorization: AuthorizationOptions): void => {
+  if (warnedInsecure.has(authorization)) return;
+  warnedInsecure.add(authorization);
   console.warn(
     'Sending the authorization token to an endpoint that is not known to be ' +
       'secure, because allowInsecureAuthorizationToken is enabled. Do not ' +
@@ -42,8 +47,9 @@ const warnInsecureOnce = (): void => {
 
 /**
  * Merges the `Authorization: Bearer <token>` header for `apiUrl` into `init`,
- * preserving any headers the caller already set. Returns `init` untouched when
- * there is no token, or when the token must not be sent to `apiUrl`.
+ * preserving any headers the caller already set. Returns `init` untouched
+ * unless a token exists, `enabled` opts in, and the token may be sent to
+ * `apiUrl`.
  *
  * A header rather than a query-string param: request URLs are routinely
  * persisted in server-side logs, traces and error reports, so a bearer
@@ -61,14 +67,18 @@ export const withAuthorizationHeader = (
   authorization: AuthorizationOptions | null | undefined,
   apiUrl: string | null | undefined
 ): RequestInit => {
-  if (!authorization?.token || !apiUrl) return init;
+  if (!authorization?.enabled || !apiUrl) return init;
+
+  // Whitespace-only is as good as absent, and no valid token carries padding.
+  const token = authorization.token?.trim();
+  if (!token) return init;
 
   if (!isSecureApiUrl(apiUrl)) {
     if (!authorization.allowInsecure) return init;
-    warnInsecureOnce();
+    warnInsecureOnce(authorization);
   }
 
   const headers = new Headers(init.headers);
-  headers.set('Authorization', `Bearer ${authorization.token}`);
-  return { ...init, headers };
+  headers.set('Authorization', `Bearer ${token}`);
+  return { ...init, headers: Object.fromEntries(headers) };
 };
