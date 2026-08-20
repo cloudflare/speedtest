@@ -51,16 +51,8 @@ const warnInsecureOnce = (authorization: AuthorizationOptions): void => {
  * unless a token exists, `enabled` opts in, and the token may be sent to
  * `apiUrl`.
  *
- * A header rather than a query-string param: request URLs are routinely
- * persisted in server-side logs, traces and error reports, so a bearer
- * credential must not travel in one. Applied to the measurement (`__down`,
- * `__up`), TURN credential and logging endpoints — the reachability, RPKI and
- * NXDOMAIN probe hosts are unrelated and never receive it.
- *
- * Resolved per target URL rather than once per engine, because a single config
- * may mix schemes: by default the token is withheld from anything that is not
- * known to be HTTPS, where an observer could lift it and the server treats it
- * as compromised.
+ * A header, not a query param: request URLs get persisted in logs and traces.
+ * Evaluated per target URL, since one config may mix schemes.
  */
 export const withAuthorizationHeader = (
   init: RequestInit,

@@ -118,7 +118,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#token = null;
     this.#requestTime = null;
 
-    // Swallowed: logging is best-effort and must never surface as a test error.
+    // Swallowed: a failed log must not fail the measurement it describes.
     fetch(
       this.#logApiUrl,
       // Resolved against the log URL, not the measurement URL the inherited
