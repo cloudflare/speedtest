@@ -1,5 +1,9 @@
 import type Results from '../Results';
 import type { BandwidthPoint } from '../types';
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../utils/authorization';
 
 /** Subset of PacketLossResults used for logging (includes error case). */
 interface PacketLossDetails {
@@ -26,6 +30,8 @@ interface LogConfig {
   apiUrl: string;
   /** Session ID to include in the log payload. */
   sessionId: string | undefined;
+  /** Token attributing this test, sent as an `Authorization` header. */
+  authorization: AuthorizationOptions | null;
 }
 
 /** Payload structure sent to the AIM logging endpoint. */
@@ -105,7 +111,7 @@ const scoreParser = (
  */
 const logAimResults = async (
   results: Results,
-  { apiUrl, sessionId }: LogConfig
+  { apiUrl, sessionId, authorization }: LogConfig
 ): Promise<AimLogResponse> => {
   const logData: LogData = {
     sessionId
@@ -131,10 +137,17 @@ const logAimResults = async (
   console.log('results', logData);
 
   try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(logData)
-    });
+    const response = await fetch(
+      apiUrl,
+      withAuthorizationHeader(
+        {
+          method: 'POST',
+          body: JSON.stringify(logData)
+        },
+        authorization,
+        apiUrl
+      )
+    );
     if (!response.ok) {
       return { requestId: undefined };
     }

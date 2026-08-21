@@ -23,9 +23,11 @@ class PacketLossUnderLoadEngine extends PacketLossEngine {
     uploadChunkSize,
     downloadApiUrl,
     uploadApiUrl,
+    authorization,
     ...ptProps
   }: PacketLossUnderLoadOptions = {}) {
-    super(ptProps);
+    // Destructured out of `ptProps`, so it has to be passed back explicitly.
+    super({ ...ptProps, authorization });
 
     if (downloadChunkSize || uploadChunkSize) {
       this.#loadEngine = new LoadNetworkEngine({
@@ -40,7 +42,8 @@ class PacketLossUnderLoadEngine extends PacketLossEngine {
               apiUrl: uploadApiUrl!,
               chunkSize: uploadChunkSize
             }
-          : null
+          : null,
+        authorization
       });
 
       super.onCredentialsFailure =

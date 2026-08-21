@@ -1,6 +1,10 @@
 import SelfWebRtcDataConnection from './SelfWebRtcDataConnection';
 import type { Engine } from '../Engine';
 import type { PacketLossResults } from '../../types';
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../../utils/authorization';
 
 export type { PacketLossResults };
 
@@ -27,6 +31,7 @@ export interface PacketLossEngineOptions {
   turnServerCredsApiIncludeCredentials?: boolean;
   turnServerUser?: string;
   turnServerPass?: string;
+  authorization?: AuthorizationOptions | null;
   numMsgs?: number;
   batchSize?: number;
   batchWaitTime?: number;
@@ -56,6 +61,7 @@ export default class PacketLossEngine implements Engine {
     turnServerCredsApiIncludeCredentials = false,
     turnServerUser,
     turnServerPass,
+    authorization = null,
     numMsgs = 100,
     batchSize = 10,
     batchWaitTime = 10, // ms (in between batches)
@@ -74,11 +80,16 @@ export default class PacketLossEngine implements Engine {
 
     (!turnServerUser || !turnServerPass
       ? // Get TURN credentials from API endpoint if not statically supplied
-        fetch(turnServerCredsApi!, {
-          credentials: turnServerCredsApiIncludeCredentials
-            ? 'include'
-            : undefined
-        })
+        fetch(
+          turnServerCredsApi!,
+          withAuthorizationHeader(
+            turnServerCredsApiIncludeCredentials
+              ? { credentials: 'include' }
+              : {},
+            authorization,
+            turnServerCredsApi
+          )
+        )
           .then(r => r.json())
           .then((d: TurnServerCredsApiResult) => {
             if (d.error) throw d.error;

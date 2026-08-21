@@ -39,6 +39,10 @@ new SpeedTest().onFinish = results => console.log(results.getSummary());
 new SpeedTest({ configOptions })
 ```
 
+Options marked 🧪 are **experimental and unstable**: they may change behaviour,
+be renamed, or be removed in any release, including a patch. Do not depend on
+them.
+
 | Config option | Description | Default |
 | --- | --- | :--: |
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
@@ -48,7 +52,9 @@ new SpeedTest({ configOptions })
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
 | **turnServerPass**: *string* | The password for the TURN server credentials. | - |
-| **authorizationToken**: *string* | An opaque token attributing the test to a registered customer, sent as a `jwt` query-string parameter on the measurement, TURN credential and results-logging requests. Obtain it from your own backend — the engine never requests one itself. Never sent over plain HTTP. | `null` |
+| **authorizationToken**: *string* | 🧪 *Experimental.* An opaque token attributing the test to a registered customer, sent as an `Authorization: Bearer` header on the measurement, TURN credential and results-logging requests. Obtain it from your own backend — the engine never requests one itself. Requires `authorizationEnabled`; on its own it is never sent. Not sent over plain HTTP unless `allowInsecureAuthorizationToken` is set. | `null` |
+| **authorizationEnabled**: *`'header'` \| boolean* | 🧪 *Experimental.* Opts in to sending `authorizationToken`, which is otherwise withheld even when set. `'header'` and `true` both send it as `Authorization: Bearer`; `true` is a permanent alias for `'header'`, so a future transport can be added without changing what an existing config does. | `undefined` |
+| **allowInsecureAuthorizationToken**: *boolean* | 🧪 *Experimental.* Sends `authorizationToken` even when the endpoint is not HTTPS, for local development against an `http://` server. Never enable this in production: the server treats a token seen over plaintext as compromised and revokes it. | `false` |
 | **measurements**: *array* | The sequence of measurements to perform by the speedtest engine. See [below](#measurement-config) for the specific syntax of this option. ||
 | **measureDownloadLoadedLatency**: *boolean* | Whether to perform additional latency measurements simultaneously with download requests, to measure loaded latency (during download). | `true` |
 | **measureUploadLoadedLatency**: *boolean* | Whether to perform additional latency measurements simultaneously with upload requests, to measure loaded latency (during upload). | `true` |

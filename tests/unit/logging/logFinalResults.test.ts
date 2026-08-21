@@ -17,7 +17,8 @@ const makeResults = (): Results =>
 
 const config = {
   apiUrl: 'https://aim.example.com/__results',
-  sessionId: undefined
+  sessionId: undefined,
+  authorization: null
 };
 
 describe('logAimResults', () => {

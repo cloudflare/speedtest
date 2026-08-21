@@ -1,3 +1,8 @@
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../../utils/authorization';
+
 interface LoadEngineConfig {
   apiUrl: string;
   qsParams?: Record<string, string>;
@@ -73,6 +78,7 @@ export interface LoadNetworkUploadConfig {
 export interface LoadNetworkEngineOptions {
   download?: LoadNetworkDownloadConfig | null;
   upload?: LoadNetworkUploadConfig | null;
+  authorization?: AuthorizationOptions | null;
 }
 
 /**
@@ -81,7 +87,11 @@ export interface LoadNetworkEngineOptions {
  * engines to saturate the connection during measurements.
  */
 class LoadNetworkEngine {
-  constructor({ download, upload }: LoadNetworkEngineOptions = {}) {
+  constructor({
+    download,
+    upload,
+    authorization = null
+  }: LoadNetworkEngineOptions = {}) {
     // Expected attrs for each: { apiUrl, chunkSize }
     if (!download && !upload)
       throw new Error('Missing at least one of download/upload config');
@@ -131,7 +141,10 @@ class LoadNetworkEngine {
           this.fetchOptions
         );
 
-        return fetch(url, fetchOpt)
+        // These saturate the same measurement endpoints as a real measurement,
+        // so they carry the token too — otherwise the heaviest traffic in a
+        // test goes unattributed.
+        return fetch(url, withAuthorizationHeader(fetchOpt, authorization, url))
           .then(r => {
             if (r.ok) return r;
             throw Error(r.statusText);

@@ -1,103 +1,76 @@
 /**
- * Query-string parameter carrying the authorization token.
- *
- * Named `jwt`, not `token`: the measurement log POST body already has a
- * `token` field holding a server-issued per-measurement value, and both are
- * sent to `logMeasurementApiUrl`.
+ * The token and the policy decisions that govern it, passed as one unit so a
+ * transport change touches this module instead of every call site.
  */
-export const AUTHORIZATION_TOKEN_PARAM = 'jwt';
-
-/** Placeholder substituted for the token in error messages. */
-const REDACTED = 'REDACTED';
+export interface AuthorizationOptions {
+  /** See config `authorizationToken`. */
+  token: string | null;
+  /** See config `authorizationEnabled`. */
+  enabled: 'header' | boolean | undefined;
+  /** See config `allowInsecureAuthorizationToken`. */
+  allowInsecure: boolean;
+}
 
 /**
- * Appends the authorization token to `apiUrl`, preserving existing params.
- *
- * Query string rather than a header, which would trigger a CORS preflight and
- * suppress BandwidthEngine's server-time calibration. Never over plain HTTP.
+ * Whether `apiUrl` resolves to an HTTPS endpoint. Relative URLs inherit the
+ * page origin, so they can only be resolved inside a browser; anything we
+ * cannot resolve is not known to be secure.
  */
-export const withAuthorizationToken = (
-  apiUrl: string,
-  token: string | null
-): string => {
-  if (!token) return apiUrl;
-
-  // Only relative URLs need the page origin, so absolute ones work without a DOM.
-  let urlObj: URL;
+const isSecureApiUrl = (apiUrl: string): boolean => {
   try {
-    urlObj = new URL(apiUrl);
-  } catch {
-    urlObj = new URL(apiUrl, window.location.origin);
-  }
-
-  if (urlObj.protocol !== 'https:') return apiUrl;
-
-  urlObj.searchParams.set(AUTHORIZATION_TOKEN_PARAM, token);
-  return urlObj.href;
-};
-
-/**
- * Masks the authorization token in a URL bound for a log or an error callback.
- *
- * Consumers routinely forward `onError` payloads to third-party log sinks, so
- * the credential must not travel with them. Returns `apiUrl` untouched when
- * there is no token to mask.
- */
-export const redactAuthorizationToken = (apiUrl: string): string => {
-  let urlObj: URL;
-  try {
-    urlObj = new URL(apiUrl);
+    return new URL(apiUrl).protocol === 'https:';
   } catch {
     try {
-      urlObj = new URL(apiUrl, window.location.origin);
+      return new URL(apiUrl, window.location.origin).protocol === 'https:';
     } catch {
-      return apiUrl;
+      return false;
     }
   }
-
-  if (!urlObj.searchParams.has(AUTHORIZATION_TOKEN_PARAM)) return apiUrl;
-
-  urlObj.searchParams.set(AUTHORIZATION_TOKEN_PARAM, REDACTED);
-  return urlObj.href;
 };
 
 /**
- * Config URLs that carry the authorization token. Single source of truth: a new
- * measurement endpoint must be added here to be attributed.
+ * Latched per options object — which is one per engine — so a run warns once
+ * rather than once per request, and a second run warns again.
+ */
+const warnedInsecure = new WeakSet<AuthorizationOptions>();
+
+const warnInsecureOnce = (authorization: AuthorizationOptions): void => {
+  if (warnedInsecure.has(authorization)) return;
+  warnedInsecure.add(authorization);
+  console.warn(
+    'Sending the authorization token to an endpoint that is not known to be ' +
+      'secure, because allowInsecureAuthorizationToken is enabled. Do not ' +
+      'enable this outside local development: the server treats a token seen ' +
+      'over plaintext as compromised and revokes it.'
+  );
+};
+
+/**
+ * Merges the `Authorization: Bearer <token>` header for `apiUrl` into `init`,
+ * preserving any headers the caller already set. Returns `init` untouched
+ * unless a token exists, `enabled` opts in, and the token may be sent to
+ * `apiUrl`.
  *
- * `turnServerUri` is excluded (not HTTP), as are the reachability, RPKI and
- * NXDOMAIN probe hosts, which are unrelated to the measurement endpoints.
+ * A header, not a query param: request URLs get persisted in logs and traces.
+ * Evaluated per target URL, since one config may mix schemes.
  */
-export const AUTHORIZABLE_URLS = [
-  'downloadApiUrl',
-  'uploadApiUrl',
-  'turnServerCredsApiUrl',
-  'logAimApiUrl',
-  'logMeasurementApiUrl'
-] as const;
+export const withAuthorizationHeader = (
+  init: RequestInit,
+  authorization: AuthorizationOptions | null | undefined,
+  apiUrl: string | null | undefined
+): RequestInit => {
+  if (!authorization?.enabled || !apiUrl) return init;
 
-/** The config fields {@link applyAuthorizationToken} rewrites. */
-type AuthorizableUrls = { authorizationToken: string | null } & {
-  [K in (typeof AUTHORIZABLE_URLS)[number]]: string | null;
-};
+  // Whitespace-only is as good as absent, and no valid token carries padding.
+  const token = authorization.token?.trim();
+  if (!token) return init;
 
-/**
- * Attaches the token to every URL in {@link AUTHORIZABLE_URLS}, so the engines
- * inherit it through the URLs they already receive. Mutates `config`, which is
- * always a freshly merged object.
- */
-export const applyAuthorizationToken = <T extends AuthorizableUrls>(
-  config: T
-): T => {
-  const token = config.authorizationToken;
-  if (!token) return config;
-
-  // Widened to write through the union of keys; T only narrows the field types.
-  const urls = config as AuthorizableUrls;
-  for (const key of AUTHORIZABLE_URLS) {
-    const url = urls[key];
-    if (url) urls[key] = withAuthorizationToken(url, token);
+  if (!isSecureApiUrl(apiUrl)) {
+    if (!authorization.allowInsecure) return init;
+    warnInsecureOnce(authorization);
   }
 
-  return config;
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return { ...init, headers: Object.fromEntries(headers) };
 };

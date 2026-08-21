@@ -15,7 +15,7 @@ import Results from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
-import { applyAuthorizationToken } from './utils/authorization';
+import type { AuthorizationOptions } from './utils/authorization';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -123,14 +123,19 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  */
 class MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
-    this.#config = applyAuthorizationToken(
-      Object.assign(
-        {},
-        defaultConfig,
-        userConfig,
-        internalConfig
-      ) as SpeedTestConfig
-    );
+    this.#config = Object.assign(
+      {},
+      defaultConfig,
+      userConfig,
+      internalConfig
+    ) as SpeedTestConfig;
+    // Built once: the insecure-transport warning is latched per object, so a
+    // fresh one per access would warn on every request.
+    this.#authorization = {
+      token: this.#config.authorizationToken,
+      enabled: this.#config.authorizationEnabled,
+      allowInsecure: this.#config.allowInsecureAuthorizationToken
+    };
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -142,6 +147,11 @@ class MeasurementEngine {
   /** The merged config, so subclasses need not rebuild it. */
   protected get config(): SpeedTestConfig {
     return this.#config;
+  }
+
+  /** The token and its transport policy, as one unit for the sub-engines. */
+  protected get authorization(): AuthorizationOptions {
+    return this.#authorization;
   }
 
   /** Not paused and not finished. */
@@ -210,6 +220,7 @@ class MeasurementEngine {
 
   // Internal state
   readonly #config: SpeedTestConfig;
+  readonly #authorization: AuthorizationOptions;
   readonly #results: Results;
 
   #measurementId: string = genMeasId();
@@ -431,6 +442,7 @@ class MeasurementEngine {
             turnServerCredsApiIncludeCredentials: includeCredentials,
             turnServerUser: turnServerUser ?? undefined,
             turnServerPass: turnServerPass ?? undefined,
+            authorization: this.authorization,
             numMsgs,
 
             // if under load
@@ -499,6 +511,7 @@ class MeasurementEngine {
             logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
             measurementId: this.#measurementId,
             sessionId: this.#config.sessionId,
+            authorization: this.authorization,
 
             // if under load
             downloadChunkSize: msmConfig.loadDown
@@ -511,9 +524,9 @@ class MeasurementEngine {
         ) as Engine;
         (
           engine as Engine & { fetchOptions: Record<string, unknown> }
-        ).fetchOptions = {
-          credentials: this.#config.includeCredentials ? 'include' : undefined
-        };
+        ).fetchOptions = this.#config.includeCredentials
+          ? { credentials: 'include' }
+          : {};
         (
           engine as Engine & { abortRequestDuration: number }
         ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
@@ -586,14 +599,15 @@ class MeasurementEngine {
               measurementId: this.#measurementId,
               measureParallelLatency,
               parallelLatencyThrottleMs: this.#config.loadedLatencyThrottle,
-              sessionId: this.#config.sessionId
+              sessionId: this.#config.sessionId,
+              authorization: this.authorization
             }
           ) as Engine;
           (
             engine as Engine & { fetchOptions: Record<string, unknown> }
-          ).fetchOptions = {
-            credentials: this.#config.includeCredentials ? 'include' : undefined
-          };
+          ).fetchOptions = this.#config.includeCredentials
+            ? { credentials: 'include' }
+            : {};
           (
             engine as Engine & { finishRequestDuration: number }
           ).finishRequestDuration = this.#config.bandwidthFinishRequestDuration;
@@ -779,7 +793,8 @@ class SpeedTestEngine extends MeasurementEngine {
     }
     logFinalResults(results, {
       apiUrl,
-      sessionId: this.config.sessionId
+      sessionId: this.config.sessionId,
+      authorization: this.authorization
     }).then(response => {
       this.onResultsLogged(response);
     });

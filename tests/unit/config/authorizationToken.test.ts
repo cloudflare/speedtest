@@ -1,68 +1,119 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import defaultConfig from '../../../src/config/defaultConfig.ts';
-import {
-  applyAuthorizationToken,
-  AUTHORIZABLE_URLS
-} from '../../../src/utils/authorization.ts';
+import { describe, it, expect } from 'vitest';
+import SpeedTestEngine from '../../../src/index.ts';
+import defaultConfig, {
+  type ConfigOptions
+} from '../../../src/config/defaultConfig.ts';
 
 const TOKEN = 'test-token-123';
 
-/** Merges user config over the defaults the way the engine constructors do. */
-const resolveConfig = (userConfig: Partial<typeof defaultConfig>) =>
-  applyAuthorizationToken(Object.assign({}, defaultConfig, userConfig));
+/** `config` is protected, so a subclass is the supported way to inspect it. */
+class InspectableEngine extends SpeedTestEngine {
+  get resolvedConfig() {
+    return this.config;
+  }
+}
 
-describe('applyAuthorizationToken', () => {
-  beforeEach(() => {
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.cloudflare.com' }
-    });
-  });
+const API_URL_KEYS = [
+  'downloadApiUrl',
+  'uploadApiUrl',
+  'turnServerCredsApiUrl',
+  'logAimApiUrl',
+  'logMeasurementApiUrl'
+] as const;
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+const resolveConfig = (userConfig: ConfigOptions = {}) =>
+  new InspectableEngine({ autoStart: false, ...userConfig }).resolvedConfig;
 
-  it('attaches the token to every URL in AUTHORIZABLE_URLS', () => {
+describe('authorizationToken', () => {
+  it('never appears in any configured API URL', () => {
     const config = resolveConfig({
       authorizationToken: TOKEN,
       // Null by default, so set it to cover every key in the list.
       logMeasurementApiUrl: 'https://speed.cloudflare.com/__log'
     });
 
-    for (const key of AUTHORIZABLE_URLS) {
-      expect(new URL(config[key]!).searchParams.get('jwt'), key).toBe(TOKEN);
+    for (const key of API_URL_KEYS) {
+      expect(config[key] ?? '', key).not.toContain(TOKEN);
     }
   });
 
-  it('leaves disabled logging endpoints null', () => {
-    const config = resolveConfig({
-      authorizationToken: TOKEN,
-      logAimApiUrl: null,
-      logMeasurementApiUrl: null
-    });
+  it('leaves the configured API URLs exactly as given', () => {
+    const config = resolveConfig({ authorizationToken: TOKEN });
 
-    expect(config.logAimApiUrl).toBeNull();
-    expect(config.logMeasurementApiUrl).toBeNull();
+    for (const key of API_URL_KEYS) {
+      expect(config[key], key).toBe(defaultConfig[key]);
+    }
   });
 
-  it('does not attach the token to excluded hosts', () => {
+  it('is preserved on the config so the engines can attach it', () => {
+    expect(resolveConfig({ authorizationToken: TOKEN }).authorizationToken).toBe(
+      TOKEN
+    );
+  });
+
+  it('defaults to null', () => {
+    expect(resolveConfig({}).authorizationToken).toBeNull();
+    expect(defaultConfig.authorizationToken).toBeNull();
+  });
+
+  describe('authorizationEnabled', () => {
+    it('defaults to undefined, so a token alone is never sent', () => {
+      expect(resolveConfig({}).authorizationEnabled).toBeUndefined();
+      expect(defaultConfig.authorizationEnabled).toBeUndefined();
+      expect(
+        resolveConfig({ authorizationToken: TOKEN }).authorizationEnabled
+      ).toBeUndefined();
+    });
+
+    it.each(['header', true, false] as const)(
+      'survives the config merge as %o',
+      value => {
+        expect(
+          resolveConfig({
+            authorizationToken: TOKEN,
+            authorizationEnabled: value
+          }).authorizationEnabled
+        ).toBe(value);
+      }
+    );
+  });
+
+  describe('allowInsecureAuthorizationToken', () => {
+    it('defaults to false, so the token is HTTPS-only unless asked otherwise', () => {
+      expect(resolveConfig({}).allowInsecureAuthorizationToken).toBe(false);
+      expect(defaultConfig.allowInsecureAuthorizationToken).toBe(false);
+    });
+
+    it('survives the config merge when opted into', () => {
+      expect(
+        resolveConfig({
+          authorizationToken: TOKEN,
+          allowInsecureAuthorizationToken: true
+        }).allowInsecureAuthorizationToken
+      ).toBe(true);
+    });
+
+    it('still keeps the token out of every URL', () => {
+      const config = resolveConfig({
+        authorizationToken: TOKEN,
+        allowInsecureAuthorizationToken: true,
+        logMeasurementApiUrl: 'http://localhost:8787/__log'
+      });
+
+      for (const key of API_URL_KEYS) {
+        expect(config[key] ?? '', key).not.toContain(TOKEN);
+      }
+    });
+  });
+
+  it('leaves the non-HTTP endpoints untouched', () => {
     const config = resolveConfig({ authorizationToken: TOKEN });
 
     expect(config.rpkiInvalidHost).toBe('invalid.rpki.cloudflare.com');
     expect(config.turnServerUri).toBe('turn.speed.cloudflare.com:50000');
   });
 
-  it('leaves every URL untouched when no token is configured', () => {
-    const config = resolveConfig({});
-
-    for (const key of AUTHORIZABLE_URLS) {
-      expect(config[key], key).toBe(defaultConfig[key]);
-    }
-  });
-
   it('does not mutate the shared defaultConfig object', () => {
-    // applyAuthorizationToken mutates in place, so it must only ever be handed
-    // a freshly merged object — otherwise the token leaks across instances.
     resolveConfig({ authorizationToken: TOKEN });
 
     expect(defaultConfig.downloadApiUrl).toBe(
@@ -72,18 +123,5 @@ describe('applyAuthorizationToken', () => {
       'https://speed.cloudflare.com/__results'
     );
     expect(defaultConfig.authorizationToken).toBeNull();
-  });
-
-  it('does not attach the token over plain HTTP', () => {
-    const config = resolveConfig({
-      authorizationToken: TOKEN,
-      downloadApiUrl: 'http://speed.cloudflare.com/__down',
-      uploadApiUrl: 'http://speed.cloudflare.com/__up'
-    });
-
-    expect(config.downloadApiUrl).toBe('http://speed.cloudflare.com/__down');
-    expect(config.uploadApiUrl).toBe('http://speed.cloudflare.com/__up');
-    // HTTPS endpoints in the same config are still attributed.
-    expect(new URL(config.logAimApiUrl!).searchParams.get('jwt')).toBe(TOKEN);
   });
 });

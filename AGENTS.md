@@ -63,7 +63,11 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
   - `ReachabilityEngine/` — simple fetch with timeout
 - `src/Results/` — aggregation, stats (percentile, jitter), and AIM scoring.
 - `src/utils/` — small helpers: math (`sum`, `avg`, `percentile`, `scaleThreshold`)
-  and `authorization` (attaches the `authorizationToken` to the API URLs).
+  and `authorization` (attaches the `authorizationToken` as an `Authorization`
+  header to the requests that carry it, gated on `authorizationEnabled` and
+  withheld from non-HTTPS endpoints unless `allowInsecureAuthorizationToken`
+  is set). The whole authorization feature is **experimental/unstable** —
+  options are marked 🧪 in the README and `@experimental` in their JSDoc.
 - `example/turn-worker/` — separate Cloudflare Worker sub-project with its own
   `package.json` and Prettier config; not part of the library build.
 

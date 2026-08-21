@@ -6,6 +6,10 @@ import type {
   ResponseHookPayload
 } from './BandwidthEngine';
 import type { ParallelLatencyOptions } from './ParallelLatency';
+import {
+  withAuthorizationHeader,
+  type AuthorizationOptions
+} from '../../utils/authorization';
 
 export interface LoggingBandwidthEngineOptions extends ParallelLatencyOptions {
   measurementId?: string;
@@ -26,14 +30,17 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       measurementId,
       logApiUrl,
       sessionId,
+      authorization,
       ...ptProps
     }: LoggingBandwidthEngineOptions = {}
   ) {
-    super(measurements, ptProps);
+    // Destructured out of `ptProps`, so it has to be passed back explicitly.
+    super(measurements, { ...ptProps, authorization });
 
     this.#measurementId = measurementId;
     this.#logApiUrl = logApiUrl;
     this.#sessionId = sessionId;
+    this.#authorization = authorization ?? null;
 
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>
@@ -77,6 +84,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   #requestTime: number | null | undefined;
   #logApiUrl: string | undefined;
   #sessionId: string | undefined;
+  #authorization: AuthorizationOptions | null;
 
   // Internal methods
   #loggingResponseHook(r: ResponseHookPayload): void {
@@ -110,13 +118,21 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#token = null;
     this.#requestTime = null;
 
-    // Swallowed: logging is best-effort, and an unhandled rejection would print
-    // the URL, which carries the authorization token.
-    fetch(this.#logApiUrl, {
-      method: 'POST',
-      body: JSON.stringify(logData),
-      ...this.fetchOptions
-    }).catch(() => {});
+    // Swallowed: a failed log must not fail the measurement it describes.
+    fetch(
+      this.#logApiUrl,
+      // Resolved against the log URL, not the measurement URL the inherited
+      // fetchOptions were built for — the two may not share a scheme.
+      withAuthorizationHeader(
+        {
+          method: 'POST',
+          body: JSON.stringify(logData),
+          ...this.fetchOptions
+        },
+        this.#authorization,
+        this.#logApiUrl
+      )
+    ).catch(() => {});
   }
 }
 
