@@ -19,7 +19,7 @@ interface MeasurementDef {
   [key: string]: unknown;
 }
 
-interface ResultsConfig extends MeasurementCalcConfig, ScoresCalcConfig {
+export interface ResultsConfig extends MeasurementCalcConfig, ScoresCalcConfig {
   measurements: MeasurementDef[];
 }
 
