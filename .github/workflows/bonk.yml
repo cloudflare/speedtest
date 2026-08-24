@@ -49,8 +49,8 @@ jobs:
         with:
           # Workers AI, not Anthropic: the gateway's upstream Anthropic key is
           # invalid, so anthropic/* returns authentication_error regardless of
-          # the model id. Mirrors the working cloudflare-docs configuration.
-          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6"
+          # the model id. Code-optimized variant, same price as kimi-k2.6.
+          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.7-code"
           mentions: "/bonk,@ask-bonk"
           # Only users with write access may invoke Bonk via comment.
           permissions: write
@@ -58,7 +58,7 @@ jobs:
           token_permissions: NO_PUSH
           # 1.15.13 reported nothing at all when the model call failed, which
           # hid this breakage for three weeks. 1.17.7 is the version running
-          # green in cloudflare-docs against the same model.
+          # green in cloudflare-docs.
           opencode_version: "1.17.7"
           prompt: |
             Review this pull request. Summarize what it changes and flag any
