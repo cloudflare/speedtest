@@ -47,11 +47,11 @@ jobs:
           CLOUDFLARE_GATEWAY_ID: ${{ secrets.CF_AI_GATEWAY_NAME }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_AI_GATEWAY_TOKEN }}
         with:
-          # Workers AI, not Anthropic: the gateway's upstream Anthropic key is
+          # OpenAI, not Anthropic: the gateway's upstream Anthropic key is
           # invalid, so anthropic/* returns authentication_error regardless of
-          # the model id. k2.6 over the newer k2.7-code: the latter answers
-          # "LGTM!" without the summary the prompt asks for, on diffs of any size.
-          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6"
+          # the model id. The OpenAI key works — workerd, cf, workers-py,
+          # cloudflare-os and vinext all review through it.
+          model: "cloudflare-ai-gateway/openai/gpt-5.6-sol"
           mentions: "/bonk,@ask-bonk"
           # Only users with write access may invoke Bonk via comment.
           permissions: write
