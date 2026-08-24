@@ -38,9 +38,7 @@ describe('Results', () => {
       (results.raw.latency as RawMeasurementEntry).finished = true;
       results.clear();
       expect((results.raw.latency as RawMeasurementEntry).started).toBe(false);
-      expect((results.raw.latency as RawMeasurementEntry).finished).toBe(
-        false
-      );
+      expect((results.raw.latency as RawMeasurementEntry).finished).toBe(false);
     });
   });
 

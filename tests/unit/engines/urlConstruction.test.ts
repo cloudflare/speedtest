@@ -16,14 +16,9 @@ import { describe, it, expect } from 'vitest';
 
 const ORIGIN = 'https://localhost';
 
-function buildUrl(
-  apiUrl: string,
-  qsParams: Record<string, string>
-): string {
+function buildUrl(apiUrl: string, qsParams: Record<string, string>): string {
   const urlObj = new URL(apiUrl, ORIGIN);
-  Object.entries(qsParams).forEach(([k, v]) =>
-    urlObj.searchParams.set(k, v)
-  );
+  Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
   return urlObj.href;
 }
 
@@ -33,25 +28,21 @@ describe('URL construction', () => {
       const url = buildUrl('https://speed.cloudflare.com/__down', {
         bytes: '100000'
       });
-      expect(url).toBe(
-        'https://speed.cloudflare.com/__down?bytes=100000'
-      );
+      expect(url).toBe('https://speed.cloudflare.com/__down?bytes=100000');
     });
 
     it('appends params to URL with existing query string', () => {
       const url = buildUrl('https://example.com/__down?token=ABC', {
         bytes: '100000'
       });
-      expect(url).toBe(
-        'https://example.com/__down?token=ABC&bytes=100000'
-      );
+      expect(url).toBe('https://example.com/__down?token=ABC&bytes=100000');
     });
 
     it('preserves multiple existing params in apiUrl', () => {
-      const url = buildUrl(
-        'https://example.com/__down?token=ABC&region=us',
-        { bytes: '100000', measId: '42' }
-      );
+      const url = buildUrl('https://example.com/__down?token=ABC&region=us', {
+        bytes: '100000',
+        measId: '42'
+      });
       expect(url).toBe(
         'https://example.com/__down?token=ABC&region=us&bytes=100000&measId=42'
       );

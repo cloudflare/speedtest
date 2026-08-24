@@ -46,9 +46,9 @@ describe('authorizationToken', () => {
   });
 
   it('is preserved on the config so the engines can attach it', () => {
-    expect(resolveConfig({ authorizationToken: TOKEN }).authorizationToken).toBe(
-      TOKEN
-    );
+    expect(
+      resolveConfig({ authorizationToken: TOKEN }).authorizationToken
+    ).toBe(TOKEN);
   });
 
   it('defaults to null', () => {
