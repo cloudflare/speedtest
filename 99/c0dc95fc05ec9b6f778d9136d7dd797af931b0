@@ -1,0 +1,29 @@
+src/Results/index.ts
+  s_2999f60be078cc::t_3f4de85004a268 160-162,241-242,246-247
+tests/e2e/speedtest.test.ts
+  s_2999f60be078cc::t_1daed828b21587 107-109
+tests/unit/Results/Results.test.ts
+  s_2999f60be078cc::t_b7950d2ed46645 41
+tests/unit/config/authorizationToken.test.ts
+  s_2999f60be078cc::t_d04e50a094dcef 49-51
+tests/unit/engines/loadNetworkAuthorization.test.ts
+  s_2999f60be078cc::t_5f2df7f85524ba 39-42,57
+tests/unit/engines/urlConstruction.test.ts
+  s_2999f60be078cc::t_6f40183d0921c7 19,21,31,38,42-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "99c0dc95fc05ec9b6f778d9136d7dd797af931b0",
+  "prompts": {},
+  "sessions": {
+    "s_2999f60be078cc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fcbb12e05ffezncdv7xxkjqqnM",
+        "model": "claude-opus-5"
+      },
+      "human_author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
