@@ -47,17 +47,19 @@ jobs:
           CLOUDFLARE_GATEWAY_ID: ${{ secrets.CF_AI_GATEWAY_NAME }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_AI_GATEWAY_TOKEN }}
         with:
-          # Dots, not hyphens: `claude-opus-4-8` does not resolve.
-          model: "cloudflare-ai-gateway/anthropic/claude-opus-4.7"
+          # Workers AI, not Anthropic: the gateway's upstream Anthropic key is
+          # invalid, so anthropic/* returns authentication_error regardless of
+          # the model id. Mirrors the working cloudflare-docs configuration.
+          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6"
           mentions: "/bonk,@ask-bonk"
           # Only users with write access may invoke Bonk via comment.
           permissions: write
           # Review-only: Bonk leaves comments/suggestions but never pushes commits.
           token_permissions: NO_PUSH
-          # 1.15.13 stopped initializing the provider around 2026-08-18 (see
-          # ask-bonk#226); every run since produced zero tokens and an empty
-          # comment. 1.18.18 is the version that diagnostic verified working.
-          opencode_version: 1.18.18
+          # 1.15.13 reported nothing at all when the model call failed, which
+          # hid this breakage for three weeks. 1.17.7 is the version running
+          # green in cloudflare-docs against the same model.
+          opencode_version: "1.17.7"
           prompt: |
             Review this pull request. Summarize what it changes and flag any
             correctness, security, or style issues as inline review comments.
