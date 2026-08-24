@@ -41,26 +41,36 @@ jobs:
           persist-credentials: false
 
       - name: Run Bonk
-        uses: ask-bonk/ask-bonk/github@main
+        # Pinned rather than @main: this workflow runs privileged with the
+        # gateway secrets available.
+        uses: ask-bonk/ask-bonk/github@5d4fe8f4a557afb1b73ec8c0ffcf60359a28865f # main
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_AI_GATEWAY_ACCOUNT_ID }}
           CLOUDFLARE_GATEWAY_ID: ${{ secrets.CF_AI_GATEWAY_NAME }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_AI_GATEWAY_TOKEN }}
+          # Deny interactive questions and doom loops; nothing here can answer
+          # a prompt, and a loop just burns the 30 minute timeout.
+          OPENCODE_CONFIG_CONTENT: '{"permission":{"external_directory":{"/home/runner/work/**":"allow"},"question":"deny","doom_loop":"deny"}}'
         with:
           # OpenAI, not Anthropic: the gateway's upstream Anthropic key is
           # invalid, so anthropic/* returns authentication_error regardless of
-          # the model id. The OpenAI key works — workerd, cf, workers-py,
-          # cloudflare-os and vinext all review through it.
-          model: "cloudflare-ai-gateway/openai/gpt-5.6-sol"
+          # the model id.
+          #
+          # terra, not the larger sol: sol rejects function tools whenever
+          # reasoning_effort is set on /v1/chat/completions, which is fatal for
+          # a reviewer that needs to read files. This is the workerd pairing.
+          model: "cloudflare-ai-gateway/openai/gpt-5.6-terra"
+          variant: "high"
           mentions: "/bonk,@ask-bonk"
           # Only users with write access may invoke Bonk via comment.
           permissions: write
           # Review-only: Bonk leaves comments/suggestions but never pushes commits.
           token_permissions: NO_PUSH
           # 1.15.13 reported nothing at all when the model call failed, which
-          # hid this breakage for three weeks. 1.17.7 is the version running
-          # green in cloudflare-docs.
-          opencode_version: "1.17.7"
+          # hid this breakage for three weeks. The dev build is what workerd
+          # runs against these models.
+          opencode_dev: true
+          opencode_version: "latest"
           prompt: |
             Review this pull request. Summarize what it changes and flag any
             correctness, security, or style issues as inline review comments.

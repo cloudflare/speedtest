@@ -107,6 +107,9 @@ Two things to know before editing that workflow:
 - It runs on **OpenAI**, not Anthropic. The AI Gateway's upstream Anthropic key
   is invalid, so any `anthropic/*` model returns `authentication_error`
   regardless of the model id. The OpenAI and Workers AI providers both work.
+- The model is `gpt-5.6-terra`, not the larger `gpt-5.6-sol`. Sol returns 400
+  for function tools whenever `reasoning_effort` is set on
+  `/v1/chat/completions`, so a reviewer that needs to read files cannot use it.
 - **Comment-triggered runs execute the workflow from `main`,** because
   `issue_comment` is a repository-level event. Changes to this file cannot be
   tested with `/bonk` on a PR — only the `pull_request: [opened]` trigger uses
