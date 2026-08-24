@@ -1,0 +1,21 @@
+src/Results/index.ts
+  s_2999f60be078cc::t_3ed53719c3955f 22
+tests/unit/Results/Results.test.ts
+  s_2999f60be078cc::t_cf396acfa6475c 3-6,10,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f9cfc79734f318195f55d72f7117739ce67f84cf",
+  "prompts": {},
+  "sessions": {
+    "s_2999f60be078cc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fcbb12e05ffezncdv7xxkjqqnM",
+        "model": "claude-opus-5"
+      },
+      "human_author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
