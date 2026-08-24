@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["example/"],
+  "plugins": ["typescript"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-unused-private-class-members": "off",
+    "no-prototype-builtins": "off",
+    "default-case": "error",
+    "eqeqeq": "error",
+    "guard-for-in": "error",
+    "no-self-compare": "error",
+    "no-void": "error",
+    "radix": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    // `expr && fn()` is used throughout the engines.
+    "no-unused-expressions": ["error", { "allowShortCircuit": true }],
+    // `const self = this` in PacketLossEngine's IIFE.
+    "typescript/no-this-alias": "off",
+    // Helps tree-shaking and keeps type-only imports explicit.
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports", "fixStyle": "inline-type-imports" }
+    ],
+    "typescript/no-explicit-any": "warn"
+  }
+}

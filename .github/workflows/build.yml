@@ -33,7 +33,13 @@ jobs:
       run: pnpm build
 
     - name: Lint
-      run: pnpm lint
+      run: pnpm lint:oxlint
+
+    - name: Format check
+      run: pnpm lint:oxfmt
+
+    - name: Typecheck
+      run: pnpm lint:tsc
 
     - name: Unit tests
       run: pnpm test:unit
