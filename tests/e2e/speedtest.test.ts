@@ -104,7 +104,9 @@ describe('SpeedTest E2E', () => {
       const aimLogTimeout = new Promise<never>((_, reject) => {
         aimLogTimer = setTimeout(
           () =>
-            reject(new Error('onResultsLogged did not fire within 15s of finish')),
+            reject(
+              new Error('onResultsLogged did not fire within 15s of finish')
+            ),
           15_000
         );
       });

@@ -9,8 +9,11 @@ connection quality against Cloudflare's edge. Powers speed.cloudflare.com.
 pnpm install        # install deps
 pnpm build          # tsdown → dist/speedtest.js (ESM) + auto-generated .d.ts
 pnpm dev            # tsdown watch mode
-pnpm lint           # eslint src/**/*.ts *.json
-pnpm format         # prettier --write src/**/*.ts
+pnpm lint           # oxlint + oxfmt --check + tsc
+pnpm lint:oxlint    # oxlint only
+pnpm lint:oxfmt     # oxfmt --check (format gate, no writes)
+pnpm lint:tsc       # tsc type check
+pnpm format         # oxlint --fix && oxfmt (writes in place)
 pnpm test           # run all tests (unit + e2e)
 pnpm test:unit      # run unit tests only (fast, no browser)
 pnpm test:e2e       # run e2e tests only (Playwright, needs Chromium)
@@ -37,7 +40,9 @@ To run e2e tests locally, install Chromium first: `npx playwright install chromi
 
 - **Browser-only** — code uses `fetch`, `PerformanceResourceTiming`,
   `RTCPeerConnection`, `performance.now()`. Never introduce Node.js-only APIs.
-  `eslint-plugin-compat` enforces this.
+  Enforced by `tsconfig.json`: `lib` is `["ES2022", "DOM", "DOM.Iterable"]` and
+  `@types/node` is deliberately absent, so `fs`, `Buffer`, `process` and
+  `require()` do not typecheck. There is no browser-target (browserslist) check.
 - **Zero runtime dependencies** — do not add npm dependencies.
 - **ESM-only** (`"type": "module"`) — use `import`/`export`, never `require()`.
 - **TypeScript** — source is TypeScript with `strict: true`. Declarations
@@ -45,11 +50,17 @@ To run e2e tests locally, install Chromium first: `npx playwright install chromi
 
 ## Style
 
-Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
+oxlint + oxfmt (`.oxlintrc.json`, `.oxfmtrc.json`) run on commit via
+`lint-staged` (Husky pre-commit hook), and in CI via `pnpm lint`.
 
 - **No trailing commas** (`trailingComma: "none"`)
 - Single quotes, no parens on single-param arrows (`arrowParens: "avoid"`)
+- `printWidth` is 80 — set explicitly, since oxfmt defaults to 100
 - Private class fields use `#field` syntax throughout
+
+Markdown and YAML are excluded from oxfmt (`ignorePatterns`): Prettier never
+covered them, and formatting them now would rewrite the README config table and
+re-indent every workflow.
 
 ## Architecture
 
@@ -69,12 +80,14 @@ Prettier + ESLint run on commit via `lint-staged` (Husky pre-commit hook).
   is set). The whole authorization feature is **experimental/unstable** —
   options are marked 🧪 in the README and `@experimental` in their JSDoc.
 - `example/turn-worker/` — separate Cloudflare Worker sub-project with its own
-  `package.json` and Prettier config; not part of the library build.
+  `package.json` and Prettier config; not part of the library build, and
+  excluded from oxlint and oxfmt.
 
 ## PRs and releases
 
 - PRs target `main`. Branch protection requires 1 approval and CI to pass.
-- CI runs `pnpm install && pnpm build && pnpm lint` on Node 22.x and 24.x.
+- CI runs install, build, then oxlint / format check / typecheck as separate
+  steps, on Node 22.x and 24.x.
 - CI also runs unit tests (`pnpm test:unit`) and e2e tests (`pnpm test:e2e`).
 - Releases are **manual**, not automatic per PR:
   1. Go to **Actions > "Create Release PR"** > pick `patch`/`minor`/`major` > Run.

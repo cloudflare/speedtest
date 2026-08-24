@@ -36,7 +36,10 @@ describe('LoadNetworkEngine authorization', () => {
     });
     // Never resolves: one iteration per engine is enough, and the loop cannot
     // schedule another while the previous fetch is pending.
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {}))
+    );
   });
 
   afterEach(() => {
@@ -51,10 +54,7 @@ describe('LoadNetworkEngine authorization', () => {
     engine.stop();
 
     expect(fetchedWithAuth()).toEqual([
-      [
-        'https://speed.example.com/__down?bytes=100000',
-        `Bearer ${TOKEN}`
-      ]
+      ['https://speed.example.com/__down?bytes=100000', `Bearer ${TOKEN}`]
     ]);
   });
 

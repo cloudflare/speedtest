@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import Results from '../../../src/Results/index.ts';
-import type { RawMeasurementEntry } from '../../../src/Results/index.ts';
+import type {
+  RawMeasurementEntry,
+  ResultsConfig
+} from '../../../src/Results/index.ts';
 import defaultConfig from '../../../src/config/defaultConfig.ts';
 import internalConfig from '../../../src/config/internalConfig.ts';
 
-function createResults(configOverrides = {}) {
+function createResults(configOverrides: Partial<ResultsConfig> = {}) {
   return new Results({
     ...defaultConfig,
     ...internalConfig,
     ...configOverrides
-  } as any);
+  } as ResultsConfig);
 }
 
 describe('Results', () => {
@@ -38,9 +41,7 @@ describe('Results', () => {
       (results.raw.latency as RawMeasurementEntry).finished = true;
       results.clear();
       expect((results.raw.latency as RawMeasurementEntry).started).toBe(false);
-      expect((results.raw.latency as RawMeasurementEntry).finished).toBe(
-        false
-      );
+      expect((results.raw.latency as RawMeasurementEntry).finished).toBe(false);
     });
   });
 

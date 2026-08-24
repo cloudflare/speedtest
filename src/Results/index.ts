@@ -19,7 +19,7 @@ interface MeasurementDef {
   [key: string]: unknown;
 }
 
-interface ResultsConfig extends MeasurementCalcConfig, ScoresCalcConfig {
+export interface ResultsConfig extends MeasurementCalcConfig, ScoresCalcConfig {
   measurements: MeasurementDef[];
 }
 
@@ -157,7 +157,9 @@ class Results {
 
   /** Detailed packet loss results, an `{ error }` object on failure, or `undefined` if not yet measured. */
   getPacketLossDetails = ():
-    PacketLossResults | { error: string } | undefined =>
+    | PacketLossResults
+    | { error: string }
+    | undefined =>
     this.#calcGetter('getPacketLossDetails', 'packetLoss', undefined, true);
 
   /** Total test duration excluding paused time (ms), or `undefined` if still running. */
@@ -236,13 +238,13 @@ class Results {
   #getV4Reachability = (): boolean | undefined =>
     this.#calcGetter('getReachability', 'v4Reachability');
   #getV4ReachabilityDetails = ():
-    { host: string; reachable: boolean } | undefined =>
-    this.#calcGetter('getReachabilityDetails', 'v4Reachability');
+    | { host: string; reachable: boolean }
+    | undefined => this.#calcGetter('getReachabilityDetails', 'v4Reachability');
   #getV6Reachability = (): boolean | undefined =>
     this.#calcGetter('getReachability', 'v6Reachability');
   #getV6ReachabilityDetails = ():
-    { host: string; reachable: boolean } | undefined =>
-    this.#calcGetter('getReachabilityDetails', 'v6Reachability');
+    | { host: string; reachable: boolean }
+    | undefined => this.#calcGetter('getReachabilityDetails', 'v6Reachability');
 }
 
 export default Results;
