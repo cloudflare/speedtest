@@ -47,13 +47,20 @@ jobs:
           CLOUDFLARE_GATEWAY_ID: ${{ secrets.CF_AI_GATEWAY_NAME }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_AI_GATEWAY_TOKEN }}
         with:
-          model: "cloudflare-ai-gateway/anthropic/claude-opus-4-8"
+          # Workers AI, not Anthropic: the gateway's upstream Anthropic key is
+          # invalid, so anthropic/* returns authentication_error regardless of
+          # the model id. k2.6 over the newer k2.7-code: the latter answers
+          # "LGTM!" without the summary the prompt asks for, on diffs of any size.
+          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6"
           mentions: "/bonk,@ask-bonk"
           # Only users with write access may invoke Bonk via comment.
           permissions: write
           # Review-only: Bonk leaves comments/suggestions but never pushes commits.
           token_permissions: NO_PUSH
-          opencode_version: 1.15.13 # pin to this version as certain ones cause ProviderInitError issues
+          # 1.15.13 reported nothing at all when the model call failed, which
+          # hid this breakage for three weeks. 1.17.7 is the version running
+          # green in cloudflare-docs.
+          opencode_version: "1.17.7"
           prompt: |
             Review this pull request. Summarize what it changes and flag any
             correctness, security, or style issues as inline review comments.
