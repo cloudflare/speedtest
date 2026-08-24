@@ -49,8 +49,9 @@ jobs:
         with:
           # Workers AI, not Anthropic: the gateway's upstream Anthropic key is
           # invalid, so anthropic/* returns authentication_error regardless of
-          # the model id. Code-optimized variant, same price as kimi-k2.6.
-          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.7-code"
+          # the model id. k2.6 over the newer k2.7-code: the latter answers
+          # "LGTM!" without the summary the prompt asks for, on diffs of any size.
+          model: "cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6"
           mentions: "/bonk,@ask-bonk"
           # Only users with write access may invoke Bonk via comment.
           permissions: write
