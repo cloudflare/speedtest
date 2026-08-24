@@ -53,7 +53,10 @@ jobs:
           permissions: write
           # Review-only: Bonk leaves comments/suggestions but never pushes commits.
           token_permissions: NO_PUSH
-          opencode_version: 1.15.13 # pin to this version as certain ones cause ProviderInitError issues
+          # 1.15.13 stopped initializing the provider around 2026-08-18 (see
+          # ask-bonk#226); every run since produced zero tokens and an empty
+          # comment. 1.18.18 is the version that diagnostic verified working.
+          opencode_version: 1.18.18
           prompt: |
             Review this pull request. Summarize what it changes and flag any
             correctness, security, or style issues as inline review comments.
