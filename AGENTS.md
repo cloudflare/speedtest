@@ -96,3 +96,19 @@ re-indent every workflow.
   4. On merge, the publish workflow auto-creates a git tag and publishes to npm.
 - **Do NOT** push directly to `main` — the branch ruleset blocks direct pushes.
   All changes must go through a pull request.
+
+## AI review (Bonk)
+
+`.github/workflows/bonk.yml` reviews PRs automatically on open, and on demand
+when someone with write access comments `/bonk`.
+
+Before editing that workflow:
+
+- The gateway's Anthropic key is invalid — `anthropic/*` returns
+  `authentication_error` for any model id. OpenAI and Workers AI both work.
+- Use `gpt-5.6-terra`, not `gpt-5.6-sol`: sol returns 400 for function tools
+  whenever `reasoning_effort` is set.
+- **Comment-triggered runs execute `main`'s copy of the workflow**, since
+  `issue_comment` is a repository-level event. Only `pull_request: [opened]`
+  uses the branch copy, and it does not fire on pushes to an open PR — so
+  verifying a change to this file means opening a fresh PR.
