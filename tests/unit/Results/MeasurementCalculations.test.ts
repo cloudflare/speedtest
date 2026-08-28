@@ -119,6 +119,27 @@ describe('MeasurementCalculations', () => {
       expect(result[0].bytes).toBe(100000);
       expect(result[1].bytes).toBe(1000000);
     });
+
+    it('uses the aggregate byte count from parallel samples', () => {
+      const calc = createCalc();
+      const [result] = calc.getBandwidthPoints({
+        100000: {
+          timings: [
+            {
+              bps: 10e6,
+              duration: 100,
+              ping: 10,
+              measTime: new Date(100),
+              serverTime: 5,
+              transferSize: 400000,
+              transferredBytes: 400000
+            }
+          ]
+        }
+      });
+
+      expect(result.bytes).toBe(400000);
+    });
   });
 
   describe('getBandwidth', () => {

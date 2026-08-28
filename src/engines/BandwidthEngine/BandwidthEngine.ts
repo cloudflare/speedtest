@@ -77,6 +77,57 @@ const calcUploadSpeed = (
   return !secs ? undefined : bits / secs;
 };
 
+export const aggregateRequestTimings = (
+  timings: RequestTiming[],
+  isDown: boolean,
+  numBytes: number
+): BandwidthMeasurementTiming => {
+  if (timings.length === 1) return timings[0];
+
+  const requestStart = Math.min(...timings.map(timing => timing.requestStart));
+  const responseStart = Math.min(
+    ...timings.map(timing => timing.responseStart)
+  );
+  const responseEnd = Math.max(...timings.map(timing => timing.responseEnd));
+  const duration = isDown
+    ? responseEnd - responseStart
+    : Math.max(...timings.map(timing => timing.responseStart)) - requestStart;
+  const transferSize = timings.reduce(
+    (total, timing) => total + timing.transferSize,
+    0
+  );
+  const transferredBytes = numBytes * timings.length;
+  const effectiveTransferSize = timings.reduce(
+    (total, timing) =>
+      total +
+      (timing.transferSize || numBytes * (1 + ESTIMATED_HEADER_FRACTION)),
+    0
+  );
+  const serverTimes = timings
+    .map(timing => timing.serverTime)
+    .filter(serverTime => serverTime >= 0);
+
+  return {
+    transferSize,
+    transferredBytes,
+    ttfb: responseStart - requestStart,
+    payloadDownloadTime: isDown ? duration : 0,
+    serverTime: serverTimes.length
+      ? serverTimes.reduce((total, serverTime) => total + serverTime, 0) /
+        serverTimes.length
+      : -1,
+    measTime: new Date(),
+    ping: Math.min(...timings.map(timing => timing.ping)),
+    duration,
+    bps: isDown
+      ? calcDownloadSpeed(
+          { duration, transferSize: effectiveTransferSize },
+          transferredBytes
+        )
+      : calcUploadSpeed({ duration }, transferredBytes)
+  };
+};
+
 const genContent = (() => {
   const cache = new Map<number, string>();
   return (numBytes: number): string => {
@@ -103,6 +154,13 @@ export interface BandwidthMeasurementTiming {
   ping: number;
   duration: number;
   bps: number | undefined;
+  transferredBytes?: number;
+}
+
+export interface RequestTiming extends BandwidthMeasurementTiming {
+  requestStart: number;
+  responseStart: number;
+  responseEnd: number;
 }
 
 export interface BandwidthTimingResult extends BandwidthMeasurementTiming {
@@ -129,6 +187,9 @@ export interface ResponseHookPayload {
 export interface BandwidthEngineOptions {
   downloadApiUrl?: string;
   uploadApiUrl?: string;
+  downloadApiUrls?: string[];
+  uploadApiUrls?: string[];
+  parallelism?: number;
   throttleMs?: number;
   estimatedServerTime?: number;
   serverTimeDelta?: number;
@@ -136,7 +197,7 @@ export interface BandwidthEngineOptions {
 }
 
 /**
- * Measures download and upload bandwidth via sequential HTTP requests.
+ * Measures download and upload bandwidth via configurable HTTP request batches.
  * Each request's timing is extracted from the browser's PerformanceResourceTiming
  * API, providing accurate transfer duration independent of JS execution overhead.
  * Supports configurable retry logic and abort thresholds.
@@ -147,6 +208,9 @@ class BandwidthMeasurementEngine implements Engine {
     {
       downloadApiUrl,
       uploadApiUrl,
+      downloadApiUrls,
+      uploadApiUrls,
+      parallelism = 1,
       throttleMs = 0,
       estimatedServerTime = 0,
       serverTimeDelta = 0,
@@ -154,12 +218,22 @@ class BandwidthMeasurementEngine implements Engine {
     }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
-    if (!downloadApiUrl) throw new Error('Missing downloadApiUrl argument');
-    if (!uploadApiUrl) throw new Error('Missing uploadApiUrl argument');
+    if (!downloadApiUrl && !downloadApiUrls?.length) {
+      throw new Error('Missing download API URL argument');
+    }
+    if (!uploadApiUrl && !uploadApiUrls?.length) {
+      throw new Error('Missing upload API URL argument');
+    }
+    if (!Number.isInteger(parallelism) || parallelism < 1) {
+      throw new Error('parallelism must be a positive integer');
+    }
 
     this.#measurements = measurements;
-    this.#downloadApi = downloadApiUrl;
-    this.#uploadApi = uploadApiUrl;
+    this.#downloadApis = downloadApiUrls?.length
+      ? downloadApiUrls
+      : [downloadApiUrl!];
+    this.#uploadApis = uploadApiUrls?.length ? uploadApiUrls : [uploadApiUrl!];
+    this.#parallelism = parallelism;
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
     this.#serverTimeDelta = Math.max(0, serverTimeDelta);
@@ -226,6 +300,10 @@ class BandwidthMeasurementEngine implements Engine {
   ) {
     this.#onMeasurementResult = f;
   }
+  #onRequestResult: (result: BandwidthTimingResult) => void = () => {};
+  set onRequestResult(f: (result: BandwidthTimingResult) => void) {
+    this.#onRequestResult = f;
+  }
   #onFinished: (results: BandwidthEngineResults) => void = () => {}; // callback invoked when all the measurements are finished
   set onFinished(f: (results: BandwidthEngineResults) => void) {
     this.#onFinished = f;
@@ -250,15 +328,16 @@ class BandwidthMeasurementEngine implements Engine {
 
   // Internal state
   #measurements: BandwidthMeasurement[];
-  #downloadApi: string;
-  #uploadApi: string;
+  #downloadApis: string[];
+  #uploadApis: string[];
+  #parallelism: number;
 
   #running: boolean = false;
   #finished: Record<string, boolean> = { down: false, up: false };
   #results: BandwidthEngineResults = { down: {}, up: {} };
   #measIdx: number = 0;
   #counter: number = 0;
-  #retries: number = 0;
+  #requestId: number = 0;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
@@ -294,10 +373,10 @@ class BandwidthMeasurementEngine implements Engine {
       ? results[dir][bytes]
       : {
           timings: [],
-          // count all measurements with same bytes and direction
+          // Count logical batches with the same bytes and direction.
           numMeasurements: this.#measurements
             .filter(({ bytes: b, dir: d }) => bytes === b && dir === d)
-            .map(m => m.count)
+            .map(m => Math.ceil(m.count / this.#parallelism))
             .reduce((agg, cnt) => agg + cnt, 0)
         };
 
@@ -320,11 +399,26 @@ class BandwidthMeasurementEngine implements Engine {
         );
       });
     } else {
-      this.#onNewMeasurementStarted(this.#measurements[measIdx], results);
+      this.#onNewMeasurementStarted(
+        {
+          ...this.#measurements[measIdx],
+          count: Math.ceil(
+            this.#measurements[measIdx].count / this.#parallelism
+          )
+        },
+        results
+      );
     }
   }
 
   #nextMeasurement(): void {
+    this.#runNextMeasurement().catch(error => {
+      this.#setRunning(false);
+      this.#onConnectionError(String(error));
+    });
+  }
+
+  async #runNextMeasurement(): Promise<void> {
     const measurements = this.#measurements;
     let meas = measurements[this.#measIdx];
 
@@ -373,210 +467,233 @@ class BandwidthMeasurementEngine implements Engine {
 
     const { bytes: numBytes, dir } = meas;
     const isDown = dir === 'down';
+    const apis = isDown ? this.#downloadApis : this.#uploadApis;
+    const batchSize = Math.min(this.#parallelism, meas.count - this.#counter);
 
-    const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
-    const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
-    qsParams.bytes = `${numBytes}`;
+    this.#currentAbortController?.abort('restarting engine');
+    this.#currentAbortController = new AbortController();
+    const abortController = this.#currentAbortController;
+    let abortTimeout: ReturnType<typeof setTimeout> | undefined;
+    if (this.abortRequestDuration) {
+      abortTimeout = setTimeout(() => {
+        const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
+        this.#cancelCurrentMeasurement(errorMessage);
+        this.#setRunning(false);
+        this.#onConnectionError(errorMessage);
+      }, this.abortRequestDuration);
+      abortController.signal.addEventListener('abort', () =>
+        clearTimeout(abortTimeout)
+      );
+    }
 
+    try {
+      const timings = await Promise.all(
+        Array.from({ length: batchSize }, (_, offset) => {
+          const apiUrl = apis[(this.#counter + offset) % apis.length];
+          return this.#fetchMeasurement(
+            apiUrl,
+            numBytes,
+            isDown,
+            abortController,
+            `${this.#measIdx}-${this.#requestId++}`
+          );
+        })
+      );
+      clearTimeout(abortTimeout);
+      if (abortController.signal.aborted) return;
+
+      const timing = aggregateRequestTimings(timings, isDown, numBytes);
+      this.#saveMeasurementResults(measIdx, timing);
+      this.#minDuration =
+        this.#minDuration < 0
+          ? timing.duration
+          : Math.min(this.#minDuration, timing.duration);
+      this.#counter += batchSize;
+
+      if (this.#throttleMs) {
+        const throttleTimeout = setTimeout(
+          () => this.#nextMeasurement(),
+          this.#throttleMs
+        );
+        abortController.signal.addEventListener('abort', () =>
+          clearTimeout(throttleTimeout)
+        );
+      } else {
+        this.#nextMeasurement();
+      }
+    } catch (error) {
+      clearTimeout(abortTimeout);
+      if (abortController.signal.aborted) return;
+      this.#setRunning(false);
+      this.#onConnectionError(String(error));
+    }
+  }
+
+  async #fetchMeasurement(
+    apiUrl: string,
+    numBytes: number,
+    isDown: boolean,
+    abortController: AbortController,
+    requestId: string
+  ): Promise<RequestTiming> {
+    const qsParams: Record<string, string> = {
+      ...this.#qsParams,
+      bytes: `${numBytes}`,
+      ...(this.#parallelism > 1 && {
+        __cf_speedtest_request: requestId
+      })
+    };
     const urlObj = new URL(apiUrl, window.location.origin);
-    Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
+    Object.entries(qsParams).forEach(([key, value]) =>
+      urlObj.searchParams.set(key, value)
+    );
     const url = urlObj.href;
-
-    const fetchOpt: RequestInit = withAuthorizationHeader(
-      Object.assign(
-        {},
-        isDown
-          ? {}
-          : {
-              method: 'POST',
-              body: genContent(numBytes)
-            },
-        this.#fetchOptions
-      ),
+    const fetchOptions = withAuthorizationHeader(
+      {
+        ...(isDown ? {} : { method: 'POST', body: genContent(numBytes) }),
+        ...this.#fetchOptions
+      },
       this.#authorization,
       url
     );
 
-    if (this.#retries === 0) {
-      // abort existing abort controller
-      this.#currentAbortController?.abort('restarting engine');
-
-      // create new abort controller
-      this.#currentAbortController = new AbortController();
-      if (this.abortRequestDuration) {
-        const abortTimeout = setTimeout(() => {
-          const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
-          this.#cancelCurrentMeasurement(errorMessage);
-          this.#retries = 0;
-          this.#setRunning(false);
-          this.#onConnectionError(errorMessage);
-        }, this.abortRequestDuration);
-        this.#currentAbortController.signal.addEventListener('abort', () =>
-          clearTimeout(abortTimeout)
+    let lastError: unknown;
+    for (let retry = 0; retry <= MAX_RETRIES; retry += 1) {
+      try {
+        return await this.#performFetch(
+          url,
+          fetchOptions,
+          numBytes,
+          isDown,
+          qsParams,
+          abortController.signal
         );
+      } catch (error) {
+        if (abortController.signal.aborted) throw error;
+        lastError = error;
+        console.warn(`Error fetching ${url}: ${error}`);
       }
     }
 
-    let serverTime: number | undefined;
-    fetch(url, {
-      ...fetchOpt,
-      signal: this.#currentAbortController!.signal
-    })
-      .then(r => {
-        if (r.ok) return r;
-        throw Error(r.statusText);
-      })
-      .then(r => {
-        this.getServerTime && (serverTime = this.getServerTime(r));
-        return r;
-      })
-      .then(r =>
-        r.text().then(body => {
-          this.#responseHook({
-            url,
-            headers: r.headers,
-            body
-          });
+    throw new Error(
+      `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries: ${lastError}`
+    );
+  }
 
-          return body;
-        })
-      )
-      .then(() => {
-        const perf = performance
-          .getEntriesByName(url)
-          .slice(-1)[0] as PerformanceResourceTiming; // get latest perf timing
-        const timing: BandwidthMeasurementTiming = {
-          transferSize: perf.transferSize,
-          ttfb: getTtfb(perf),
-          payloadDownloadTime: getPayloadDownload(perf),
-          serverTime: serverTime || -1,
-          measTime: new Date(),
-          ping: 0,
-          duration: 0,
-          bps: undefined
-        };
-        // Detect new TCP connection from handshake timings.
-        let connectTime = 0;
-        if (perf.secureConnectionStart > perf.connectStart) {
-          connectTime = perf.secureConnectionStart - perf.connectStart;
-        } else {
-          connectTime = perf.connectEnd - perf.connectStart;
-        }
+  async #performFetch(
+    url: string,
+    fetchOptions: RequestInit,
+    numBytes: number,
+    isDown: boolean,
+    qsParams: Record<string, string>,
+    signal: AbortSignal
+  ): Promise<RequestTiming> {
+    const response = await fetch(url, { ...fetchOptions, signal });
+    if (!response.ok) throw Error(response.statusText);
 
-        const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
-        const httpVersion = protoMatch ? +protoMatch[1] : 0;
+    const serverTime = this.getServerTime?.(response);
+    const body = await response.text();
+    this.#responseHook({ url, headers: response.headers, body });
 
-        // Calibrate serverTimeDelta from new TCP connections (HTTP/1.1)
-        if (serverTime && connectTime && httpVersion > 0 && httpVersion < 2) {
-          const derivedTotalServerTime = Math.max(0, timing.ttfb - connectTime);
-          const delta = derivedTotalServerTime - serverTime;
-          if (
-            delta > 0 &&
-            delta <= SERVER_TIME_DELTA_MAX &&
-            delta <= serverTime &&
-            serverTime <= SERVER_TIME_CALIBRATION_MAX
-          ) {
-            this.#serverTimeDelta =
-              this.#serverTimeDelta * (1 - SERVER_TIME_DELTA_WEIGHT) +
-              delta * SERVER_TIME_DELTA_WEIGHT;
-            console.log(
-              `serverTimeDelta (estimated): ${this.#serverTimeDelta.toFixed(2)}ms`
-            );
-          } else if (delta > 0) {
-            console.log(`serverTimeDelta (skipped): ${delta.toFixed(2)}ms`);
-          }
-        }
+    const perf = performance.getEntriesByName(url).slice(-1)[0] as
+      | PerformanceResourceTiming
+      | undefined;
+    if (!perf) throw new Error(`Missing resource timing for ${url}`);
 
-        const baseServerTime = serverTime || this.#estimatedServerTime;
-        timing.ping = timing.ttfb - baseServerTime - this.#serverTimeDelta;
+    const timing: RequestTiming = {
+      transferSize: perf.transferSize,
+      ttfb: getTtfb(perf),
+      payloadDownloadTime: getPayloadDownload(perf),
+      serverTime: serverTime || -1,
+      measTime: new Date(),
+      ping: 0,
+      duration: 0,
+      bps: undefined,
+      requestStart: perf.requestStart,
+      responseStart: perf.responseStart,
+      responseEnd: perf.responseEnd
+    };
 
-        // Discard the delta adjustment if it would collapse the ping
-        if (timing.ping <= 1) {
-          timing.ping = Math.max(0, timing.ttfb - baseServerTime);
-        }
-        timing.duration = (isDown ? calcDownloadDuration : calcUploadDuration)(
-          timing
+    let connectTime = 0;
+    if (perf.secureConnectionStart > perf.connectStart) {
+      connectTime = perf.secureConnectionStart - perf.connectStart;
+    } else {
+      connectTime = perf.connectEnd - perf.connectStart;
+    }
+    const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
+    const httpVersion = protoMatch ? +protoMatch[1] : 0;
+    if (serverTime && connectTime && httpVersion > 0 && httpVersion < 2) {
+      const derivedTotalServerTime = Math.max(0, timing.ttfb - connectTime);
+      const delta = derivedTotalServerTime - serverTime;
+      if (
+        delta > 0 &&
+        delta <= SERVER_TIME_DELTA_MAX &&
+        delta <= serverTime &&
+        serverTime <= SERVER_TIME_CALIBRATION_MAX
+      ) {
+        this.#serverTimeDelta =
+          this.#serverTimeDelta * (1 - SERVER_TIME_DELTA_WEIGHT) +
+          delta * SERVER_TIME_DELTA_WEIGHT;
+        console.log(
+          `serverTimeDelta (estimated): ${this.#serverTimeDelta.toFixed(2)}ms`
         );
-        timing.bps = (isDown ? calcDownloadSpeed : calcUploadSpeed)(
-          timing,
-          numBytes
-        );
+      } else if (delta > 0) {
+        console.log(`serverTimeDelta (skipped): ${delta.toFixed(2)}ms`);
+      }
+    }
 
-        // Log measurement details
-        const delta = this.#serverTimeDelta;
-        if (+numBytes === 0) {
-          console.log('latency', {
-            phase: `during ${qsParams.during || 'idle'}`,
-            ttfb: timing.ttfb,
-            serverTime: baseServerTime,
-            ...(delta && { serverTimeDelta: delta }),
-            ping: timing.ping
-          });
-        } else {
-          console.log(isDown ? 'download' : 'upload', {
-            bytes: +numBytes,
-            bps: timing.bps,
-            ttfb: timing.ttfb,
-            serverTime: baseServerTime,
-            ...(delta && { serverTimeDelta: delta }),
-            ping: timing.ping
-          });
-        }
+    const baseServerTime = serverTime || this.#estimatedServerTime;
+    timing.ping = timing.ttfb - baseServerTime - this.#serverTimeDelta;
+    if (timing.ping <= 1) {
+      timing.ping = Math.max(0, timing.ttfb - baseServerTime);
+    }
+    timing.duration = (isDown ? calcDownloadDuration : calcUploadDuration)(
+      timing
+    );
+    timing.bps = (isDown ? calcDownloadSpeed : calcUploadSpeed)(
+      timing,
+      numBytes
+    );
 
-        if (isDown && numBytes) {
-          const reqSize = +numBytes;
-          if (
-            timing.transferSize &&
-            (timing.transferSize < reqSize ||
-              timing.transferSize / reqSize > 1.05)
-          ) {
-            // log if transferSize is too different from requested size
-            console.warn(
-              `Requested ${reqSize}B but received ${timing.transferSize}B (${
-                Math.round((timing.transferSize / reqSize) * 1e4) / 1e2
-              }%).`
-            );
-          }
-        }
-
-        this.#saveMeasurementResults(measIdx, timing);
-        const requestDuration = timing.duration;
-        this.#minDuration =
-          this.#minDuration < 0
-            ? requestDuration
-            : Math.min(this.#minDuration, requestDuration); // carry minimum request duration
-
-        this.#counter += 1;
-        this.#retries = 0;
-
-        if (this.#throttleMs) {
-          const throttleTimeout = setTimeout(
-            () => this.#nextMeasurement(),
-            this.#throttleMs
-          );
-          this.#currentAbortController!.signal.addEventListener('abort', () =>
-            clearTimeout(throttleTimeout)
-          );
-        } else {
-          this.#nextMeasurement();
-        }
-      })
-      .catch(error => {
-        if (this.#currentAbortController!.signal.aborted) {
-          return;
-        }
-        console.warn(`Error fetching ${url}: ${error}`);
-
-        if (this.#retries++ < MAX_RETRIES) {
-          this.#nextMeasurement(); // keep trying
-        } else {
-          this.#retries = 0;
-          this.#setRunning(false);
-          this.#onConnectionError(
-            `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
-          );
-        }
+    const delta = this.#serverTimeDelta;
+    if (numBytes === 0) {
+      console.log('latency', {
+        phase: `during ${qsParams.during || 'idle'}`,
+        ttfb: timing.ttfb,
+        serverTime: baseServerTime,
+        ...(delta && { serverTimeDelta: delta }),
+        ping: timing.ping
       });
+    } else {
+      console.log(isDown ? 'download' : 'upload', {
+        bytes: numBytes,
+        bps: timing.bps,
+        ttfb: timing.ttfb,
+        serverTime: baseServerTime,
+        ...(delta && { serverTimeDelta: delta }),
+        ping: timing.ping
+      });
+    }
+
+    if (
+      isDown &&
+      numBytes &&
+      timing.transferSize &&
+      (timing.transferSize < numBytes || timing.transferSize / numBytes > 1.05)
+    ) {
+      console.warn(
+        `Requested ${numBytes}B but received ${timing.transferSize}B (${
+          Math.round((timing.transferSize / numBytes) * 1e4) / 1e2
+        }%).`
+      );
+    }
+
+    this.#onRequestResult({
+      type: isDown ? 'down' : 'up',
+      bytes: numBytes,
+      ...timing
+    });
+    return timing;
   }
 
   #cancelCurrentMeasurement(reason?: string): void {

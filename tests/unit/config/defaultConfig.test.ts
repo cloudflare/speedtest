@@ -52,6 +52,11 @@ describe('defaultConfig', () => {
     expect(defaultConfig.includeCredentials).toBe(false);
   });
 
+  it('runs bandwidth requests sequentially by default', () => {
+    expect(defaultConfig.parallelism).toBe(1);
+    expect(defaultConfig.bandwidthOrigins).toEqual([]);
+  });
+
   it('has null values for optional TURN server credentials', () => {
     expect(defaultConfig.turnServerUser).toBeNull();
     expect(defaultConfig.turnServerPass).toBeNull();

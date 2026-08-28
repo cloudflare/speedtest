@@ -16,6 +16,7 @@ import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
 import type { AuthorizationOptions } from './utils/authorization';
+import { appendParallelism } from './utils/parallelism';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -50,6 +51,8 @@ interface MeasurementStep {
   count?: number;
   /** Skip the minimum-duration filter for this round (download/upload types). */
   bypassMinDuration?: boolean;
+  /** Maximum concurrent requests for this bandwidth step. */
+  parallelism?: number;
   /** Number of packets sent per batch (packetLoss types). */
   batchSize?: number;
   /** Delay between batches in ms (packetLoss types). */
@@ -108,6 +111,24 @@ const pausableTypes: MeasurementType[] = [
 // TODO: consider replacing with crypto.randomUUID() for better uniqueness
 const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
 
+const validateParallelism = (parallelism: number): number => {
+  if (!Number.isInteger(parallelism) || parallelism < 1) {
+    throw new Error('parallelism must be a positive integer');
+  }
+  return parallelism;
+};
+
+const getMaximumParallelism = (config: SpeedTestConfig): number =>
+  config.measurements.reduce((maximum, measurement) => {
+    if (measurement.type !== 'download' && measurement.type !== 'upload') {
+      return maximum;
+    }
+    const parallelism = validateParallelism(
+      measurement.parallelism ?? config.parallelism
+    );
+    return Math.max(maximum, Math.min(parallelism, measurement.count ?? 1));
+  }, 1);
+
 /**
  * Core speed test engine that orchestrates measurement phases (latency,
  * download, upload, packet loss, reachability) and exposes results via
@@ -129,6 +150,15 @@ class MeasurementEngine {
       userConfig,
       internalConfig
     ) as SpeedTestConfig;
+    validateParallelism(this.#config.parallelism);
+    this.#config.measurements.forEach(measurement => {
+      if (
+        (measurement.type === 'download' || measurement.type === 'upload') &&
+        measurement.parallelism !== undefined
+      ) {
+        validateParallelism(measurement.parallelism);
+      }
+    });
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {
@@ -152,6 +182,13 @@ class MeasurementEngine {
   /** The token and its transport policy, as one unit for the sub-engines. */
   protected get authorization(): AuthorizationOptions {
     return this.#authorization;
+  }
+
+  protected get loggingSessionId(): string | undefined {
+    return appendParallelism(
+      this.#config.sessionId,
+      getMaximumParallelism(this.#config)
+    );
   }
 
   /** Not paused and not finished. */
@@ -277,6 +314,14 @@ class MeasurementEngine {
       this.#curMsmIdx >= this.#config.measurements.length
       ? null
       : this.#config.measurements[this.#curMsmIdx].type;
+  }
+
+  #bandwidthApiUrls(type: 'download' | 'upload'): string[] | undefined {
+    if (!this.#config.bandwidthOrigins.length) return undefined;
+    const path = type === 'download' ? '/__down' : '/__up';
+    return this.#config.bandwidthOrigins.map(origin =>
+      new URL(path, origin).toString()
+    );
   }
 
   #curTypeResults(): MeasurementResult | undefined {
@@ -510,7 +555,7 @@ class MeasurementEngine {
             serverTimeDelta: this.#serverTimeDelta,
             logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
             measurementId: this.#measurementId,
-            sessionId: this.#config.sessionId,
+            sessionId: this.loggingSessionId,
             authorization: this.authorization,
 
             // if under load
@@ -593,13 +638,16 @@ class MeasurementEngine {
             {
               downloadApiUrl,
               uploadApiUrl,
+              downloadApiUrls: this.#bandwidthApiUrls('download'),
+              uploadApiUrls: this.#bandwidthApiUrls('upload'),
+              parallelism: msmConfig.parallelism ?? this.#config.parallelism,
               estimatedServerTime,
               serverTimeDelta: this.#serverTimeDelta,
               logApiUrl: this.#config.logMeasurementApiUrl ?? undefined,
               measurementId: this.#measurementId,
               measureParallelLatency,
               parallelLatencyThrottleMs: this.#config.loadedLatencyThrottle,
-              sessionId: this.#config.sessionId,
+              sessionId: this.loggingSessionId,
               authorization: this.authorization
             }
           ) as Engine;
@@ -793,7 +841,7 @@ class SpeedTestEngine extends MeasurementEngine {
     }
     logFinalResults(results, {
       apiUrl,
-      sessionId: this.config.sessionId,
+      sessionId: this.loggingSessionId,
       authorization: this.authorization
     }).then(response => {
       this.onResultsLogged(response);

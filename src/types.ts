@@ -37,6 +37,9 @@ export interface BandwidthTiming {
 
   /** Actual number of bytes transferred (from `PerformanceResourceTiming`). */
   transferSize: number;
+
+  /** Total payload bytes represented by an aggregated parallel sample. */
+  transferredBytes?: number;
 }
 
 /**

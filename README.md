@@ -48,6 +48,8 @@ them.
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
 | **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
 | **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
+| **bandwidthOrigins**: *string[]* | Origins used for bandwidth requests. The engine appends `/__down` or `/__up` and distributes parallel requests across the origins. When omitted, `downloadApiUrl` and `uploadApiUrl` are used. | `[]` |
+| **parallelism**: *number* | Maximum number of concurrent requests in each download or upload step. Must be a positive integer. | `1` |
 | **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.cloudflare.com:3478` |
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
@@ -136,6 +138,26 @@ Each of these measurement sets are bound to a specific file size. The engine fol
 | **bytes**: *number* | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits per second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). | - |
 | **count**: *number* | yes | The number of requests to perform for this file size. | - |
 | **bypassMinDuration**: *boolean* | no | Whether the `bandwidthMinRequestDuration` check should be ignored, and the engine is instructed to proceed with the measurements of this direction in any case. | `false` |
+| **parallelism**: *number* | no | Overrides the global `parallelism` for this step. `count` remains the total number of requests, which are divided into batches of this size. | global value |
+
+Parallel requests in one batch are reported as one bandwidth point. Its `bytes` value is the total payload across the requests, and its `bps` value is calculated across the complete overlapping transfer. When a `sessionId` is configured, the maximum concurrency expected from the configured steps is appended as `parallel=n`.
+
+```js
+new SpeedTest({
+  bandwidthOrigins: [
+    'https://speed-0.example.com',
+    'https://speed-1.example.com',
+    'https://speed-2.example.com',
+    'https://speed-3.example.com'
+  ],
+  parallelism: 4,
+  measurements: [
+    { type: 'download', bytes: 1e7, count: 8 },
+    { type: 'upload', bytes: 1e7, count: 8 },
+    { type: 'download', bytes: 2.5e7, count: 2, parallelism: 1 }
+  ]
+});
+```
 
 #### packetLoss
 

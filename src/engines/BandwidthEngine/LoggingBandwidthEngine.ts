@@ -45,7 +45,7 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>
       this.#loggingResponseHook(r);
-    super.onMeasurementResult = (meas: BandwidthTimingResult) =>
+    super.onRequestResult = (meas: BandwidthTimingResult) =>
       this.#logMeasurement(meas);
   }
 
@@ -74,7 +74,6 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       ...restArgs: [BandwidthEngineResults]
     ) => {
       onMeasurementResult(meas, ...restArgs);
-      this.#logMeasurement(meas);
     };
   }
 
