@@ -1,0 +1,23 @@
+src/engines/BandwidthEngine/BandwidthEngine.ts
+  s_24d5475f22cbe8::t_7d1ad86ee9223c 80-130,157-163,190-192,200,211-213,221-229,232-236,303-306,331-333,340,376,379,402-410,415-421,470-487,489-530,532-545,547-549,551-555,560-569,571-574,578-638,640-643,645-656,658-665,667-696
+src/index.ts
+  s_24d5475f22cbe8::t_e4b12e4c88ae43 19,54-55,114-131,153-161,187-193,319-326,558,641-643,650,844
+tests/unit/engines/parallelism.test.ts
+  s_24d5475f22cbe8::t_6e4358468d8166 1-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "30172f150adeccd182e1631e2ca5ee8058d51d2e",
+  "prompts": {},
+  "sessions": {
+    "s_24d5475f22cbe8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb72edb0cffex5hleB53qPAsxK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
