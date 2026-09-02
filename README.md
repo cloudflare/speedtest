@@ -46,8 +46,9 @@ them.
 | Config option | Description | Default |
 | --- | --- | :--: |
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
-| **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
-| **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
+| **downloadApiUrl**: *string* | Deprecated fallback URL for download GET requests when `measurementTargets` is empty. | `https://speed.cloudflare.com/__down` |
+| **uploadApiUrl**: *string* | Deprecated fallback URL for upload POST requests when `measurementTargets` is empty. | `https://speed.cloudflare.com/__up` |
+| **measurementTargets**: *string[]* | Origins used for latency, download, and upload requests. The engine appends `/__down` or `/__up` and distributes requests across the targets, starting at a random target. Duplicate targets are preserved. | `[]` |
 | **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.cloudflare.com:3478` |
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |

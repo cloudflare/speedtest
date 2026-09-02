@@ -10,6 +10,12 @@ export interface BandwidthMeasurementConfig {
   bytes: number;
   /** Number of requests to issue at this payload size. */
   count: number;
+  /**
+   * Runs this step using one continuously replenished request lane per target.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  parallel?: boolean;
   /** If `true`, skip the minimum-duration filter for this round. */
   bypassMinDuration?: boolean;
 }
@@ -45,10 +51,20 @@ export interface Config {
   /** Whether to start the test immediately on construction. Default: `true`. */
   autoStart: boolean;
 
-  /** URL for download requests. Default: `https://speed.cloudflare.com/__down`. */
+  /**
+   * URL for download requests.
+   *
+   * @deprecated Use {@link measurementTargets}. This remains the fallback when no targets are configured.
+   */
   downloadApiUrl: string;
-  /** URL for upload requests. Default: `https://speed.cloudflare.com/__up`. */
+  /**
+   * URL for upload requests.
+   *
+   * @deprecated Use {@link measurementTargets}. This remains the fallback when no targets are configured.
+   */
   uploadApiUrl: string;
+  /** Origins used for latency, download, and upload requests. */
+  measurementTargets: string[];
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
@@ -162,6 +178,7 @@ const defaultConfig: Config = {
   // APIs
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
+  measurementTargets: [],
   logMeasurementApiUrl: null,
   logAimApiUrl: `${REL_API_URL}/__results`,
   turnServerUri: 'turn.speed.cloudflare.com:50000',
