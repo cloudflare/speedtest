@@ -6,6 +6,15 @@ import {
 
 const MAX_RETRIES = 20;
 
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    statusText: string
+  ) {
+    super(statusText);
+  }
+}
+
 const ESTIMATED_HEADER_FRACTION = 0.005; // ~.5% of packet header / payload size. used when transferSize is not available.
 
 const SERVER_TIME_MIN_DURATION = 0.01; // minimum server-provided duration value to consider valid (ms)
@@ -424,7 +433,7 @@ class BandwidthMeasurementEngine implements Engine {
     })
       .then(r => {
         if (r.ok) return r;
-        throw Error(r.statusText);
+        throw new HttpError(r.status, r.statusText);
       })
       .then(r => {
         this.getServerTime && (serverTime = this.getServerTime(r));
@@ -567,7 +576,18 @@ class BandwidthMeasurementEngine implements Engine {
         }
         console.warn(`Error fetching ${url}: ${error}`);
 
-        if (this.#retries++ < MAX_RETRIES) {
+        const retryable =
+          !(error instanceof HttpError) ||
+          error.status === 408 ||
+          error.status === 429 ||
+          (error.status >= 500 && error.status <= 599);
+        if (!retryable) {
+          this.#retries = 0;
+          this.#setRunning(false);
+          this.#onConnectionError(
+            `Request failed with ${error.status}: ${url}`
+          );
+        } else if (this.#retries++ < MAX_RETRIES) {
           this.#nextMeasurement(); // keep trying
         } else {
           this.#retries = 0;

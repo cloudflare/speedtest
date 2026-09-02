@@ -75,6 +75,9 @@ type SpeedTestConfig = Config &
     [key: string]: unknown;
   };
 
+const isAuthorizationRejection = (error: unknown): error is string =>
+  typeof error === 'string' && /^Request failed with (401|403):/.test(error);
+
 /** Per-type measurement result bucket stored in Results.raw. */
 interface MeasurementResult {
   started: boolean;
@@ -152,6 +155,11 @@ class MeasurementEngine {
   /** The token and its transport policy, as one unit for the sub-engines. */
   protected get authorization(): AuthorizationOptions {
     return this.#authorization;
+  }
+
+  /** Replaces the bearer token used by requests created after this call. */
+  setAuthorizationToken(token: string | null): void {
+    this.#authorization.token = token;
   }
 
   /** Not paused and not finished. */
@@ -318,6 +326,8 @@ class MeasurementEngine {
   }
 
   #next(): void {
+    if (!this.#running) return;
+
     const resumeType = this.#curType();
     const resumeResults = this.#curTypeResults();
     if (
@@ -474,6 +484,10 @@ class MeasurementEngine {
         };
 
         engine!.onConnectionError = (e: unknown) => {
+          if (isAuthorizationRejection(e)) {
+            this.#onError(e);
+            return;
+          }
           msmResults.error = e;
           this.onResultsChange({ type });
           this.#onError(`Connection error while measuring packet loss: ${e}`);
@@ -562,6 +576,10 @@ class MeasurementEngine {
         };
 
         engine.onConnectionError = (e: unknown) => {
+          if (isAuthorizationRejection(e)) {
+            this.#onError(e);
+            return;
+          }
           this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
           msmResults.error = e;
           this.onResultsChange({ type });
@@ -717,6 +735,10 @@ class MeasurementEngine {
           };
 
           engine.onConnectionError = (e: unknown) => {
+            if (isAuthorizationRejection(e)) {
+              this.#onError(e);
+              return;
+            }
             this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
             msmResults.error = e;
             this.onResultsChange({ type });
