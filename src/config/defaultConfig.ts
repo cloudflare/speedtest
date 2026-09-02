@@ -10,8 +10,12 @@ export interface BandwidthMeasurementConfig {
   bytes: number;
   /** Number of requests to issue at this payload size. */
   count: number;
-  /** Maximum requests to run concurrently for this step. Overrides the global value. */
-  parallelism?: number;
+  /**
+   * Runs this step using one continuously replenished request lane per target.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  parallel?: boolean;
   /** If `true`, skip the minimum-duration filter for this round. */
   bypassMinDuration?: boolean;
 }
@@ -47,12 +51,20 @@ export interface Config {
   /** Whether to start the test immediately on construction. Default: `true`. */
   autoStart: boolean;
 
-  /** URL for download requests. Default: `https://speed.cloudflare.com/__down`. */
+  /**
+   * URL for download requests.
+   *
+   * @deprecated Use {@link measurementTargets}. This remains the fallback when no targets are configured.
+   */
   downloadApiUrl: string;
-  /** URL for upload requests. Default: `https://speed.cloudflare.com/__up`. */
+  /**
+   * URL for upload requests.
+   *
+   * @deprecated Use {@link measurementTargets}. This remains the fallback when no targets are configured.
+   */
   uploadApiUrl: string;
-  /** Origins used for bandwidth requests. `/__down` or `/__up` is appended automatically. */
-  bandwidthOrigins: string[];
+  /** Origins used for latency, download, and upload requests. */
+  measurementTargets: string[];
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
@@ -69,8 +81,6 @@ export interface Config {
   rpkiInvalidHost: string;
   /** Whether to include credentials (cookies) in fetch requests. Default: `false`. */
   includeCredentials: boolean;
-  /** Maximum concurrent requests in each bandwidth step. Default: `1`. */
-  parallelism: number;
   /** Optional session ID attached to measurement logs. */
   sessionId: string | undefined;
   /**
@@ -168,7 +178,7 @@ const defaultConfig: Config = {
   // APIs
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
-  bandwidthOrigins: [],
+  measurementTargets: [],
   logMeasurementApiUrl: null,
   logAimApiUrl: `${REL_API_URL}/__results`,
   turnServerUri: 'turn.speed.cloudflare.com:50000',
@@ -177,7 +187,6 @@ const defaultConfig: Config = {
   turnServerPass: null,
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
   includeCredentials: false,
-  parallelism: 1,
   sessionId: undefined,
   authorizationToken: null,
   authorizationEnabled: undefined,

@@ -8,6 +8,7 @@ import type {
 export interface ParallelLatencyOptions extends BandwidthEngineOptions {
   measureParallelLatency?: boolean;
   parallelLatencyThrottleMs?: number;
+  getLoadedLatencyApiUrl?: () => string;
 }
 
 /**
@@ -24,6 +25,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       parallelLatencyThrottleMs = 100,
       downloadApiUrl,
       uploadApiUrl,
+      getLoadedLatencyApiUrl,
       estimatedServerTime = 0,
       serverTimeDelta = 0,
       authorization = null,
@@ -52,6 +54,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
         {
           downloadApiUrl,
           uploadApiUrl,
+          getDownloadApiUrl: getLoadedLatencyApiUrl,
           estimatedServerTime,
           serverTimeDelta,
           authorization,

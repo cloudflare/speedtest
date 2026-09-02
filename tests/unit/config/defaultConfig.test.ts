@@ -53,8 +53,7 @@ describe('defaultConfig', () => {
   });
 
   it('runs bandwidth requests sequentially by default', () => {
-    expect(defaultConfig.parallelism).toBe(1);
-    expect(defaultConfig.bandwidthOrigins).toEqual([]);
+    expect(defaultConfig.measurementTargets).toEqual([]);
   });
 
   it('has null values for optional TURN server credentials', () => {

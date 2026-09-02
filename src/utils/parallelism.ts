@@ -1,10 +1,12 @@
 export const appendParallelism = (
   sessionId: string | undefined,
-  parallelism: number
+  parallelism: number | undefined
 ): string | undefined => {
-  if (!sessionId || parallelism <= 1) return sessionId;
+  if (!sessionId) return sessionId;
   const fields = sessionId
     .split('&')
     .filter(field => !field.startsWith('parallel='));
-  return [...fields, `parallel=${parallelism}`].join('&');
+  return parallelism === undefined
+    ? fields.join('&')
+    : [...fields, `parallel=${parallelism}`].join('&');
 };

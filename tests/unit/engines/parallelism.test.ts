@@ -27,19 +27,20 @@ const timing = (
 describe('parallel bandwidth aggregation', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('measures downloads from the first response byte to the last completion', () => {
+  it('measures downloads from the first request to the last completion', () => {
     const result = aggregateRequestTimings(
       [timing(0, 10, 110), timing(5, 20, 120)],
       true,
       1000
     );
 
-    expect(result.duration).toBe(110);
+    expect(result.duration).toBe(120);
     expect(result.transferredBytes).toBe(2000);
     expect(result.transferSize).toBe(2000);
-    expect(result.bps).toBeCloseTo(16000 / 0.11);
+    expect(result.bps).toBeCloseTo(16000 / 0.12);
   });
 
   it('estimates bytes missing from resource timing', () => {
@@ -51,7 +52,7 @@ describe('parallel bandwidth aggregation', () => {
     );
 
     expect(result.transferSize).toBe(1000);
-    expect(result.bps).toBeCloseTo(((1000 + 1005) * 8) / 0.11);
+    expect(result.bps).toBeCloseTo(((1000 + 1005) * 8) / 0.12);
   });
 
   it('measures uploads from the first request start to the last response', () => {
@@ -73,7 +74,7 @@ describe('parallel bandwidth aggregation', () => {
     );
   });
 
-  it('starts a batch across all configured origins', async () => {
+  it('continuously replenishes one request lane per target', async () => {
     const releases: Array<() => void> = [];
     const fetchMock = vi.fn(
       (_url: RequestInfo | URL) =>
@@ -113,7 +114,7 @@ describe('parallel bandwidth aggregation', () => {
       {
         downloadApiUrls: origins,
         uploadApiUrl: 'https://upload.example/__up',
-        parallelism: 4
+        parallel: true
       }
     );
     const onRequestResult = vi.fn();
@@ -130,21 +131,145 @@ describe('parallel bandwidth aggregation', () => {
       fetchMock.mock.calls.map(([url]) => new URL(url.toString()).origin)
     ).toEqual(origins.map(origin => new URL(origin).origin));
 
-    releases.slice(0, 4).forEach(release => release());
+    releases[0]();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    expect(new URL(fetchMock.mock.calls[4][0].toString()).origin).toBe(
+      new URL(origins[0]).origin
+    );
+    releases[4]();
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
-    releases.slice(4).forEach(release => release());
+    expect(new URL(fetchMock.mock.calls[5][0].toString()).origin).toBe(
+      new URL(origins[0]).origin
+    );
+    releases.slice(1, 4).forEach(release => release());
+    releases[5]();
     await finished;
 
-    expect(engine.results.down[1000].timings).toHaveLength(2);
-    expect(engine.results.down[1000].timings[0].transferredBytes).toBe(4000);
-    expect(engine.results.down[1000].timings[1].transferredBytes).toBe(2000);
+    expect(engine.results.down[1000].timings).toHaveLength(1);
+    expect(engine.results.down[1000].timings[0].transferredBytes).toBe(6000);
     expect(onRequestResult).toHaveBeenCalledTimes(6);
-    await vi.waitFor(() =>
-      expect(onMeasurementResult).toHaveBeenCalledTimes(2)
-    );
+    await vi.waitFor(() => expect(onMeasurementResult).toHaveBeenCalledOnce());
   });
 
-  it('applies global and step parallelism through the public API', async () => {
+  it('retains completed requests when a parallel step resumes', async () => {
+    const releases: Array<() => void> = [];
+    const fetchMock = vi.fn(
+      (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          releases.push(() => resolve(new Response('body')));
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason),
+            { once: true }
+          );
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { origin: 'https://app.example' } });
+    vi.stubGlobal('performance', {
+      clearResourceTimings: vi.fn(),
+      getEntriesByName: () => [
+        {
+          transferSize: 1000,
+          requestStart: 0,
+          responseStart: 10,
+          responseEnd: 110,
+          connectStart: 0,
+          connectEnd: 0,
+          secureConnectionStart: 0,
+          nextHopProtocol: 'h2'
+        }
+      ]
+    });
+
+    const engine = new BandwidthEngine(
+      [{ dir: 'down', bytes: 1000, count: 4 }],
+      {
+        downloadApiUrls: [
+          'https://speed-0.example/__down',
+          'https://speed-1.example/__down'
+        ],
+        uploadApiUrl: 'https://upload.example/__up',
+        parallel: true
+      }
+    );
+    const onRequestResult = vi.fn();
+    engine.onRequestResult = onRequestResult;
+    onRequestResult.mockImplementationOnce(() => engine.pause());
+    const finished = new Promise(resolve => {
+      engine.onFinished = resolve;
+    });
+
+    engine.play();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    releases[0]();
+    await vi.waitFor(() => expect(onRequestResult).toHaveBeenCalledOnce());
+    engine.play();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    releases[2]();
+    releases[3]();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    releases[4]();
+    await finished;
+
+    expect(onRequestResult).toHaveBeenCalledTimes(4);
+    expect(engine.results.down[1000].timings[0].transferredBytes).toBe(4000);
+  });
+
+  it('rotates sequential requests from a randomized target', async () => {
+    const fetchMock = vi.fn((url: RequestInfo | URL) =>
+      Promise.resolve(new Response(url.toString()))
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { origin: 'https://app.example' } });
+    vi.stubGlobal('performance', {
+      now: vi.fn(() => 1),
+      clearResourceTimings: vi.fn(),
+      setResourceTimingBufferSize: vi.fn(),
+      getEntriesByName: () => [
+        {
+          transferSize: 1000,
+          requestStart: 0,
+          responseStart: 10,
+          responseEnd: 110,
+          connectStart: 0,
+          connectEnd: 0,
+          secureConnectionStart: 0,
+          nextHopProtocol: 'h2'
+        }
+      ]
+    });
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const engine = new SpeedTest({
+      autoStart: false,
+      measurementTargets: [
+        'https://speed-0.example',
+        'https://speed-1.example',
+        'https://speed-1.example'
+      ],
+      measurements: [{ type: 'download', bytes: 1000, count: 3 }],
+      measureDownloadLoadedLatency: false,
+      logAimApiUrl: null
+    });
+    const finished = new Promise<typeof engine.results>((resolve, reject) => {
+      engine.onFinish = resolve;
+      engine.onError = reject;
+    });
+
+    engine.play();
+    await finished;
+
+    expect(
+      fetchMock.mock.calls.map(([url]) => new URL(url.toString()).origin)
+    ).toEqual([
+      'https://speed-1.example',
+      'https://speed-1.example',
+      'https://speed-0.example'
+    ]);
+  });
+
+  it('applies measurement targets and step parallelism through the public API', async () => {
     const resultsUrl = 'https://results.example/__results';
     const fetchMock = vi.fn((url: RequestInfo | URL, _init?: RequestInit) =>
       Promise.resolve(
@@ -175,14 +300,17 @@ describe('parallel bandwidth aggregation', () => {
         ];
       }
     });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
 
     const engine = new SpeedTest({
       autoStart: false,
-      bandwidthOrigins: ['https://speed-0.example', 'https://speed-1.example'],
-      parallelism: 4,
+      measurementTargets: [
+        'https://speed-0.example',
+        'https://speed-1.example'
+      ],
       measurements: [
-        { type: 'download', bytes: 1000, count: 2, parallelism: 2 },
-        { type: 'upload', bytes: 1000, count: 4 }
+        { type: 'download', bytes: 1000, count: 2, parallel: true },
+        { type: 'upload', bytes: 1000, count: 4, parallel: true }
       ],
       measureDownloadLoadedLatency: false,
       measureUploadLoadedLatency: false,
@@ -220,14 +348,14 @@ describe('parallel bandwidth aggregation', () => {
       ([url]) => url.toString() === resultsUrl
     );
     const body = JSON.parse(resultsCall?.[1]?.body as string);
-    expect(body.sessionId).toBe('session=abc&parallel=4');
+    expect(body.sessionId).toBe('session=abc&parallel=2');
     expect(body.download).toEqual([expect.objectContaining({ bytes: 2000 })]);
     expect(body.upload).toEqual([expect.objectContaining({ bytes: 4000 })]);
   });
 });
 
 describe('parallel session metadata', () => {
-  it('appends the maximum parallelism', () => {
+  it('appends the target count', () => {
     expect(appendParallelism('session=abc&tier=test', 4)).toBe(
       'session=abc&tier=test&parallel=4'
     );
@@ -239,8 +367,10 @@ describe('parallel session metadata', () => {
     );
   });
 
-  it('leaves sequential and absent sessions unchanged', () => {
-    expect(appendParallelism('session=abc', 1)).toBe('session=abc');
+  it('removes metadata for sequential sessions', () => {
+    expect(appendParallelism('session=abc&parallel=2', undefined)).toBe(
+      'session=abc'
+    );
     expect(appendParallelism(undefined, 4)).toBeUndefined();
   });
 });

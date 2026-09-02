@@ -90,7 +90,7 @@ export const aggregateRequestTimings = (
   );
   const responseEnd = Math.max(...timings.map(timing => timing.responseEnd));
   const duration = isDown
-    ? responseEnd - responseStart
+    ? responseEnd - requestStart
     : Math.max(...timings.map(timing => timing.responseStart)) - requestStart;
   const transferSize = timings.reduce(
     (total, timing) => total + timing.transferSize,
@@ -189,7 +189,9 @@ export interface BandwidthEngineOptions {
   uploadApiUrl?: string;
   downloadApiUrls?: string[];
   uploadApiUrls?: string[];
-  parallelism?: number;
+  getDownloadApiUrl?: () => string;
+  getUploadApiUrl?: () => string;
+  parallel?: boolean;
   throttleMs?: number;
   estimatedServerTime?: number;
   serverTimeDelta?: number;
@@ -197,7 +199,7 @@ export interface BandwidthEngineOptions {
 }
 
 /**
- * Measures download and upload bandwidth via configurable HTTP request batches.
+ * Measures download and upload bandwidth via configurable HTTP requests.
  * Each request's timing is extracted from the browser's PerformanceResourceTiming
  * API, providing accurate transfer duration independent of JS execution overhead.
  * Supports configurable retry logic and abort thresholds.
@@ -210,7 +212,9 @@ class BandwidthMeasurementEngine implements Engine {
       uploadApiUrl,
       downloadApiUrls,
       uploadApiUrls,
-      parallelism = 1,
+      getDownloadApiUrl,
+      getUploadApiUrl,
+      parallel = false,
       throttleMs = 0,
       estimatedServerTime = 0,
       serverTimeDelta = 0,
@@ -218,14 +222,11 @@ class BandwidthMeasurementEngine implements Engine {
     }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
-    if (!downloadApiUrl && !downloadApiUrls?.length) {
+    if (!downloadApiUrl && !downloadApiUrls?.length && !getDownloadApiUrl) {
       throw new Error('Missing download API URL argument');
     }
-    if (!uploadApiUrl && !uploadApiUrls?.length) {
+    if (!uploadApiUrl && !uploadApiUrls?.length && !getUploadApiUrl) {
       throw new Error('Missing upload API URL argument');
-    }
-    if (!Number.isInteger(parallelism) || parallelism < 1) {
-      throw new Error('parallelism must be a positive integer');
     }
 
     this.#measurements = measurements;
@@ -233,7 +234,10 @@ class BandwidthMeasurementEngine implements Engine {
       ? downloadApiUrls
       : [downloadApiUrl!];
     this.#uploadApis = uploadApiUrls?.length ? uploadApiUrls : [uploadApiUrl!];
-    this.#parallelism = parallelism;
+    this.#getDownloadApiUrl =
+      getDownloadApiUrl ?? (() => this.#downloadApis[0]);
+    this.#getUploadApiUrl = getUploadApiUrl ?? (() => this.#uploadApis[0]);
+    this.#parallel = parallel;
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
     this.#serverTimeDelta = Math.max(0, serverTimeDelta);
@@ -330,7 +334,9 @@ class BandwidthMeasurementEngine implements Engine {
   #measurements: BandwidthMeasurement[];
   #downloadApis: string[];
   #uploadApis: string[];
-  #parallelism: number;
+  #getDownloadApiUrl: () => string;
+  #getUploadApiUrl: () => string;
+  #parallel: boolean;
 
   #running: boolean = false;
   #finished: Record<string, boolean> = { down: false, up: false };
@@ -338,6 +344,7 @@ class BandwidthMeasurementEngine implements Engine {
   #measIdx: number = 0;
   #counter: number = 0;
   #requestId: number = 0;
+  #parallelTimings: RequestTiming[] = [];
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
@@ -373,10 +380,10 @@ class BandwidthMeasurementEngine implements Engine {
       ? results[dir][bytes]
       : {
           timings: [],
-          // Count logical batches with the same bytes and direction.
+          // Parallel steps produce one logical result for all physical requests.
           numMeasurements: this.#measurements
             .filter(({ bytes: b, dir: d }) => bytes === b && dir === d)
-            .map(m => Math.ceil(m.count / this.#parallelism))
+            .map(m => (this.#parallel ? 1 : m.count))
             .reduce((agg, cnt) => agg + cnt, 0)
         };
 
@@ -402,9 +409,7 @@ class BandwidthMeasurementEngine implements Engine {
       this.#onNewMeasurementStarted(
         {
           ...this.#measurements[measIdx],
-          count: Math.ceil(
-            this.#measurements[measIdx].count / this.#parallelism
-          )
+          count: this.#parallel ? 1 : this.#measurements[measIdx].count
         },
         results
       );
@@ -439,6 +444,7 @@ class BandwidthMeasurementEngine implements Engine {
       // clear settings
       this.#counter = 0;
       this.#minDuration = -Infinity;
+      this.#parallelTimings = [];
       performance.clearResourceTimings();
 
       do {
@@ -467,48 +473,43 @@ class BandwidthMeasurementEngine implements Engine {
 
     const { bytes: numBytes, dir } = meas;
     const isDown = dir === 'down';
-    const apis = isDown ? this.#downloadApis : this.#uploadApis;
-    const batchSize = Math.min(this.#parallelism, meas.count - this.#counter);
 
     this.#currentAbortController?.abort('restarting engine');
     this.#currentAbortController = new AbortController();
     const abortController = this.#currentAbortController;
-    let abortTimeout: ReturnType<typeof setTimeout> | undefined;
-    if (this.abortRequestDuration) {
-      abortTimeout = setTimeout(() => {
-        const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
-        this.#cancelCurrentMeasurement(errorMessage);
-        this.#setRunning(false);
-        this.#onConnectionError(errorMessage);
-      }, this.abortRequestDuration);
-      abortController.signal.addEventListener('abort', () =>
-        clearTimeout(abortTimeout)
-      );
-    }
 
     try {
-      const timings = await Promise.all(
-        Array.from({ length: batchSize }, (_, offset) => {
-          const apiUrl = apis[(this.#counter + offset) % apis.length];
-          return this.#fetchMeasurement(
-            apiUrl,
-            numBytes,
-            isDown,
-            abortController,
-            `${this.#measIdx}-${this.#requestId++}`
-          );
-        })
-      );
-      clearTimeout(abortTimeout);
-      if (abortController.signal.aborted) return;
+      let timing: BandwidthMeasurementTiming;
+      if (this.#parallel) {
+        const timings = await this.#runParallelPool(
+          meas,
+          isDown,
+          abortController
+        );
+        if (abortController.signal.aborted) return;
+        timing = aggregateRequestTimings(timings, isDown, numBytes);
+        this.#counter = meas.count;
+        this.#minDuration = Math.min(...timings.map(timing => timing.duration));
+      } else {
+        const apiUrl = isDown
+          ? this.#getDownloadApiUrl()
+          : this.#getUploadApiUrl();
+        timing = await this.#fetchMeasurement(
+          apiUrl,
+          numBytes,
+          isDown,
+          abortController,
+          `${this.#measIdx}-${this.#requestId++}`
+        );
+        if (abortController.signal.aborted) return;
+        this.#counter += 1;
+        this.#minDuration =
+          this.#minDuration < 0
+            ? timing.duration
+            : Math.min(this.#minDuration, timing.duration);
+      }
 
-      const timing = aggregateRequestTimings(timings, isDown, numBytes);
       this.#saveMeasurementResults(measIdx, timing);
-      this.#minDuration =
-        this.#minDuration < 0
-          ? timing.duration
-          : Math.min(this.#minDuration, timing.duration);
-      this.#counter += batchSize;
 
       if (this.#throttleMs) {
         const throttleTimeout = setTimeout(
@@ -522,11 +523,55 @@ class BandwidthMeasurementEngine implements Engine {
         this.#nextMeasurement();
       }
     } catch (error) {
-      clearTimeout(abortTimeout);
       if (abortController.signal.aborted) return;
       this.#setRunning(false);
       this.#onConnectionError(String(error));
     }
+  }
+
+  async #runParallelPool(
+    measurement: BandwidthMeasurement,
+    isDown: boolean,
+    abortController: AbortController
+  ): Promise<RequestTiming[]> {
+    const configuredApis = isDown ? this.#downloadApis : this.#uploadApis;
+    const apis = configuredApis.length
+      ? configuredApis
+      : [isDown ? this.#getDownloadApiUrl() : this.#getUploadApiUrl()];
+    let nextRequest = this.#parallelTimings.length;
+    const runLane = async (apiUrl: string): Promise<void> => {
+      while (
+        !abortController.signal.aborted &&
+        this.#currentAbortController === abortController &&
+        nextRequest < measurement.count
+      ) {
+        const requestId = `${this.#measIdx}-${this.#requestId++}`;
+        nextRequest += 1;
+        await this.#fetchMeasurement(
+          apiUrl,
+          measurement.bytes,
+          isDown,
+          abortController,
+          requestId,
+          completedTiming => {
+            if (this.#currentAbortController !== abortController) return false;
+            this.#parallelTimings.push(completedTiming);
+            return true;
+          }
+        );
+        if (
+          abortController.signal.aborted ||
+          this.#currentAbortController !== abortController
+        ) {
+          return;
+        }
+      }
+    };
+
+    await Promise.all(
+      apis.slice(0, measurement.count).map(apiUrl => runLane(apiUrl))
+    );
+    return this.#parallelTimings;
   }
 
   async #fetchMeasurement(
@@ -534,12 +579,17 @@ class BandwidthMeasurementEngine implements Engine {
     numBytes: number,
     isDown: boolean,
     abortController: AbortController,
-    requestId: string
+    requestId: string,
+    recordCompletion?: (timing: RequestTiming) => boolean
   ): Promise<RequestTiming> {
+    if (abortController.signal.aborted) {
+      throw new Error(String(abortController.signal.reason));
+    }
+
     const qsParams: Record<string, string> = {
       ...this.#qsParams,
       bytes: `${numBytes}`,
-      ...(this.#parallelism > 1 && {
+      ...(this.#parallel && {
         __cf_speedtest_request: requestId
       })
     };
@@ -557,27 +607,59 @@ class BandwidthMeasurementEngine implements Engine {
       url
     );
 
-    let lastError: unknown;
-    for (let retry = 0; retry <= MAX_RETRIES; retry += 1) {
-      try {
-        return await this.#performFetch(
-          url,
-          fetchOptions,
-          numBytes,
-          isDown,
-          qsParams,
-          abortController.signal
-        );
-      } catch (error) {
-        if (abortController.signal.aborted) throw error;
-        lastError = error;
-        console.warn(`Error fetching ${url}: ${error}`);
-      }
-    }
+    const requestController = new AbortController();
+    const abortRequest = () =>
+      requestController.abort(abortController.signal.reason);
+    abortController.signal.addEventListener('abort', abortRequest, {
+      once: true
+    });
+    const timeoutMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
+    const abortTimeout = this.abortRequestDuration
+      ? setTimeout(
+          () => requestController.abort(timeoutMessage),
+          this.abortRequestDuration
+        )
+      : undefined;
 
-    throw new Error(
-      `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries: ${lastError}`
-    );
+    try {
+      let lastError: unknown;
+      for (let retry = 0; retry <= MAX_RETRIES; retry += 1) {
+        try {
+          const timing = await this.#performFetch(
+            url,
+            fetchOptions,
+            numBytes,
+            isDown,
+            qsParams,
+            requestController.signal
+          );
+          if (recordCompletion && !recordCompletion(timing)) return timing;
+          this.#onRequestResult({
+            type: isDown ? 'down' : 'up',
+            bytes: numBytes,
+            ...timing
+          });
+          return timing;
+        } catch (error) {
+          if (requestController.signal.aborted) {
+            throw new Error(
+              typeof requestController.signal.reason === 'string'
+                ? requestController.signal.reason
+                : String(error)
+            );
+          }
+          lastError = error;
+          console.warn(`Error fetching ${url}: ${error}`);
+        }
+      }
+
+      throw new Error(
+        `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries: ${lastError}`
+      );
+    } finally {
+      clearTimeout(abortTimeout);
+      abortController.signal.removeEventListener('abort', abortRequest);
+    }
   }
 
   async #performFetch(
@@ -688,11 +770,6 @@ class BandwidthMeasurementEngine implements Engine {
       );
     }
 
-    this.#onRequestResult({
-      type: isDown ? 'down' : 'up',
-      bytes: numBytes,
-      ...timing
-    });
     return timing;
   }
 
