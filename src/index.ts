@@ -75,9 +75,6 @@ type SpeedTestConfig = Config &
     [key: string]: unknown;
   };
 
-const isAuthorizationRejection = (error: unknown): error is string =>
-  typeof error === 'string' && /^Request failed with (401|403):/.test(error);
-
 /** Per-type measurement result bucket stored in Results.raw. */
 interface MeasurementResult {
   started: boolean;
@@ -157,11 +154,6 @@ class MeasurementEngine {
     return this.#authorization;
   }
 
-  /** Replaces the bearer token used by requests created after this call. */
-  setAuthorizationToken(token: string | null): void {
-    this.#authorization.token = token;
-  }
-
   /** Not paused and not finished. */
   get isRunning(): boolean {
     return this.#running;
@@ -183,9 +175,9 @@ class MeasurementEngine {
     this.#onFinish = f;
   }
 
-  #onError: (message: string) => void = () => {};
+  #onError: (message: string, status?: number) => void = () => {};
 
-  set onError(f: (message: string) => void) {
+  set onError(f: (message: string, status?: number) => void) {
     this.#onError = f;
   }
 
@@ -326,8 +318,6 @@ class MeasurementEngine {
   }
 
   #next(): void {
-    if (!this.#running) return;
-
     const resumeType = this.#curType();
     const resumeResults = this.#curTypeResults();
     if (
@@ -484,10 +474,6 @@ class MeasurementEngine {
         };
 
         engine!.onConnectionError = (e: unknown) => {
-          if (isAuthorizationRejection(e)) {
-            this.#onError(e);
-            return;
-          }
           msmResults.error = e;
           this.onResultsChange({ type });
           this.#onError(`Connection error while measuring packet loss: ${e}`);
@@ -575,9 +561,10 @@ class MeasurementEngine {
           this.#running && this.#next();
         };
 
-        engine.onConnectionError = (e: unknown) => {
-          if (isAuthorizationRejection(e)) {
-            this.#onError(e);
+        engine.onConnectionError = (e: unknown, status?: number) => {
+          if (status !== undefined) {
+            this.#setRunning(false);
+            this.#onError(String(e), status);
             return;
           }
           this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
@@ -734,9 +721,10 @@ class MeasurementEngine {
             this.#running && this.#next();
           };
 
-          engine.onConnectionError = (e: unknown) => {
-            if (isAuthorizationRejection(e)) {
-              this.#onError(e);
+          engine.onConnectionError = (e: unknown, status?: number) => {
+            if (status !== undefined) {
+              this.#setRunning(false);
+              this.#onError(String(e), status);
               return;
             }
             this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;

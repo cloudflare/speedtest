@@ -11,10 +11,6 @@ class InspectableEngine extends SpeedTestEngine {
   get resolvedConfig() {
     return this.config;
   }
-
-  get resolvedAuthorization() {
-    return this.authorization;
-  }
 }
 
 const API_URL_KEYS = [
@@ -53,17 +49,6 @@ describe('authorizationToken', () => {
     expect(
       resolveConfig({ authorizationToken: TOKEN }).authorizationToken
     ).toBe(TOKEN);
-  });
-
-  it('replaces the token used by future requests', () => {
-    const engine = new InspectableEngine({
-      autoStart: false,
-      authorizationToken: TOKEN
-    });
-
-    engine.setAuthorizationToken('replacement-token');
-
-    expect(engine.resolvedAuthorization.token).toBe('replacement-token');
   });
 
   it('defaults to null', () => {

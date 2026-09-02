@@ -96,8 +96,10 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
     };
   }
 
-  set onConnectionError(onConnectionError: (error: string) => void) {
-    super.onConnectionError = (...args: [string]) => {
+  set onConnectionError(
+    onConnectionError: (error: string, status?: number) => void
+  ) {
+    super.onConnectionError = (...args: [string, number?]) => {
       this.#latencyEngine && this.#latencyEngine.pause();
       onConnectionError(...args);
     };

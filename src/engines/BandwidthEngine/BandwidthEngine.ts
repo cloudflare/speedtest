@@ -239,8 +239,8 @@ class BandwidthMeasurementEngine implements Engine {
   set onFinished(f: (results: BandwidthEngineResults) => void) {
     this.#onFinished = f;
   }
-  #onConnectionError: (error: string) => void = () => {}; // Invoked when unable to get a response from the API
-  set onConnectionError(f: (error: string) => void) {
+  #onConnectionError: (error: string, status?: number) => void = () => {}; // Invoked when unable to get a response from the API
+  set onConnectionError(f: (error: string, status?: number) => void) {
     this.#onConnectionError = f;
   }
 
@@ -576,16 +576,12 @@ class BandwidthMeasurementEngine implements Engine {
         }
         console.warn(`Error fetching ${url}: ${error}`);
 
-        const retryable =
-          !(error instanceof HttpError) ||
-          error.status === 408 ||
-          error.status === 429 ||
-          (error.status >= 500 && error.status <= 599);
-        if (!retryable) {
+        if (error instanceof HttpError) {
           this.#retries = 0;
           this.#setRunning(false);
           this.#onConnectionError(
-            `Request failed with ${error.status}: ${url}`
+            `Request failed with ${error.status}: ${url}`,
+            error.status
           );
         } else if (this.#retries++ < MAX_RETRIES) {
           this.#nextMeasurement(); // keep trying
