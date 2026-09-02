@@ -576,7 +576,12 @@ class BandwidthMeasurementEngine implements Engine {
         }
         console.warn(`Error fetching ${url}: ${error}`);
 
-        if (error instanceof HttpError) {
+        const retryable =
+          !(error instanceof HttpError) ||
+          error.status === 408 ||
+          error.status === 429 ||
+          (error.status >= 500 && error.status <= 599);
+        if (!retryable) {
           this.#retries = 0;
           this.#setRunning(false);
           this.#onConnectionError(
@@ -589,7 +594,8 @@ class BandwidthMeasurementEngine implements Engine {
           this.#retries = 0;
           this.#setRunning(false);
           this.#onConnectionError(
-            `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
+            `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`,
+            error instanceof HttpError ? error.status : undefined
           );
         }
       });

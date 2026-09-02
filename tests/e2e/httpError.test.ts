@@ -9,7 +9,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe.each([400, 401, 403, 500])('bandwidth HTTP %i', status => {
+describe.each([400, 401, 403])('bandwidth HTTP %i', status => {
   it('stops the top-level engine without retrying or advancing', async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve(new Response(null, { status }))
@@ -62,6 +62,71 @@ describe.each([400, 401, 403, 500])('bandwidth HTTP %i', status => {
     expect(phases).toEqual(['latency']);
     expect(onFinish).not.toHaveBeenCalled();
   });
+});
+
+describe.each([408, 429, 500])('transient bandwidth HTTP %i', status => {
+  it('uses the existing retry budget', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(new Response(null, { status }))
+    );
+    window.fetch = fetchMock;
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 1 }], {
+      downloadApiUrl: 'https://example.com/down',
+      uploadApiUrl: 'https://example.com/up'
+    });
+    const error = new Promise<{ message: string; status?: number }>(resolve => {
+      engine.onConnectionError = (message, responseStatus) =>
+        resolve({ message, status: responseStatus });
+    });
+
+    engine.play();
+
+    await expect(error).resolves.toEqual({
+      message: expect.stringContaining('Gave up after 20 retries.'),
+      status
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(21);
+  });
+});
+
+it('forwards terminal errors from the loaded-latency engine', async () => {
+  const fetchMock = vi.fn(
+    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = new URL(input.toString());
+      if (url.searchParams.get('bytes') === '0') {
+        return Promise.resolve(new Response(null, { status: 401 }));
+      }
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(init.signal?.reason)
+        );
+      });
+    }
+  );
+  window.fetch = fetchMock;
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  const engine = new SpeedTest({
+    autoStart: false,
+    downloadApiUrl: 'https://example.com/down',
+    uploadApiUrl: 'https://example.com/up',
+    logAimApiUrl: null,
+    logMeasurementApiUrl: null,
+    measureDownloadLoadedLatency: true,
+    measurements: [{ type: 'download', bytes: 1_000, count: 1 }]
+  });
+  const error = new Promise<{ running: boolean; status?: number }>(resolve => {
+    engine.onError = (_message, status) => {
+      resolve({ running: engine.isRunning, status });
+    };
+  });
+
+  engine.play();
+
+  await expect(error).resolves.toEqual({ running: false, status: 401 });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
 it('retains the existing retry behavior for network failures', async () => {
