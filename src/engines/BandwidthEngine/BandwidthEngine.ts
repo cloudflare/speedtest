@@ -77,10 +77,38 @@ const calcUploadSpeed = (
   return !secs ? undefined : bits / secs;
 };
 
+interface TimeInterval {
+  start: number;
+  end: number;
+}
+
+const getCoveredDuration = (
+  intervals: TimeInterval[],
+  rangeStart: number,
+  rangeEnd: number
+): number => {
+  const clipped = intervals
+    .map(({ start, end }) => ({
+      start: Math.max(start, rangeStart),
+      end: Math.min(end, rangeEnd)
+    }))
+    .filter(({ start, end }) => end > start)
+    .sort((a, b) => a.start - b.start);
+  let covered = 0;
+  let currentEnd = rangeStart;
+  clipped.forEach(({ start, end }) => {
+    if (end <= currentEnd) return;
+    covered += end - Math.max(start, currentEnd);
+    currentEnd = end;
+  });
+  return covered;
+};
+
 export const aggregateRequestTimings = (
   timings: RequestTiming[],
   isDown: boolean,
-  numBytes: number
+  numBytes: number,
+  pausedIntervals: TimeInterval[] = []
 ): BandwidthMeasurementTiming => {
   if (timings.length === 1) return timings[0];
 
@@ -89,9 +117,30 @@ export const aggregateRequestTimings = (
     ...timings.map(timing => timing.responseStart)
   );
   const responseEnd = Math.max(...timings.map(timing => timing.responseEnd));
-  const duration = isDown
-    ? responseEnd - requestStart
-    : Math.max(...timings.map(timing => timing.responseStart)) - requestStart;
+  const intervalEnd = isDown
+    ? responseEnd
+    : Math.max(...timings.map(timing => timing.responseStart));
+  const serverIntervals = isDown
+    ? timings.map(timing => {
+        const rawDuration = timing.responseEnd - timing.requestStart;
+        const adjustment = Math.min(
+          Math.max(0, rawDuration - timing.duration),
+          timing.responseStart - timing.requestStart
+        );
+        return {
+          start: timing.responseStart - adjustment,
+          end: timing.responseStart
+        };
+      })
+    : [];
+  const duration =
+    intervalEnd -
+    requestStart -
+    getCoveredDuration(
+      [...serverIntervals, ...pausedIntervals],
+      requestStart,
+      intervalEnd
+    );
   const transferSize = timings.reduce(
     (total, timing) => total + timing.transferSize,
     0
@@ -319,12 +368,22 @@ class BandwidthMeasurementEngine implements Engine {
 
   // Public methods
   pause(): void {
+    if (this.#parallel && this.#running && this.#pauseStartedAt === undefined) {
+      this.#pauseStartedAt = performance.now();
+    }
     this.#cancelCurrentMeasurement(`pause()`);
     this.#setRunning(false);
   }
 
   play(): void {
     if (!this.#running) {
+      if (this.#pauseStartedAt !== undefined) {
+        this.#pausedIntervals.push({
+          start: this.#pauseStartedAt,
+          end: performance.now()
+        });
+        this.#pauseStartedAt = undefined;
+      }
       this.#setRunning(true);
       this.#nextMeasurement();
     }
@@ -345,6 +404,8 @@ class BandwidthMeasurementEngine implements Engine {
   #counter: number = 0;
   #requestId: number = 0;
   #parallelTimings: RequestTiming[] = [];
+  #pausedIntervals: TimeInterval[] = [];
+  #pauseStartedAt: number | undefined;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
@@ -445,6 +506,8 @@ class BandwidthMeasurementEngine implements Engine {
       this.#counter = 0;
       this.#minDuration = -Infinity;
       this.#parallelTimings = [];
+      this.#pausedIntervals = [];
+      this.#pauseStartedAt = undefined;
       performance.clearResourceTimings();
 
       do {
@@ -487,7 +550,12 @@ class BandwidthMeasurementEngine implements Engine {
           abortController
         );
         if (abortController.signal.aborted) return;
-        timing = aggregateRequestTimings(timings, isDown, numBytes);
+        timing = aggregateRequestTimings(
+          timings,
+          isDown,
+          numBytes,
+          this.#pausedIntervals
+        );
         this.#counter = meas.count;
         this.#minDuration = Math.min(...timings.map(timing => timing.duration));
       } else {

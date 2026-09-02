@@ -326,6 +326,17 @@ class MeasurementEngine {
     return url;
   };
 
+  #parallelMeasurementApiUrls(
+    type: 'download' | 'upload',
+    count: number
+  ): string[] | undefined {
+    const urls = this.#measurementApiUrls(type);
+    if (!urls) return undefined;
+    const startIndex = this.#targetIndex % urls.length;
+    this.#targetIndex += count;
+    return [...urls.slice(startIndex), ...urls.slice(0, startIndex)];
+  }
+
   #nextLoadedLatencyApiUrl = (): string => {
     const urls = this.#measurementApiUrls('download');
     if (!urls) return this.#config.downloadApiUrl;
@@ -656,8 +667,20 @@ class MeasurementEngine {
             {
               downloadApiUrl,
               uploadApiUrl,
-              downloadApiUrls: this.#measurementApiUrls('download'),
-              uploadApiUrls: this.#measurementApiUrls('upload'),
+              downloadApiUrls:
+                msmConfig.parallel === true && type === 'download'
+                  ? this.#parallelMeasurementApiUrls(
+                      'download',
+                      msmConfig.count ?? 1
+                    )
+                  : undefined,
+              uploadApiUrls:
+                msmConfig.parallel === true && type === 'upload'
+                  ? this.#parallelMeasurementApiUrls(
+                      'upload',
+                      msmConfig.count ?? 1
+                    )
+                  : undefined,
               getDownloadApiUrl: () => this.#nextMeasurementApiUrl('download'),
               getUploadApiUrl: () => this.#nextMeasurementApiUrl('upload'),
               getLoadedLatencyApiUrl: this.#nextLoadedLatencyApiUrl,

@@ -43,6 +43,36 @@ describe('parallel bandwidth aggregation', () => {
     expect(result.bps).toBeCloseTo(16000 / 0.12);
   });
 
+  it('subtracts overlapping server and delta adjustments', () => {
+    const first = {
+      ...timing(0, 20, 120),
+      serverTime: 8,
+      duration: 110
+    };
+    const second = {
+      ...timing(0, 25, 125),
+      serverTime: 8,
+      duration: 115
+    };
+
+    const result = aggregateRequestTimings([first, second], true, 1000);
+
+    expect(result.duration).toBe(110);
+    expect(result.bps).toBeCloseTo(16000 / 0.11);
+  });
+
+  it('subtracts paused intervals from the aggregate duration', () => {
+    const result = aggregateRequestTimings(
+      [timing(0, 10, 100), timing(300, 310, 400)],
+      true,
+      1000,
+      [{ start: 100, end: 300 }]
+    );
+
+    expect(result.duration).toBe(200);
+    expect(result.bps).toBeCloseTo(16000 / 0.2);
+  });
+
   it('estimates bytes missing from resource timing', () => {
     const hiddenTiming = { ...timing(5, 20, 120), transferSize: 0 };
     const result = aggregateRequestTimings(
@@ -152,6 +182,7 @@ describe('parallel bandwidth aggregation', () => {
   });
 
   it('retains completed requests when a parallel step resumes', async () => {
+    let clock = 0;
     const releases: Array<() => void> = [];
     const fetchMock = vi.fn(
       (_url: RequestInfo | URL, init?: RequestInit) =>
@@ -167,19 +198,26 @@ describe('parallel bandwidth aggregation', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('window', { location: { origin: 'https://app.example' } });
     vi.stubGlobal('performance', {
+      now: () => clock,
       clearResourceTimings: vi.fn(),
-      getEntriesByName: () => [
-        {
-          transferSize: 1000,
-          requestStart: 0,
-          responseStart: 10,
-          responseEnd: 110,
-          connectStart: 0,
-          connectEnd: 0,
-          secureConnectionStart: 0,
-          nextHopProtocol: 'h2'
-        }
-      ]
+      getEntriesByName: (url: string) => {
+        const index = Number(
+          new URL(url).searchParams.get('__cf_speedtest_request')?.split('-')[1]
+        );
+        const requestStart = index === 0 ? 0 : index < 4 ? 300 : 400;
+        return [
+          {
+            transferSize: 1000,
+            requestStart,
+            responseStart: requestStart + 10,
+            responseEnd: requestStart + 100,
+            connectStart: 0,
+            connectEnd: 0,
+            secureConnectionStart: 0,
+            nextHopProtocol: 'h2'
+          }
+        ];
+      }
     });
 
     const engine = new BandwidthEngine(
@@ -195,7 +233,10 @@ describe('parallel bandwidth aggregation', () => {
     );
     const onRequestResult = vi.fn();
     engine.onRequestResult = onRequestResult;
-    onRequestResult.mockImplementationOnce(() => engine.pause());
+    onRequestResult.mockImplementationOnce(() => {
+      clock = 100;
+      engine.pause();
+    });
     const finished = new Promise(resolve => {
       engine.onFinished = resolve;
     });
@@ -204,6 +245,7 @@ describe('parallel bandwidth aggregation', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     releases[0]();
     await vi.waitFor(() => expect(onRequestResult).toHaveBeenCalledOnce());
+    clock = 300;
     engine.play();
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
     releases[2]();
@@ -214,9 +256,10 @@ describe('parallel bandwidth aggregation', () => {
 
     expect(onRequestResult).toHaveBeenCalledTimes(4);
     expect(engine.results.down[1000].timings[0].transferredBytes).toBe(4000);
+    expect(engine.results.down[1000].timings[0].duration).toBe(300);
   });
 
-  it('rotates sequential requests from a randomized target', async () => {
+  it('rotates sequential and parallel requests from a randomized target', async () => {
     const fetchMock = vi.fn((url: RequestInfo | URL) =>
       Promise.resolve(new Response(url.toString()))
     );
@@ -248,7 +291,10 @@ describe('parallel bandwidth aggregation', () => {
         'https://speed-1.example',
         'https://speed-1.example'
       ],
-      measurements: [{ type: 'download', bytes: 1000, count: 3 }],
+      measurements: [
+        { type: 'download', bytes: 1000, count: 3 },
+        { type: 'download', bytes: 2000, count: 2, parallel: true }
+      ],
       measureDownloadLoadedLatency: false,
       logAimApiUrl: null
     });
@@ -265,7 +311,9 @@ describe('parallel bandwidth aggregation', () => {
     ).toEqual([
       'https://speed-1.example',
       'https://speed-1.example',
-      'https://speed-0.example'
+      'https://speed-0.example',
+      'https://speed-1.example',
+      'https://speed-1.example'
     ]);
   });
 
