@@ -201,7 +201,7 @@ class MeasurementEngine {
    * resumes the current phase.
    */
   play(): void {
-    if (!this.#running) {
+    if (!this.#failed && !this.#running) {
       // Clear timings before running the engine
       performance.clearResourceTimings();
 
@@ -244,6 +244,7 @@ class MeasurementEngine {
 
   #running: boolean = false;
   #finished: boolean = false;
+  #failed: boolean = false;
 
   // Internal methods
   #setRunning(running: boolean): void {
@@ -297,6 +298,7 @@ class MeasurementEngine {
 
     this.#setRunning(false);
     this.#setFinished(false);
+    this.#failed = false;
 
     this.#results.clear();
     this.#accumulatedRuntimeMs = 0;
@@ -562,16 +564,9 @@ class MeasurementEngine {
         };
 
         engine.onConnectionError = (e: unknown, status?: number) => {
-          if (status !== undefined) {
-            this.#setRunning(false);
-            this.#onError(String(e), status);
-            return;
-          }
-          this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
-          msmResults.error = e;
-          this.onResultsChange({ type });
-          this.#onError(`Connection error while measuring latency: ${e}`);
-          this.#next();
+          this.#failed = true;
+          this.pause();
+          this.#onError(String(e), status);
         };
 
         (engine as Engine & { play: () => void }).play!();
@@ -722,16 +717,9 @@ class MeasurementEngine {
           };
 
           engine.onConnectionError = (e: unknown, status?: number) => {
-            if (status !== undefined) {
-              this.#setRunning(false);
-              this.#onError(String(e), status);
-              return;
-            }
-            this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
-            msmResults.error = e;
-            this.onResultsChange({ type });
-            this.#onError(`Connection error while measuring ${type}: ${e}`);
-            this.#next();
+            this.#failed = true;
+            this.pause();
+            this.#onError(String(e), status);
           };
 
           (engine as Engine & { play: () => void }).play!();
