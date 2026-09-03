@@ -4,7 +4,27 @@ import {
   type AuthorizationOptions
 } from '../../utils/authorization';
 
-const MAX_RETRIES = 20;
+const MAX_RETRIES = 3;
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    statusText: string,
+    readonly retryAfter: string | null
+  ) {
+    super(statusText);
+  }
+}
+
+const getRetryDelay = (retryAfter: string | null): number => {
+  if (!retryAfter) return 5000;
+
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+
+  const date = Date.parse(retryAfter);
+  return Number.isNaN(date) ? 5000 : Math.max(0, date - Date.now());
+};
 
 const ESTIMATED_HEADER_FRACTION = 0.005; // ~.5% of packet header / payload size. used when transferSize is not available.
 
@@ -230,8 +250,8 @@ class BandwidthMeasurementEngine implements Engine {
   set onFinished(f: (results: BandwidthEngineResults) => void) {
     this.#onFinished = f;
   }
-  #onConnectionError: (error: string) => void = () => {}; // Invoked when unable to get a response from the API
-  set onConnectionError(f: (error: string) => void) {
+  #onConnectionError: (error: string, status?: number) => void = () => {}; // Invoked when unable to get a response from the API
+  set onConnectionError(f: (error: string, status?: number) => void) {
     this.#onConnectionError = f;
   }
 
@@ -242,7 +262,7 @@ class BandwidthMeasurementEngine implements Engine {
   }
 
   play(): void {
-    if (!this.#running) {
+    if (!this.#failed && !this.#running) {
       this.#setRunning(true);
       this.#nextMeasurement();
     }
@@ -254,6 +274,7 @@ class BandwidthMeasurementEngine implements Engine {
   #uploadApi: string;
 
   #running: boolean = false;
+  #failed: boolean = false;
   #finished: Record<string, boolean> = { down: false, up: false };
   #results: BandwidthEngineResults = { down: {}, up: {} };
   #measIdx: number = 0;
@@ -406,9 +427,9 @@ class BandwidthMeasurementEngine implements Engine {
       if (this.abortRequestDuration) {
         const abortTimeout = setTimeout(() => {
           const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
-          this.#cancelCurrentMeasurement(errorMessage);
           this.#retries = 0;
-          this.#setRunning(false);
+          this.pause();
+          this.#failed = true;
           this.#onConnectionError(errorMessage);
         }, this.abortRequestDuration);
         this.#currentAbortController.signal.addEventListener('abort', () =>
@@ -424,7 +445,11 @@ class BandwidthMeasurementEngine implements Engine {
     })
       .then(r => {
         if (r.ok) return r;
-        throw Error(r.statusText);
+        throw new HttpError(
+          r.status,
+          r.statusText,
+          r.headers.get('retry-after')
+        );
       })
       .then(r => {
         this.getServerTime && (serverTime = this.getServerTime(r));
@@ -567,15 +592,29 @@ class BandwidthMeasurementEngine implements Engine {
         }
         console.warn(`Error fetching ${url}: ${error}`);
 
-        if (this.#retries++ < MAX_RETRIES) {
-          this.#nextMeasurement(); // keep trying
-        } else {
-          this.#retries = 0;
-          this.#setRunning(false);
-          this.#onConnectionError(
-            `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
+        if (
+          error instanceof HttpError &&
+          error.status === 429 &&
+          this.#retries++ < MAX_RETRIES
+        ) {
+          setTimeout(
+            () => this.#nextMeasurement(),
+            getRetryDelay(error.retryAfter)
           );
+          return;
         }
+
+        const status = error instanceof HttpError ? error.status : undefined;
+        const message =
+          status === 429
+            ? `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
+            : status === undefined
+              ? `Connection failed to ${url}.`
+              : `Request failed with ${status}: ${url}`;
+        this.#retries = 0;
+        this.pause();
+        this.#failed = true;
+        this.#onConnectionError(message, status);
       });
   }
 
