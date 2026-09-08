@@ -30,8 +30,15 @@ describe.each([400, 401, 403, 408, 500])('bandwidth HTTP %i', status => {
       ]
     });
     const phases: string[] = [];
+    const resultErrors: string[] = [];
     const onFinish = vi.fn();
     engine.onPhaseChange = ({ measurement }) => phases.push(measurement.type);
+    engine.onResultsChange = ({ type }) => {
+      const results = engine.results.raw[type];
+      if (typeof results === 'object' && results.error) {
+        resultErrors.push(results.error);
+      }
+    };
     engine.onFinish = onFinish;
 
     const error = new Promise<{
@@ -61,6 +68,9 @@ describe.each([400, 401, 403, 408, 500])('bandwidth HTTP %i', status => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(phases).toEqual(['latency']);
+    expect(resultErrors).toEqual([
+      expect.stringMatching(`^Request failed with ${status}:`)
+    ]);
     expect(onFinish).not.toHaveBeenCalled();
 
     engine.play();
@@ -112,6 +122,63 @@ describe.each([
   });
 });
 
+it('cancels a pending 429 retry when paused', async () => {
+  vi.useFakeTimers();
+  const fetchMock = vi.fn(() =>
+    Promise.resolve(
+      new Response(null, {
+        status: 429,
+        headers: { 'retry-after': '1' }
+      })
+    )
+  );
+  window.fetch = fetchMock;
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 1 }], {
+    downloadApiUrl: 'https://example.com/down',
+    uploadApiUrl: 'https://example.com/up'
+  });
+
+  engine.play();
+  await vi.advanceTimersByTimeAsync(0);
+  engine.pause();
+  await vi.advanceTimersByTimeAsync(1_000);
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it('cancels the old engine 429 retry when restarted', async () => {
+  vi.useFakeTimers();
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 429,
+        headers: { 'retry-after': '1' }
+      })
+    )
+    .mockResolvedValue(new Response(null, { status: 401 }));
+  window.fetch = fetchMock;
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  const engine = new SpeedTest({
+    autoStart: false,
+    downloadApiUrl: 'https://example.com/down',
+    uploadApiUrl: 'https://example.com/up',
+    logAimApiUrl: null,
+    logMeasurementApiUrl: null,
+    measurements: [{ type: 'download', bytes: 1_000, count: 1 }]
+  });
+
+  engine.play();
+  await vi.advanceTimersByTimeAsync(0);
+  engine.restart();
+  await vi.advanceTimersByTimeAsync(1_000);
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 it('stops and cannot resume after a loaded-latency error', async () => {
   const fetchMock = vi.fn(
     (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -138,6 +205,13 @@ it('stops and cannot resume after a loaded-latency error', async () => {
     measureDownloadLoadedLatency: true,
     measurements: [{ type: 'download', bytes: 1_000, count: 1 }]
   });
+  const resultErrors: string[] = [];
+  engine.onResultsChange = ({ type }) => {
+    const results = engine.results.raw[type];
+    if (typeof results === 'object' && results.error) {
+      resultErrors.push(results.error);
+    }
+  };
   const error = new Promise<{ running: boolean; status?: number }>(resolve => {
     engine.onError = (_message, status) => {
       resolve({ running: engine.isRunning, status });
@@ -148,6 +222,7 @@ it('stops and cannot resume after a loaded-latency error', async () => {
 
   await expect(error).resolves.toEqual({ running: false, status: 401 });
   expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(resultErrors).toEqual([expect.stringContaining('Request failed')]);
 
   engine.play();
   await new Promise(resolve => setTimeout(resolve, 20));

@@ -564,8 +564,10 @@ class MeasurementEngine {
         };
 
         engine.onConnectionError = (e: unknown, status?: number) => {
+          msmResults.error = e;
           this.#failed = true;
           this.pause();
+          this.onResultsChange({ type });
           this.#onError(String(e), status);
         };
 
@@ -717,8 +719,10 @@ class MeasurementEngine {
           };
 
           engine.onConnectionError = (e: unknown, status?: number) => {
+            msmResults.error = e;
             this.#failed = true;
             this.pause();
+            this.onResultsChange({ type });
             this.#onError(String(e), status);
           };
 

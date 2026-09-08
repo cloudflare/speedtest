@@ -257,6 +257,10 @@ class BandwidthMeasurementEngine implements Engine {
 
   // Public methods
   pause(): void {
+    if (this.#retryTimeout !== undefined) {
+      clearTimeout(this.#retryTimeout);
+      this.#retryTimeout = undefined;
+    }
     this.#cancelCurrentMeasurement(`pause()`);
     this.#setRunning(false);
   }
@@ -280,6 +284,7 @@ class BandwidthMeasurementEngine implements Engine {
   #measIdx: number = 0;
   #counter: number = 0;
   #retries: number = 0;
+  #retryTimeout: ReturnType<typeof setTimeout> | undefined;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
@@ -418,7 +423,11 @@ class BandwidthMeasurementEngine implements Engine {
       url
     );
 
-    if (this.#retries === 0) {
+    if (
+      this.#retries === 0 ||
+      !this.#currentAbortController ||
+      this.#currentAbortController.signal.aborted
+    ) {
       // abort existing abort controller
       this.#currentAbortController?.abort('restarting engine');
 
@@ -597,10 +606,10 @@ class BandwidthMeasurementEngine implements Engine {
           error.status === 429 &&
           this.#retries++ < MAX_RETRIES
         ) {
-          setTimeout(
-            () => this.#nextMeasurement(),
-            getRetryDelay(error.retryAfter)
-          );
+          this.#retryTimeout = setTimeout(() => {
+            this.#retryTimeout = undefined;
+            if (this.#running && !this.#failed) this.#nextMeasurement();
+          }, getRetryDelay(error.retryAfter));
           return;
         }
 
