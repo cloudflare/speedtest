@@ -175,9 +175,9 @@ class MeasurementEngine {
     this.#onFinish = f;
   }
 
-  #onError: (message: string) => void = () => {};
+  #onError: (message: string, status?: number) => void = () => {};
 
-  set onError(f: (message: string) => void) {
+  set onError(f: (message: string, status?: number) => void) {
     this.#onError = f;
   }
 
@@ -201,7 +201,7 @@ class MeasurementEngine {
    * resumes the current phase.
    */
   play(): void {
-    if (!this.#running) {
+    if (!this.#failed && !this.#running) {
       // Clear timings before running the engine
       performance.clearResourceTimings();
 
@@ -244,6 +244,7 @@ class MeasurementEngine {
 
   #running: boolean = false;
   #finished: boolean = false;
+  #failed: boolean = false;
 
   // Internal methods
   #setRunning(running: boolean): void {
@@ -297,6 +298,7 @@ class MeasurementEngine {
 
     this.#setRunning(false);
     this.#setFinished(false);
+    this.#failed = false;
 
     this.#results.clear();
     this.#accumulatedRuntimeMs = 0;
@@ -561,12 +563,12 @@ class MeasurementEngine {
           this.#running && this.#next();
         };
 
-        engine.onConnectionError = (e: unknown) => {
-          this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
+        engine.onConnectionError = (e: unknown, status?: number) => {
           msmResults.error = e;
+          this.#failed = true;
+          this.pause();
           this.onResultsChange({ type });
-          this.#onError(`Connection error while measuring latency: ${e}`);
-          this.#next();
+          this.#onError(String(e), status);
         };
 
         (engine as Engine & { play: () => void }).play!();
@@ -716,12 +718,12 @@ class MeasurementEngine {
             this.#running && this.#next();
           };
 
-          engine.onConnectionError = (e: unknown) => {
-            this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
+          engine.onConnectionError = (e: unknown, status?: number) => {
             msmResults.error = e;
+            this.#failed = true;
+            this.pause();
             this.onResultsChange({ type });
-            this.#onError(`Connection error while measuring ${type}: ${e}`);
-            this.#next();
+            this.#onError(String(e), status);
           };
 
           (engine as Engine & { play: () => void }).play!();
