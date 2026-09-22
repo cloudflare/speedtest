@@ -17,6 +17,7 @@ const makeResults = (): Results =>
 
 const config = {
   apiUrl: 'https://aim.example.com/__results',
+  includeCredentials: false,
   sessionId: undefined,
   authorization: null
 };
@@ -42,9 +43,24 @@ describe('logAimResults', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(config.apiUrl);
     expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('same-origin');
     // The module's main job is formatting logData — assert it lands in the body.
     const body = JSON.parse(init.body);
     expect(body.totalDurationMs).toBe(1234);
+  });
+
+  it('includes credentials when configured', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await logAimResults(makeResults(), {
+      ...config,
+      includeCredentials: true
+    });
+
+    expect(fetchMock.mock.calls[0][1].credentials).toBe('include');
   });
 
   it('resolves with the parsed response body (e.g. requestId)', async () => {
