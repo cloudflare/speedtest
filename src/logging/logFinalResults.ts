@@ -28,6 +28,8 @@ interface ScoreEntry {
 interface LogConfig {
   /** URL to POST the results to. */
   apiUrl: string;
+  /** Whether to include credentials in the request. */
+  includeCredentials: boolean;
   /** Session ID to include in the log payload. */
   sessionId: string | undefined;
   /** Token attributing this test, sent as an `Authorization` header. */
@@ -111,7 +113,7 @@ const scoreParser = (
  */
 const logAimResults = async (
   results: Results,
-  { apiUrl, sessionId, authorization }: LogConfig
+  { apiUrl, includeCredentials, sessionId, authorization }: LogConfig
 ): Promise<AimLogResponse> => {
   const logData: LogData = {
     sessionId
@@ -142,7 +144,8 @@ const logAimResults = async (
       withAuthorizationHeader(
         {
           method: 'POST',
-          body: JSON.stringify(logData)
+          body: JSON.stringify(logData),
+          credentials: includeCredentials ? 'include' : 'same-origin'
         },
         authorization,
         apiUrl

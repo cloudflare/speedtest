@@ -795,6 +795,7 @@ class SpeedTestEngine extends MeasurementEngine {
     }
     logFinalResults(results, {
       apiUrl,
+      includeCredentials: this.config.includeCredentials,
       sessionId: this.config.sessionId,
       authorization: this.authorization
     }).then(response => {
