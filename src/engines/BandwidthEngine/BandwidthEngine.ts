@@ -97,6 +97,16 @@ const calcUploadSpeed = (
   return !secs ? undefined : bits / secs;
 };
 
+/**
+ * Whether a sample can be stored. Transfers need a finite speed, which is
+ * missing when the browser reports a zero request duration. Latency samples
+ * (zero bytes) only use `ping`, so they are always kept.
+ */
+export const hasUsableSpeed = (
+  { bps }: Pick<BandwidthMeasurementTiming, 'bps'>,
+  numBytes: number
+): boolean => +numBytes === 0 || Number.isFinite(bps);
+
 const genContent = (() => {
   const cache = new Map<number, string>();
   return (numBytes: number): string => {
@@ -573,12 +583,28 @@ class BandwidthMeasurementEngine implements Engine {
           }
         }
 
-        this.#saveMeasurementResults(measIdx, timing);
-        const requestDuration = timing.duration;
-        this.#minDuration =
-          this.#minDuration < 0
-            ? requestDuration
-            : Math.min(this.#minDuration, requestDuration); // carry minimum request duration
+        if (hasUsableSpeed(timing, numBytes)) {
+          this.#saveMeasurementResults(measIdx, timing);
+          const requestDuration = timing.duration;
+          this.#minDuration =
+            this.#minDuration < 0
+              ? requestDuration
+              : Math.min(this.#minDuration, requestDuration); // carry minimum request duration
+        } else {
+          // Counted but not stored or retried, so it can't skew the results.
+          console.warn(`Discarding ${dir} sample without a speed`, {
+            bytes: +numBytes,
+            ...timing,
+            perf: {
+              startTime: perf.startTime,
+              requestStart: perf.requestStart,
+              responseStart: perf.responseStart,
+              responseEnd: perf.responseEnd,
+              nextHopProtocol: perf.nextHopProtocol,
+              entries: performance.getEntriesByName(url).length
+            }
+          });
+        }
 
         this.#counter += 1;
         this.#retries = 0;
