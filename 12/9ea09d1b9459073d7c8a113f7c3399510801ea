@@ -1,0 +1,16 @@
+src/index.ts
+  h_9a124c21cc9a2f 688-695,699-701
+tests/unit/engines/unusableSamplesOrchestration.test.ts
+  h_9a124c21cc9a2f 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "129ea09d1b9459073d7c8a113f7c3399510801ea",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
