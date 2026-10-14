@@ -53,13 +53,27 @@ const cfGetServerTime = (r: Response): number | undefined => {
   return undefined;
 };
 
-/** Time to first byte: time from request start to first response byte (ms). */
-const getTtfb = (perf: PerformanceResourceTiming): number =>
-  perf.responseStart - perf.requestStart;
+/** Resource Timing Level 3 fields not yet in TypeScript's DOM lib. */
+export type InterimAwareTiming = PerformanceResourceTiming & {
+  finalResponseHeadersStart?: number;
+  firstInterimResponseStart?: number;
+};
 
-/** Payload download time: time from first response byte to last byte (ms). */
+/**
+ * Start of the final response (ms). `responseStart` marks the first response,
+ * which may be an interim 1xx. Falls back to it where the final timestamp is
+ * unsupported, or zeroed for cross-origin requests without Timing-Allow-Origin.
+ */
+export const getFinalResponseStart = (perf: InterimAwareTiming): number =>
+  perf.finalResponseHeadersStart || perf.responseStart;
+
+/** Time to first byte: time from request start to the final response (ms). */
+const getTtfb = (perf: PerformanceResourceTiming): number =>
+  getFinalResponseStart(perf) - perf.requestStart;
+
+/** Payload download time: time from the final response to its last byte (ms). */
 const getPayloadDownload = (perf: PerformanceResourceTiming): number =>
-  perf.responseEnd - perf.responseStart; // min 1ms
+  perf.responseEnd - getFinalResponseStart(perf); // min 1ms
 
 /** Total download duration: TTFB + payload download time (ms). */
 const calcDownloadDuration = ({
@@ -96,6 +110,19 @@ const calcUploadSpeed = (
 
   return !secs ? undefined : bits / secs;
 };
+
+/**
+ * Whether a sample can be stored. Transfers need a finite, positive speed,
+ * which is missing when the browser reports a zero or negative request
+ * duration. Latency samples (zero bytes) only use `ping`, so they are always
+ * kept.
+ */
+export const hasUsableSpeed = (
+  { bps }: Pick<BandwidthMeasurementTiming, 'bps'>,
+  numBytes: number
+): boolean =>
+  +numBytes === 0 ||
+  (typeof bps === 'number' && Number.isFinite(bps) && bps > 0);
 
 const genContent = (() => {
   const cache = new Map<number, string>();
@@ -573,12 +600,32 @@ class BandwidthMeasurementEngine implements Engine {
           }
         }
 
-        this.#saveMeasurementResults(measIdx, timing);
-        const requestDuration = timing.duration;
-        this.#minDuration =
-          this.#minDuration < 0
-            ? requestDuration
-            : Math.min(this.#minDuration, requestDuration); // carry minimum request duration
+        if (hasUsableSpeed(timing, numBytes)) {
+          this.#saveMeasurementResults(measIdx, timing);
+          const requestDuration = timing.duration;
+          this.#minDuration =
+            this.#minDuration < 0
+              ? requestDuration
+              : Math.min(this.#minDuration, requestDuration); // carry minimum request duration
+        } else {
+          // Counted but not stored or retried, so it can't skew the results.
+          console.warn(`Discarding ${dir} sample without a speed`, {
+            bytes: +numBytes,
+            ...timing,
+            perf: {
+              startTime: perf.startTime,
+              requestStart: perf.requestStart,
+              responseStart: perf.responseStart,
+              firstInterimResponseStart: (perf as InterimAwareTiming)
+                .firstInterimResponseStart,
+              finalResponseHeadersStart: (perf as InterimAwareTiming)
+                .finalResponseHeadersStart,
+              responseEnd: perf.responseEnd,
+              nextHopProtocol: perf.nextHopProtocol,
+              entries: performance.getEntriesByName(url).length
+            }
+          });
+        }
 
         this.#counter += 1;
         this.#retries = 0;

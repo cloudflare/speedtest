@@ -685,18 +685,20 @@ class MeasurementEngine {
               .map(d => d.type)
               .includes(type);
 
-            const minDuration = Math.min(
-              ...Object.values(
-                type === 'download' ? bwResults.down : bwResults.up
-              )
-                .slice(-1)[0]
-                .timings.map(d => d.duration)
-            );
+            const durations = Object.values(
+              type === 'download' ? bwResults.down : bwResults.up
+            )
+              .slice(-1)[0]
+              .timings.map(d => d.duration);
 
+            // A round whose samples were all discarded has no duration to
+            // judge by, so it must not end the direction.
             const reachedEndOfMsmType =
               isLastMsmOfType ||
               (!msmConfig.bypassMinDuration &&
-                minDuration > this.#config.bandwidthFinishRequestDuration);
+                durations.length > 0 &&
+                Math.min(...durations) >
+                  this.#config.bandwidthFinishRequestDuration);
 
             if (!reachedEndOfMsmType) {
               msmResults.finishedCurrentRound = true;

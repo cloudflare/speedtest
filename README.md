@@ -133,8 +133,8 @@ Each of these measurement sets are bound to a specific file size. The engine fol
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
-| **bytes**: *number* | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits per second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). | - |
-| **count**: *number* | yes | The number of requests to perform for this file size. | - |
+| **bytes**: *number* | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits per second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). Durations are measured from the final response headers where the browser reports them (`finalResponseHeadersStart`), so interim `1xx` responses do not shorten them. | - |
+| **count**: *number* | yes | The number of requests to perform for this file size. A request whose reported duration is zero or negative has no measurable bandwidth: it still counts towards `count`, but is discarded from the results with a console warning, so a set can return fewer data points than requested. | - |
 | **bypassMinDuration**: *boolean* | no | Whether the `bandwidthMinRequestDuration` check should be ignored, and the engine is instructed to proceed with the measurements of this direction in any case. | `false` |
 
 #### packetLoss
