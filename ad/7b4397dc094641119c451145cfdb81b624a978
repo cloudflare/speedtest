@@ -1,0 +1,18 @@
+README.md
+  h_9a124c21cc9a2f 136
+src/engines/BandwidthEngine/BandwidthEngine.ts
+  h_9a124c21cc9a2f 56-70,72,74,76,616-619
+tests/unit/engines/unusableSamples.test.ts
+  h_9a124c21cc9a2f 3,30-44,48-49,92-121,177-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ad7b4397dc094641119c451145cfdb81b624a978",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
