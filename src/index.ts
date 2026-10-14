@@ -721,6 +721,16 @@ class MeasurementEngine {
           };
 
           engine.onConnectionError = (e: unknown, status?: number) => {
+            if (
+              typeof e === 'string' &&
+              e.includes('bandwidthAbortRequestDuration')
+            ) {
+              msmResults.error = e;
+              this.onResultsChange({ type });
+              this.#onError(e, status);
+              this.#running && this.#next();
+              return;
+            }
             msmResults.error = e;
             this.#failed = true;
             this.pause();
