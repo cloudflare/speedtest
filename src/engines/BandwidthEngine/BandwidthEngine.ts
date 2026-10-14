@@ -112,14 +112,17 @@ const calcUploadSpeed = (
 };
 
 /**
- * Whether a sample can be stored. Transfers need a finite speed, which is
- * missing when the browser reports a zero request duration. Latency samples
- * (zero bytes) only use `ping`, so they are always kept.
+ * Whether a sample can be stored. Transfers need a finite, positive speed,
+ * which is missing when the browser reports a zero or negative request
+ * duration. Latency samples (zero bytes) only use `ping`, so they are always
+ * kept.
  */
 export const hasUsableSpeed = (
   { bps }: Pick<BandwidthMeasurementTiming, 'bps'>,
   numBytes: number
-): boolean => +numBytes === 0 || Number.isFinite(bps);
+): boolean =>
+  +numBytes === 0 ||
+  (typeof bps === 'number' && Number.isFinite(bps) && bps > 0);
 
 const genContent = (() => {
   const cache = new Map<number, string>();

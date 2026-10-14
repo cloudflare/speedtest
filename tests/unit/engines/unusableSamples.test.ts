@@ -80,9 +80,12 @@ describe('hasUsableSpeed', () => {
     expect(hasUsableSpeed({ bps: 2.5e6 }, 1e5)).toBe(true);
   });
 
-  it.each([undefined, NaN, Infinity])('rejects transfers with bps %s', bps => {
-    expect(hasUsableSpeed({ bps }, 1e5)).toBe(false);
-  });
+  it.each([undefined, NaN, Infinity, 0, -2.5e6])(
+    'rejects transfers with bps %s',
+    bps => {
+      expect(hasUsableSpeed({ bps }, 1e5)).toBe(false);
+    }
+  );
 
   it('always keeps latency samples', () => {
     expect(hasUsableSpeed({ bps: undefined }, 0)).toBe(true);
@@ -191,5 +194,19 @@ describe('BandwidthEngine unusable samples', () => {
     const [timing] = results.up[1e5].timings;
     expect(timing.ttfb).toBe(300);
     expect(timing.bps).toBeCloseTo((8 * 1e5 * 1.005) / 0.3);
+  });
+
+  it('discards an upload with a negative duration', async () => {
+    const { results } = await run(
+      [{ dir: 'up', bytes: 1e5, count: 2 }],
+      [300, -5]
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(results.up[1e5].timings).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      'Discarding up sample without a speed',
+      expect.objectContaining({ ttfb: -5 })
+    );
   });
 });
