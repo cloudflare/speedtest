@@ -1,0 +1,22 @@
+.github/workflows/build.yml
+  h_9a124c21cc9a2f 16
+.nvmrc
+  h_9a124c21cc9a2f 1
+AGENTS.md
+  h_9a124c21cc9a2f 90
+README.md
+  h_9a124c21cc9a2f 49
+package.json
+  h_9a124c21cc9a2f 69-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fea6e125554b7e7a8e321ebdda4cb7393919e78f",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
