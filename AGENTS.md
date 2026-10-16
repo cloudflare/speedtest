@@ -87,7 +87,7 @@ re-indent every workflow.
 
 - PRs target `main`. Branch protection requires 1 approval and CI to pass.
 - CI runs install, build, then oxlint / format check / typecheck as separate
-  steps, on Node 22.x and 24.x.
+  steps, on Node 24.x and 26.x.
 - CI also runs unit tests (`pnpm test:unit`) and e2e tests (`pnpm test:e2e`).
 - Releases are **manual**, not automatic per PR:
   1. Go to **Actions > "Create Release PR"** > pick `patch`/`minor`/`major` > Run.
