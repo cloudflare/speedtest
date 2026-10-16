@@ -46,7 +46,7 @@ them.
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
 | **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
 | **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
-| **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.speed.cloudflare.com:50000` |
+| **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.cloudflare.com:3478` |
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
 | **turnServerPass**: *string* | The password for the TURN server credentials. | - |
