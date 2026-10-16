@@ -28,8 +28,9 @@ describe('authorizationToken', () => {
   it('never appears in any configured API URL', () => {
     const config = resolveConfig({
       authorizationToken: TOKEN,
-      // Null by default, so set it to cover every key in the list.
-      logMeasurementApiUrl: 'https://speed.cloudflare.com/__log'
+      // Null by default, so set them to cover every key in the list.
+      logMeasurementApiUrl: 'https://speed.cloudflare.com/__log',
+      turnServerCredsApiUrl: 'https://speed.example.com/turn-credentials'
     });
 
     for (const key of API_URL_KEYS) {
@@ -97,7 +98,8 @@ describe('authorizationToken', () => {
       const config = resolveConfig({
         authorizationToken: TOKEN,
         allowInsecureAuthorizationToken: true,
-        logMeasurementApiUrl: 'http://localhost:8787/__log'
+        logMeasurementApiUrl: 'http://localhost:8787/__log',
+        turnServerCredsApiUrl: 'http://localhost:8787/turn-credentials'
       });
 
       for (const key of API_URL_KEYS) {
@@ -107,10 +109,13 @@ describe('authorizationToken', () => {
   });
 
   it('leaves the non-HTTP endpoints untouched', () => {
-    const config = resolveConfig({ authorizationToken: TOKEN });
+    const config = resolveConfig({
+      authorizationToken: TOKEN,
+      turnServerUri: 'turn.cloudflare.com:3478'
+    });
 
     expect(config.rpkiInvalidHost).toBe('invalid.rpki.cloudflare.com');
-    expect(config.turnServerUri).toBe('turn.speed.cloudflare.com:50000');
+    expect(config.turnServerUri).toBe('turn.cloudflare.com:3478');
   });
 
   it('does not mutate the shared defaultConfig object', () => {

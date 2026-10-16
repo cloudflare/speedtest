@@ -46,8 +46,8 @@ them.
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
 | **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
 | **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
-| **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss. | `turn.cloudflare.com:3478` |
-| **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. | - | 
+| **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss, e.g. `turn.cloudflare.com:3478`. See [packetLoss](#packetloss). | `null` |
+| **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. See [packetLoss](#packetloss). | `null` |
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
 | **turnServerPass**: *string* | The password for the TURN server credentials. | - |
 | **authorizationToken**: *string* | 🧪 *Experimental.* An opaque token attributing the test to a registered customer, sent as an `Authorization: Bearer` header on the measurement, TURN credential and results-logging requests. Obtain it from your own backend — the engine never requests one itself. Requires `authorizationEnabled`; on its own it is never sent. Not sent over plain HTTP unless `allowInsecureAuthorizationToken` is set. | `null` |
@@ -105,7 +105,6 @@ The default set of measurements that is performed by the engine is:
   { type: 'download', bytes: 1e5, count: 9 },
   { type: 'download', bytes: 1e6, count: 8 },
   { type: 'upload', bytes: 1e5, count: 8 },
-  { type: 'packetLoss', numPackets: 1e3, responsesWaitTime: 3000 },
   { type: 'upload', bytes: 1e6, count: 6 },
   { type: 'download', bytes: 1e7, count: 6 },
   { type: 'upload', bytes: 1e7, count: 4 },
@@ -139,9 +138,25 @@ Each of these measurement sets are bound to a specific file size. The engine fol
 
 Packet loss is measured by submitting a set of UDP packets to a WebRTC TURN server in a round-trip fashion, and determining how many packets do not arrive. The submission of these packets can be done in a batching method, in which there's a sleep time in between batches.
 
-**Note:** You must provide your own TURN server configuration if you'd like to get packet loss results from this engine.
+Packet loss is opt-in: it is not part of the default measurements, and it needs your own TURN server configuration. To enable it, add a `packetLoss` measurement and either:
 
-Example code to enable this feature through a Cloudflare Worker, using a [Cloudflare Realtime TURN server](https://developers.cloudflare.com/realtime/turn/), is available at [example/turn-worker](example/turn-worker). Refer to the worker's [documentation](example/turn-worker/README.md) for setup and deployment instructions.
+- set `turnServerCredsApiUrl` to an endpoint you host that returns TURN credentials, plus `turnServerUri` (e.g. `turn.cloudflare.com:3478`) unless the endpoint also returns a `server` field, or
+- set `turnServerUri` together with your own `turnServerUser` and `turnServerPass`.
+
+```js
+new SpeedTest({
+  turnServerUri: 'turn.cloudflare.com:3478',
+  turnServerCredsApiUrl: 'https://turn.example.com/turn-credentials',
+  measurements: [
+    // ...
+    { type: 'packetLoss', numPackets: 1e3, responsesWaitTime: 3000 }
+  ]
+});
+```
+
+A `packetLoss` measurement without either option fails with an error, and the engine moves on to the next measurement.
+
+Example code to serve TURN credentials from a Cloudflare Worker, using a [Cloudflare Realtime TURN server](https://developers.cloudflare.com/realtime/turn/), is available at [example/turn-worker](example/turn-worker). Refer to the worker's [documentation](example/turn-worker/README.md) for setup and deployment instructions.
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
@@ -174,7 +189,7 @@ An instance object used to access the results of the speedtest measurements. The
 | **getPacketLoss()** | Returns the reduced value of the measured packet loss ratio (between 0 and 1). Requires a `packetLoss` measurement set. |
 | **getPacketLossDetails()** | Returns an object with the details of the packet loss measurement. Includes the following fields: `{ packetLoss, totalMessages, numMessagesSent, lostMessages }`. Requires a `packetLoss` measurement set. |
 | **getTotalDurationMs()** | Returns the total time (in milliseconds) the engine spent running, excluding any time spent paused. Only available after the engine has finished. |
-| **getScores()** | Returns the computed [AIM scores](https://developers.cloudflare.com/fundamentals/speed/aim/) that categorize the quality of the network connection according to use cases such as streaming, gaming or real-time communications. This score is only available after the engine has finished performing all of the measurements. |
+| **getScores()** | Returns the computed [AIM scores](https://developers.cloudflare.com/fundamentals/speed/aim/) that categorize the quality of the network connection according to use cases such as streaming, gaming or real-time communications. This score is only available after the engine has finished performing all of the measurements. Without a `packetLoss` measurement, packet loss counts as 0 points (the same as 5–25% loss), so scores come out lower. |
 
 [npm-img]: https://img.shields.io/npm/v/@cloudflare/speedtest
 [npm-url]: https://npmjs.org/package/@cloudflare/speedtest

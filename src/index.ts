@@ -438,9 +438,24 @@ class MeasurementEngine {
             turnServerPass,
             includeCredentials
           } = this.#config;
+
+          if (
+            !turnServerCredsApi &&
+            !(turnServerUri && turnServerUser && turnServerPass)
+          ) {
+            msmResults.started = true;
+            msmResults.error = 'no turn server configured';
+            this.onResultsChange({ type });
+            this.#onError(
+              'Error while measuring packet loss: no TURN server configured. Set turnServerCredsApiUrl, or turnServerUri with turnServerUser and turnServerPass.'
+            );
+            this.#next();
+            return;
+          }
+
           engine = new PacketLossEngine({
-            turnServerUri,
-            turnServerCredsApi,
+            turnServerUri: turnServerUri ?? undefined,
+            turnServerCredsApi: turnServerCredsApi ?? undefined,
             turnServerCredsApiIncludeCredentials: includeCredentials,
             turnServerUser: turnServerUser ?? undefined,
             turnServerPass: turnServerPass ?? undefined,
