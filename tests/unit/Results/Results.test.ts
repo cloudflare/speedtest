@@ -15,6 +15,10 @@ function createResults(configOverrides: Partial<ResultsConfig> = {}) {
   } as ResultsConfig);
 }
 
+const WITH_PACKET_LOSS: ResultsConfig['measurements'] = [
+  { type: 'packetLoss' }
+];
+
 describe('Results', () => {
   describe('constructor and clear', () => {
     it('initializes raw results with measurement types from config', () => {
@@ -22,13 +26,18 @@ describe('Results', () => {
       expect(results.raw).toHaveProperty('latency');
       expect(results.raw).toHaveProperty('download');
       expect(results.raw).toHaveProperty('upload');
-      expect(results.raw).toHaveProperty('packetLoss');
       expect(results.raw).toHaveProperty('totalDurationMs');
+      expect(results.raw).not.toHaveProperty('packetLoss');
+    });
+
+    it('initializes packet loss results only when configured', () => {
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
+      expect(results.raw).toHaveProperty('packetLoss');
     });
 
     it('marks all measurements as not started and not finished', () => {
       const results = createResults();
-      for (const key of ['latency', 'download', 'upload', 'packetLoss']) {
+      for (const key of ['latency', 'download', 'upload']) {
         const entry = results.raw[key] as RawMeasurementEntry;
         expect(entry.started).toBe(false);
         expect(entry.finished).toBe(false);
@@ -137,7 +146,7 @@ describe('Results', () => {
     });
 
     it('returns packet loss details with error when error exists', () => {
-      const results = createResults();
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
       const packetLoss = results.raw.packetLoss as RawMeasurementEntry;
       packetLoss.started = true;
       packetLoss.error = 'Connection failed';

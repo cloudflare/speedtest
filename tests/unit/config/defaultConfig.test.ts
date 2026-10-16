@@ -13,9 +13,6 @@ describe('defaultConfig', () => {
     expect(defaultConfig.uploadApiUrl).toBe(
       'https://speed.cloudflare.com/__up'
     );
-    expect(defaultConfig.turnServerCredsApiUrl).toBe(
-      'https://speed.cloudflare.com/turn-creds'
-    );
   });
 
   it('has a measurements array with expected types', () => {
@@ -26,7 +23,13 @@ describe('defaultConfig', () => {
     expect(types).toContain('latency');
     expect(types).toContain('download');
     expect(types).toContain('upload');
-    expect(types).toContain('packetLoss');
+  });
+
+  it('leaves packet loss opt-in, with no default TURN server', () => {
+    const types = defaultConfig.measurements.map(m => m.type);
+    expect(types).not.toContain('packetLoss');
+    expect(defaultConfig.turnServerUri).toBeNull();
+    expect(defaultConfig.turnServerCredsApiUrl).toBeNull();
   });
 
   it('has valid percentile values between 0 and 1', () => {

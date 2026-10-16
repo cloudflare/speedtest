@@ -53,10 +53,13 @@ export interface Config {
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
   logAimApiUrl: string | null;
-  /** TURN server URI for packet loss measurement. Default: `turn.speed.cloudflare.com:50000`. */
-  turnServerUri: string;
-  /** URL for fetching TURN server credentials. */
-  turnServerCredsApiUrl: string;
+  /**
+   * TURN server URI for packet loss measurement, e.g. `turn.cloudflare.com:3478`.
+   * Default: `null`, so a `packetLoss` measurement needs your own TURN setup.
+   */
+  turnServerUri: string | null;
+  /** URL for fetching TURN server credentials. Default: `null`. */
+  turnServerCredsApiUrl: string | null;
   /** Static TURN username override. Set to `null` to fetch credentials dynamically. */
   turnServerUser: string | null;
   /** Static TURN password override. Set to `null` to fetch credentials dynamically. */
@@ -164,8 +167,8 @@ const defaultConfig: Config = {
   uploadApiUrl: `${REL_API_URL}/__up`,
   logMeasurementApiUrl: null,
   logAimApiUrl: `${REL_API_URL}/__results`,
-  turnServerUri: 'turn.speed.cloudflare.com:50000',
-  turnServerCredsApiUrl: `${REL_API_URL}/turn-creds`,
+  turnServerUri: null,
+  turnServerCredsApiUrl: null,
   turnServerUser: null,
   turnServerPass: null,
   rpkiInvalidHost: 'invalid.rpki.cloudflare.com',
@@ -186,13 +189,6 @@ const defaultConfig: Config = {
     { type: 'latency', numPackets: 2 },
     { type: 'upload', bytes: 1e5, count: 8 },
     { type: 'latency', numPackets: 2 },
-    {
-      type: 'packetLoss',
-      numPackets: 1e3,
-      batchSize: 10,
-      batchWaitTime: 10, // ms (in between batches)
-      responsesWaitTime: 3000 // ms (silent time after last sent msg)
-    },
     { type: 'upload', bytes: 1e6, count: 6 },
     { type: 'latency', numPackets: 2 },
     { type: 'download', bytes: 1e7, count: 6 },
