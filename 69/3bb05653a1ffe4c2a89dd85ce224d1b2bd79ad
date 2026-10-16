@@ -1,0 +1,28 @@
+README.md
+  h_9a124c21cc9a2f 49-50,141,143-159,192
+example/turn-worker/README.md
+  h_9a124c21cc9a2f 37
+src/config/defaultConfig.ts
+  h_9a124c21cc9a2f 56-62,170-171
+src/index.ts
+  h_9a124c21cc9a2f 441-455,457-458
+tests/unit/Results/Results.test.ts
+  h_9a124c21cc9a2f 18-21,30-35,40,149
+tests/unit/config/authorizationToken.test.ts
+  h_9a124c21cc9a2f 31-33,101-102,112-115,118
+tests/unit/config/defaultConfig.test.ts
+  h_9a124c21cc9a2f 26-32
+tests/unit/engines/packetLossConfig.test.ts
+  h_9a124c21cc9a2f 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "693bb05653a1ffe4c2a89dd85ce224d1b2bd79ad",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
