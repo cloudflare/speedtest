@@ -54,7 +54,7 @@
     "dist/**/*"
   ],
   "devDependencies": {
-    "@vitest/browser-playwright": "^4.1.7",
+    "@vitest/browser-playwright": "^4.1.11",
     "husky": "^9.1.7",
     "lint-staged": "^16.0.0",
     "oxfmt": "^0.64.0",
@@ -63,7 +63,7 @@
     "tsdown": "^0.22.1",
     "typescript": "^5.8.3",
     "vite": "^8.0.16",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=18"

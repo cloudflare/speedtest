@@ -11,8 +11,6 @@ The network connection is characterized by items such as download/upload bandwid
 
 Please note that measurement results are collected by Cloudflare on completion for the purpose of calculating aggregated insights regarding Internet connection quality.
 
-**Warning:** The public TURN server for Packet Loss testing is deprecated and will be discontinued soon. Read the [packetLoss](#packetloss) section for more information.
-
 ## Installation
 
 Add this package to your `package.json` by running this in the root of your project's directory:
