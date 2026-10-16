@@ -12,12 +12,14 @@ Read the Cloudflare Realtime [TURN FAQ](https://developers.cloudflare.com/realti
 
 1. In the Cloudflare Dashboard, select `Realtime` from the sidebar, then inside `TURN Server` click `Create`.
 2. Select a name for your server, and press `Create`
-3. To use these tokens while developing locally, edit the `.dev.vars` file at the root of this directory, setting:
+3. To use these tokens while developing locally, copy `.dev.vars.example` to `.dev.vars` at the root of this directory, setting:
    1. `REALTIME_TURN_TOKEN_ID` to the returned _Turn Token ID_
    2. `REALTIME_TURN_TOKEN_SECRET` to the returned _API Token_.
 4. To add these secrets to your remote worker:
    1. Run `npm exec wrangler secret put REALTIME_TURN_TOKEN_ID` and provide the _Turn Token ID_
    2. Run `npm exec wrangler secret put REALTIME_TURN_TOKEN_SECRET` and provide the _API Token_
+
+Both secrets are declared under `secrets.required` in `wrangler.jsonc`, so Wrangler checks they are set before running or deploying the worker.
 
 ### Setting routes and allowed origins
 
@@ -34,7 +36,7 @@ Run `npm run deploy` and follow the instructions.
 
 When instantiating the measurement engine, set the `turnServerCredsApiUrl` option to `https://<your-worker-domain>/turn-credentials`.
 
-For local development, run `npm run start` and set `turnServerCredsApiUrl` to `http://localhost:8787`
+For local development, run `npm run start` and set `turnServerCredsApiUrl` to `http://localhost:8787/turn-credentials`
 
 ### More information
 

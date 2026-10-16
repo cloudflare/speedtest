@@ -45,28 +45,28 @@
   },
   "lint-staged": {
     "*.{ts,mts,cts,js,mjs,cjs}": [
-      "oxlint --fix",
-      "oxfmt"
+      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxfmt --no-error-on-unmatched-pattern"
     ],
-    "*.{json,jsonc}": "oxfmt"
+    "*.{json,jsonc}": "oxfmt --no-error-on-unmatched-pattern"
   },
   "files": [
     "dist/**/*"
   ],
   "devDependencies": {
-    "@vitest/browser-playwright": "^4.1.11",
+    "@vitest/browser-playwright": "^5.0.5",
     "husky": "^9.1.7",
-    "lint-staged": "^16.0.0",
-    "oxfmt": "^0.64.0",
-    "oxlint": "^1.79.0",
-    "playwright": "^1.60.0",
-    "tsdown": "^0.22.1",
-    "typescript": "^5.8.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.11"
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.73.0",
+    "oxlint": "^1.88.0",
+    "playwright": "^1.64.1",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12"
   },
   "packageManager": "pnpm@11.4.0"
 }
