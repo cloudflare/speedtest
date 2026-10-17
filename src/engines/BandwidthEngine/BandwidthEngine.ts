@@ -465,7 +465,6 @@ class BandwidthMeasurementEngine implements Engine {
           const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
           this.#retries = 0;
           this.pause();
-          this.#failed = true;
           this.#onConnectionError(errorMessage);
         }, this.abortRequestDuration);
         this.#currentAbortController.signal.addEventListener('abort', () =>
