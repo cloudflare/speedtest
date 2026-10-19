@@ -1,0 +1,22 @@
+README.md
+  h_9a124c21cc9a2f 192
+src/Results/ScoresCalculations.ts
+  h_9a124c21cc9a2f 116-117,120,123,145-151
+src/Results/index.ts
+  h_9a124c21cc9a2f 206-207,209-213
+tests/unit/Results/Results.test.ts
+  h_9a124c21cc9a2f 1,9,220-241
+tests/unit/Results/ScoresCalculations.test.ts
+  h_9a124c21cc9a2f 108-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7714415e878b8c13dee25de05d1bed1e016a1cbe",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
