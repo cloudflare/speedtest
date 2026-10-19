@@ -6,7 +6,6 @@ import type {
 } from '../../../src/Results/index.ts';
 import defaultConfig from '../../../src/config/defaultConfig.ts';
 import internalConfig from '../../../src/config/internalConfig.ts';
-import ScoresCalculations from '../../../src/Results/ScoresCalculations.ts';
 
 function createResults(configOverrides: Partial<ResultsConfig> = {}) {
   return new Results({
@@ -219,24 +218,46 @@ describe('Results', () => {
   });
 
   describe('getScores packet loss handling', () => {
+    // 20 (latency) + 30 (download) + 20 (loadedLatencyIncrease) for streaming
+    const SUMMARY = {
+      latency: 5,
+      jitter: 5,
+      download: 100e6,
+      downLoadedLatency: 10,
+      upLoadedLatency: 8
+    };
+
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    it('leaves packet loss out when it is not configured', () => {
-      const spy = vi.spyOn(ScoresCalculations.prototype, 'getScores');
-      createResults().getScores();
-      expect(spy).toHaveBeenCalledWith(expect.anything(), ['packetLoss']);
+    it('counts a measured packet loss', () => {
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
+      vi.spyOn(results, 'getSummary').mockReturnValue({
+        ...SUMMARY,
+        packetLoss: 0 // 10 points
+      });
+
+      expect(results.getScores().streaming.points).toBe(80);
     });
 
-    it('keeps a failed packet loss measurement in the scores', () => {
-      const spy = vi.spyOn(ScoresCalculations.prototype, 'getScores');
+    it('scores every experience without packet loss when it is not configured', () => {
+      const results = createResults();
+      vi.spyOn(results, 'getSummary').mockReturnValue(SUMMARY);
+
+      const scores = results.getScores();
+      expect(Object.keys(scores)).toEqual(['streaming', 'gaming', 'rtc']);
+      expect(scores.streaming.points).toBe(70);
+    });
+
+    it('scores a failed packet loss measurement as 0 points', () => {
       const results = createResults({ measurements: WITH_PACKET_LOSS });
       const packetLoss = results.raw.packetLoss as RawMeasurementEntry;
       packetLoss.started = true;
       packetLoss.error = 'Connection failed';
-      results.getScores();
-      expect(spy).toHaveBeenCalledWith(expect.anything(), []);
+      vi.spyOn(results, 'getSummary').mockReturnValue(SUMMARY);
+
+      expect(results.getScores().streaming.points).toBe(70);
     });
   });
 });

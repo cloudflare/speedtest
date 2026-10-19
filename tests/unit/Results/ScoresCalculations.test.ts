@@ -112,6 +112,7 @@ describe('ScoresCalculations', () => {
         {
           latency: 5, // 20 points
           jitter: 5, // 10 points
+          packetLoss: 0, // 10 points, unless omitted
           download: 100e6, // 30 points
           downLoadedLatency: 10, // loadedLatencyIncrease = 5 => 20 points
           upLoadedLatency: 8
