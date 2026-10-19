@@ -444,6 +444,7 @@ class MeasurementEngine {
             !(turnServerUri && turnServerUser && turnServerPass)
           ) {
             msmResults.started = true;
+            msmResults.finished = true;
             msmResults.error = 'no turn server configured';
             this.onResultsChange({ type });
             this.#onError(

@@ -71,5 +71,6 @@ describe('SpeedTest packetLoss without a TURN server', () => {
       error: 'no turn server configured'
     });
     expect(finished.getUploadBandwidthPoints()).toHaveLength(1);
+    expect(finished.isFinished).toBe(true);
   });
 });
