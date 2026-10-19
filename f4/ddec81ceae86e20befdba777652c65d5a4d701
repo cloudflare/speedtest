@@ -1,0 +1,16 @@
+tests/unit/packetLossConfig.test.ts
+  h_9a124c21cc9a2f 2-3
+tests/unit/unusableSamplesOrchestration.test.ts
+  h_9a124c21cc9a2f 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f4ddec81ceae86e20befdba777652c65d5a4d701",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
