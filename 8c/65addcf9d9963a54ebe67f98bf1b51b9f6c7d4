@@ -1,0 +1,14 @@
+tests/unit/engines/packetLossConfig.test.ts
+  h_9a124c21cc9a2f 3,17-47,74-75,86-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c65addcf9d9963a54ebe67f98bf1b51b9f6c7d4",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
