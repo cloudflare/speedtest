@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import SpeedTest from '../../../src';
-import type { ConfigOptions } from '../../../src/config/defaultConfig.ts';
+import SpeedTest from '../../src';
+import type { ConfigOptions } from '../../src/config/defaultConfig.ts';
 
 const perfEntry = () => ({
   startTime: 0,

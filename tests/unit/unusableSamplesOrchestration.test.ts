@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import SpeedTest from '../../../src';
+import SpeedTest from '../../src';
 
 /**
  * The orchestrator runs one bandwidth engine per size and decides from the
