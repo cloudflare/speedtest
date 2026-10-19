@@ -1,0 +1,16 @@
+tests/unit/Results/Results.test.ts
+  h_9a124c21cc9a2f 221-229,234-250,253,258-260
+tests/unit/Results/ScoresCalculations.test.ts
+  h_9a124c21cc9a2f 115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "03d57a39f6d92ec64e581f28b9d67b24c4aa16b8",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
