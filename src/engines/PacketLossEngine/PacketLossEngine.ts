@@ -69,11 +69,13 @@ export default class PacketLossEngine implements Engine {
     connectionTimeout = 5000 // ms
   }: PacketLossEngineOptions = {}) {
     if (!turnServerUri && !turnServerCredsApi)
-      throw new Error('Missing turnServerCredsApi or turnServerUri argument');
+      throw new Error(
+        'No TURN server configured: set turnServerCredsApiUrl or turnServerUri'
+      );
 
     if ((!turnServerUser || !turnServerPass) && !turnServerCredsApi)
       throw new Error(
-        'Missing either turnServerCredsApi or turnServerUser+turnServerPass arguments'
+        'No TURN credentials configured: set turnServerCredsApiUrl, or turnServerUser and turnServerPass'
       );
 
     this.#numMsgs = numMsgs;

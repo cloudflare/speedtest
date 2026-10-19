@@ -15,9 +15,10 @@ const perfEntry = () => ({
 });
 
 const CREDS_API_URL = 'https://turn.example.com/turn-credentials';
-const MISSING_SERVER = 'Missing turnServerCredsApi or turnServerUri argument';
+const MISSING_SERVER =
+  'No TURN server configured: set turnServerCredsApiUrl or turnServerUri';
 const MISSING_CREDENTIALS =
-  'Missing either turnServerCredsApi or turnServerUser+turnServerPass arguments';
+  'No TURN credentials configured: set turnServerCredsApiUrl, or turnServerUser and turnServerPass';
 
 /** Runs a packet loss measurement followed by an upload, until finished. */
 async function runPacketLoss(config: ConfigOptions = {}) {
@@ -114,15 +115,16 @@ describe('SpeedTest packetLoss TURN config', () => {
       error: 'unable to get turn server credentials'
     });
     expect(onError).not.toHaveBeenCalledWith(
-      expect.stringContaining('Missing')
+      expect.stringContaining('configured')
     );
+    expect(finished.isFinished).toBe(true);
   });
 
   it('fails early when no TURN server URI is available', async () => {
     vi.mocked(fetch).mockImplementation(async () =>
       Response.json({ username: 'user', credential: 'pass' })
     );
-    const { onError } = await runPacketLoss({
+    const { finished, onError } = await runPacketLoss({
       turnServerCredsApiUrl: CREDS_API_URL,
       measurements: [
         {
@@ -137,6 +139,31 @@ describe('SpeedTest packetLoss TURN config', () => {
 
     expect(onError).toHaveBeenCalledWith(
       expect.stringContaining('No TURN server URI')
+    );
+    expect(finished.isFinished).toBe(true);
+  });
+
+  it('reports a setup error after construction with autoStart', async () => {
+    const engine = new SpeedTest({
+      logAimApiUrl: null,
+      measurements: [
+        {
+          type: 'packetLoss',
+          numPackets: 10,
+          batchSize: 10,
+          batchWaitTime: 10,
+          responsesWaitTime: 100
+        }
+      ]
+    });
+    const onError = vi.fn();
+    engine.onError = onError;
+    await new Promise(resolve => {
+      engine.onFinish = resolve;
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      `Error while measuring packet loss: ${MISSING_SERVER}`
     );
   });
 });
