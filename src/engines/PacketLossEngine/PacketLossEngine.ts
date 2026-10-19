@@ -110,10 +110,18 @@ export default class PacketLossEngine implements Engine {
           turnServerUri: credsApiTurnServerUri
         } = creds;
 
+        const uri = credsApiTurnServerUri || turnServerUri;
+        if (!uri) {
+          this.#onConnectionError(
+            'No TURN server URI: set turnServerUri or return server from the credentials API'
+          );
+          return;
+        }
+
         const c = new SelfWebRtcDataConnection({
           iceServers: [
             {
-              urls: `turn:${credsApiTurnServerUri || turnServerUri}?transport=udp`,
+              urls: `turn:${uri}?transport=udp`,
               username: credsUser,
               credential: credsPass
             }

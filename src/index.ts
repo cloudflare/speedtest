@@ -439,42 +439,38 @@ class MeasurementEngine {
             includeCredentials
           } = this.#config;
 
-          if (
-            !turnServerCredsApi &&
-            !(turnServerUri && turnServerUser && turnServerPass)
-          ) {
+          try {
+            engine = new PacketLossEngine({
+              turnServerUri: turnServerUri ?? undefined,
+              turnServerCredsApi: turnServerCredsApi ?? undefined,
+              turnServerCredsApiIncludeCredentials: includeCredentials,
+              turnServerUser: turnServerUser ?? undefined,
+              turnServerPass: turnServerPass ?? undefined,
+              authorization: this.authorization,
+              numMsgs,
+
+              // if under load
+              downloadChunkSize: msmConfig.loadDown
+                ? this.#optimalDownloadChunkSize
+                : undefined,
+              uploadChunkSize: msmConfig.loadUp
+                ? this.#optimalUploadChunkSize
+                : undefined,
+              downloadApiUrl,
+              uploadApiUrl,
+
+              ...ptCfg
+            }) as Engine;
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
             msmResults.started = true;
             msmResults.finished = true;
-            msmResults.error = 'no turn server configured';
+            msmResults.error = message;
             this.onResultsChange({ type });
-            this.#onError(
-              'Error while measuring packet loss: no TURN server configured. Set turnServerCredsApiUrl, or turnServerUri with turnServerUser and turnServerPass.'
-            );
+            this.#onError(`Error while measuring packet loss: ${message}`);
             this.#next();
             return;
           }
-
-          engine = new PacketLossEngine({
-            turnServerUri: turnServerUri ?? undefined,
-            turnServerCredsApi: turnServerCredsApi ?? undefined,
-            turnServerCredsApiIncludeCredentials: includeCredentials,
-            turnServerUser: turnServerUser ?? undefined,
-            turnServerPass: turnServerPass ?? undefined,
-            authorization: this.authorization,
-            numMsgs,
-
-            // if under load
-            downloadChunkSize: msmConfig.loadDown
-              ? this.#optimalDownloadChunkSize
-              : undefined,
-            uploadChunkSize: msmConfig.loadUp
-              ? this.#optimalUploadChunkSize
-              : undefined,
-            downloadApiUrl,
-            uploadApiUrl,
-
-            ...ptCfg
-          }) as Engine;
         }
 
         engine!.onMsgReceived = () => {

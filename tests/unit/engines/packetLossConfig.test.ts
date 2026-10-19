@@ -15,6 +15,9 @@ const perfEntry = () => ({
 });
 
 const CREDS_API_URL = 'https://turn.example.com/turn-credentials';
+const MISSING_SERVER = 'Missing turnServerCredsApi or turnServerUri argument';
+const MISSING_CREDENTIALS =
+  'Missing either turnServerCredsApi or turnServerUser+turnServerPass arguments';
 
 /** Runs a packet loss measurement followed by an upload, until finished. */
 async function runPacketLoss(config: ConfigOptions = {}) {
@@ -75,11 +78,9 @@ describe('SpeedTest packetLoss TURN config', () => {
     const { finished, onError } = await runPacketLoss();
 
     expect(onError).toHaveBeenCalledWith(
-      expect.stringContaining('no TURN server configured')
+      `Error while measuring packet loss: ${MISSING_SERVER}`
     );
-    expect(finished.getPacketLossDetails()).toEqual({
-      error: 'no turn server configured'
-    });
+    expect(finished.getPacketLossDetails()).toEqual({ error: MISSING_SERVER });
     expect(finished.getUploadBandwidthPoints()).toHaveLength(1);
     expect(finished.isFinished).toBe(true);
   });
@@ -93,11 +94,11 @@ describe('SpeedTest packetLoss TURN config', () => {
       'a URI with only a username',
       { turnServerUri: 'turn.cloudflare.com:3478', turnServerUser: 'user' }
     ]
-  ])('treats %s as unconfigured', async (_, config) => {
+  ])('rejects %s', async (_, config) => {
     const { finished } = await runPacketLoss(config);
 
     expect(finished.getPacketLossDetails()).toEqual({
-      error: 'no turn server configured'
+      error: MISSING_CREDENTIALS
     });
     expect(finished.getUploadBandwidthPoints()).toHaveLength(1);
   });
@@ -113,7 +114,29 @@ describe('SpeedTest packetLoss TURN config', () => {
       error: 'unable to get turn server credentials'
     });
     expect(onError).not.toHaveBeenCalledWith(
-      expect.stringContaining('no TURN server configured')
+      expect.stringContaining('Missing')
+    );
+  });
+
+  it('fails early when no TURN server URI is available', async () => {
+    vi.mocked(fetch).mockImplementation(async () =>
+      Response.json({ username: 'user', credential: 'pass' })
+    );
+    const { onError } = await runPacketLoss({
+      turnServerCredsApiUrl: CREDS_API_URL,
+      measurements: [
+        {
+          type: 'packetLoss',
+          numPackets: 10,
+          batchSize: 10,
+          batchWaitTime: 10,
+          responsesWaitTime: 100
+        }
+      ]
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.stringContaining('No TURN server URI')
     );
   });
 });
