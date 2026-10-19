@@ -105,5 +105,23 @@ describe('ScoresCalculations', () => {
       // + download (30) + loadedLatencyIncrease (10-5=5 => 20 points)
       expect(scores.streaming).toBeDefined();
     });
+
+    it('leaves omitted packetLoss out of every experience', () => {
+      const calc = createScoresCalc();
+      const scores = calc.getScores(
+        {
+          latency: 5, // 20 points
+          jitter: 5, // 10 points
+          download: 100e6, // 30 points
+          downLoadedLatency: 10, // loadedLatencyIncrease = 5 => 20 points
+          upLoadedLatency: 8
+        },
+        ['packetLoss']
+      );
+
+      expect(scores.streaming.points).toBe(70);
+      expect(scores.gaming.points).toBe(40);
+      expect(scores.rtc.points).toBe(50);
+    });
   });
 });

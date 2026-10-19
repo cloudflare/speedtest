@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import Results from '../../../src/Results/index.ts';
 import type {
   RawMeasurementEntry,
@@ -6,6 +6,7 @@ import type {
 } from '../../../src/Results/index.ts';
 import defaultConfig from '../../../src/config/defaultConfig.ts';
 import internalConfig from '../../../src/config/internalConfig.ts';
+import ScoresCalculations from '../../../src/Results/ScoresCalculations.ts';
 
 function createResults(configOverrides: Partial<ResultsConfig> = {}) {
   return new Results({
@@ -214,6 +215,28 @@ describe('Results', () => {
 
       const scores = results.getScores();
       expect(typeof scores).toBe('object');
+    });
+  });
+
+  describe('getScores packet loss handling', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('leaves packet loss out when it is not configured', () => {
+      const spy = vi.spyOn(ScoresCalculations.prototype, 'getScores');
+      createResults().getScores();
+      expect(spy).toHaveBeenCalledWith(expect.anything(), ['packetLoss']);
+    });
+
+    it('keeps a failed packet loss measurement in the scores', () => {
+      const spy = vi.spyOn(ScoresCalculations.prototype, 'getScores');
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
+      const packetLoss = results.raw.packetLoss as RawMeasurementEntry;
+      packetLoss.started = true;
+      packetLoss.error = 'Connection failed';
+      results.getScores();
+      expect(spy).toHaveBeenCalledWith(expect.anything(), []);
     });
   });
 });

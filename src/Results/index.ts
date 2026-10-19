@@ -203,9 +203,14 @@ class Results {
   /**
    * Computes AIM experience scores (streaming, gaming, rtc) from the current
    * measurement summary. Each score includes a point total, classification
-   * index (0–4), and classification name (bad → great).
+   * index (0–4), and classification name (bad → great). Packet loss is left
+   * out when no `packetLoss` measurement is configured.
    */
-  getScores = (): Scores => this.#scoresCalc.getScores(this.getSummary());
+  getScores = (): Scores =>
+    this.#scoresCalc.getScores(
+      this.getSummary(),
+      this.raw.packetLoss ? [] : ['packetLoss']
+    );
 
   // Internal state
   #config: ResultsConfig;
