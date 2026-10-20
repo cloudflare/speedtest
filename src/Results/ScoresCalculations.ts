@@ -113,12 +113,14 @@ class ScoresCalculations {
    *    via the experience's `pointThresholds`.
    *
    * Experiences are omitted from the result if any of their required
-   * input metrics are not yet available.
+   * input metrics are not yet available. A missing packet loss value counts
+   * as 0 points (e.g. a failed measurement), unless it is listed in `omit`.
    *
    * @param measurements - Flat summary from {@link Results.getSummary}.
+   * @param omit - Metrics that were not measured, left out of every experience's inputs.
    * @returns Map of experience names to their score, classification index, and classification name.
    */
-  getScores(measurements: MeasurementSummary): Scores {
+  getScores(measurements: MeasurementSummary, omit: string[] = []): Scores {
     const scores: Record<string, number> = Object.assign(
       {} as Record<string, number>,
       ...Object.entries(this.#config.aimMeasurementScoring).map(
@@ -140,6 +142,13 @@ class ScoresCalculations {
     return Object.assign(
       {} as Scores,
       ...Object.entries(this.#config.aimExperiencesDefs)
+        .map(
+          ([k, { input, pointThresholds }]) =>
+            [
+              k,
+              { input: input.filter(m => !omit.includes(m)), pointThresholds }
+            ] as const
+        )
         .filter(([, { input }]) => input.every(k => scores.hasOwnProperty(k)))
         .map(([k, { input, pointThresholds }]) => {
           const sumPoints = Math.max(0, sum(input.map(k => scores[k])));

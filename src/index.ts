@@ -438,27 +438,44 @@ class MeasurementEngine {
             turnServerPass,
             includeCredentials
           } = this.#config;
-          engine = new PacketLossEngine({
-            turnServerUri,
-            turnServerCredsApi,
-            turnServerCredsApiIncludeCredentials: includeCredentials,
-            turnServerUser: turnServerUser ?? undefined,
-            turnServerPass: turnServerPass ?? undefined,
-            authorization: this.authorization,
-            numMsgs,
 
-            // if under load
-            downloadChunkSize: msmConfig.loadDown
-              ? this.#optimalDownloadChunkSize
-              : undefined,
-            uploadChunkSize: msmConfig.loadUp
-              ? this.#optimalUploadChunkSize
-              : undefined,
-            downloadApiUrl,
-            uploadApiUrl,
+          try {
+            engine = new PacketLossEngine({
+              turnServerUri: turnServerUri ?? undefined,
+              turnServerCredsApi: turnServerCredsApi ?? undefined,
+              turnServerCredsApiIncludeCredentials: includeCredentials,
+              turnServerUser: turnServerUser ?? undefined,
+              turnServerPass: turnServerPass ?? undefined,
+              authorization: this.authorization,
+              numMsgs,
 
-            ...ptCfg
-          }) as Engine;
+              // if under load
+              downloadChunkSize: msmConfig.loadDown
+                ? this.#optimalDownloadChunkSize
+                : undefined,
+              uploadChunkSize: msmConfig.loadUp
+                ? this.#optimalUploadChunkSize
+                : undefined,
+              downloadApiUrl,
+              uploadApiUrl,
+
+              ...ptCfg
+            }) as Engine;
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            const measurementId = this.#measurementId;
+            // Deferred so that, with autoStart, the caller can set onError first
+            queueMicrotask(() => {
+              if (measurementId !== this.#measurementId) return; // restarted since
+              msmResults.started = true;
+              msmResults.finished = true;
+              msmResults.error = message;
+              this.onResultsChange({ type });
+              this.#onError(`Error while measuring packet loss: ${message}`);
+              this.#running && this.#next();
+            });
+            return;
+          }
         }
 
         engine!.onMsgReceived = () => {
@@ -476,6 +493,7 @@ class MeasurementEngine {
         };
 
         engine!.onConnectionError = (e: unknown) => {
+          msmResults.finished = true;
           msmResults.error = e;
           this.onResultsChange({ type });
           this.#onError(`Connection error while measuring packet loss: ${e}`);
@@ -483,6 +501,7 @@ class MeasurementEngine {
         };
 
         engine!.onCredentialsFailure = () => {
+          msmResults.finished = true;
           msmResults.error = 'unable to get turn server credentials';
           this.onResultsChange({ type });
           this.#onError(

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import Results from '../../../src/Results/index.ts';
 import type {
   RawMeasurementEntry,
@@ -15,6 +15,10 @@ function createResults(configOverrides: Partial<ResultsConfig> = {}) {
   } as ResultsConfig);
 }
 
+const WITH_PACKET_LOSS: ResultsConfig['measurements'] = [
+  { type: 'packetLoss' }
+];
+
 describe('Results', () => {
   describe('constructor and clear', () => {
     it('initializes raw results with measurement types from config', () => {
@@ -22,13 +26,18 @@ describe('Results', () => {
       expect(results.raw).toHaveProperty('latency');
       expect(results.raw).toHaveProperty('download');
       expect(results.raw).toHaveProperty('upload');
-      expect(results.raw).toHaveProperty('packetLoss');
       expect(results.raw).toHaveProperty('totalDurationMs');
+      expect(results.raw).not.toHaveProperty('packetLoss');
+    });
+
+    it('initializes packet loss results only when configured', () => {
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
+      expect(results.raw).toHaveProperty('packetLoss');
     });
 
     it('marks all measurements as not started and not finished', () => {
       const results = createResults();
-      for (const key of ['latency', 'download', 'upload', 'packetLoss']) {
+      for (const key of ['latency', 'download', 'upload']) {
         const entry = results.raw[key] as RawMeasurementEntry;
         expect(entry.started).toBe(false);
         expect(entry.finished).toBe(false);
@@ -137,7 +146,7 @@ describe('Results', () => {
     });
 
     it('returns packet loss details with error when error exists', () => {
-      const results = createResults();
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
       const packetLoss = results.raw.packetLoss as RawMeasurementEntry;
       packetLoss.started = true;
       packetLoss.error = 'Connection failed';
@@ -205,6 +214,50 @@ describe('Results', () => {
 
       const scores = results.getScores();
       expect(typeof scores).toBe('object');
+    });
+  });
+
+  describe('getScores packet loss handling', () => {
+    // 20 (latency) + 30 (download) + 20 (loadedLatencyIncrease) for streaming
+    const SUMMARY = {
+      latency: 5,
+      jitter: 5,
+      download: 100e6,
+      downLoadedLatency: 10,
+      upLoadedLatency: 8
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('counts a measured packet loss', () => {
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
+      vi.spyOn(results, 'getSummary').mockReturnValue({
+        ...SUMMARY,
+        packetLoss: 0 // 10 points
+      });
+
+      expect(results.getScores().streaming.points).toBe(80);
+    });
+
+    it('scores every experience without packet loss when it is not configured', () => {
+      const results = createResults();
+      vi.spyOn(results, 'getSummary').mockReturnValue(SUMMARY);
+
+      const scores = results.getScores();
+      expect(Object.keys(scores)).toEqual(['streaming', 'gaming', 'rtc']);
+      expect(scores.streaming.points).toBe(70);
+    });
+
+    it('scores a failed packet loss measurement as 0 points', () => {
+      const results = createResults({ measurements: WITH_PACKET_LOSS });
+      const packetLoss = results.raw.packetLoss as RawMeasurementEntry;
+      packetLoss.started = true;
+      packetLoss.error = 'Connection failed';
+      vi.spyOn(results, 'getSummary').mockReturnValue(SUMMARY);
+
+      expect(results.getScores().streaming.points).toBe(70);
     });
   });
 });

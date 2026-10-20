@@ -34,9 +34,9 @@ Run `npm run deploy` and follow the instructions.
 
 ### Configuring the measurement engine
 
-When instantiating the measurement engine, set the `turnServerCredsApiUrl` option to `https://<your-worker-domain>/turn-credentials`.
+When instantiating the measurement engine, set the `turnServerCredsApiUrl` option to `https://<your-worker-domain>/turn-credentials` and `turnServerUri` to `turn.cloudflare.com:3478`, and add a `packetLoss` measurement (it is not part of the defaults).
 
-For local development, run `npm run start` and set `turnServerCredsApiUrl` to `http://localhost:8787/turn-credentials`
+For local development, run `npm run start` and set `turnServerCredsApiUrl` to `http://localhost:8787/turn-credentials`, keeping `turnServerUri` set to `turn.cloudflare.com:3478`.
 
 ### More information
 
