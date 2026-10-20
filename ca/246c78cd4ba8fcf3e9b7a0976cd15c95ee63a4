@@ -1,0 +1,16 @@
+src/index.ts
+  h_9a124c21cc9a2f 466,469
+tests/unit/packetLossConfig.test.ts
+  h_9a124c21cc9a2f 146-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ca246c78cd4ba8fcf3e9b7a0976cd15c95ee63a4",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
