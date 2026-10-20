@@ -463,8 +463,10 @@ class MeasurementEngine {
             }) as Engine;
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
+            const measurementId = this.#measurementId;
             // Deferred so that, with autoStart, the caller can set onError first
             queueMicrotask(() => {
+              if (measurementId !== this.#measurementId) return; // restarted since
               msmResults.started = true;
               msmResults.finished = true;
               msmResults.error = message;

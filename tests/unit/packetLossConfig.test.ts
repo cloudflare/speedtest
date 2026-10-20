@@ -143,6 +143,35 @@ describe('SpeedTest packetLoss TURN config', () => {
     expect(finished.isFinished).toBe(true);
   });
 
+  it('drops a pending setup error when restarted in the same tick', async () => {
+    const engine = new SpeedTest({
+      autoStart: false,
+      logAimApiUrl: null,
+      measureUploadLoadedLatency: false,
+      measurements: [
+        {
+          type: 'packetLoss',
+          numPackets: 10,
+          batchSize: 10,
+          batchWaitTime: 10,
+          responsesWaitTime: 100
+        },
+        { type: 'upload', bytes: 1e5, count: 1 }
+      ]
+    });
+    const onError = vi.fn();
+    engine.onError = onError;
+    const results = new Promise<SpeedTest['results']>(resolve => {
+      engine.onFinish = resolve;
+    });
+    engine.play();
+    engine.restart();
+
+    const finished = await results;
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(finished.getUploadBandwidthPoints()).toHaveLength(1);
+  });
+
   it('reports a setup error after construction with autoStart', async () => {
     const engine = new SpeedTest({
       logAimApiUrl: null,
