@@ -472,7 +472,7 @@ class MeasurementEngine {
               msmResults.error = message;
               this.onResultsChange({ type });
               this.#onError(`Error while measuring packet loss: ${message}`);
-              this.#next();
+              this.#running && this.#next();
             });
             return;
           }
