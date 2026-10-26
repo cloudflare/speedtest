@@ -103,12 +103,6 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       this.#latencyEngine && this.#latencyEngine.pause();
       onConnectionError(...args);
     };
-    if (this.#latencyEngine) {
-      this.#latencyEngine.onConnectionError = (...args: [string, number?]) => {
-        this.pause();
-        onConnectionError(...args);
-      };
-    }
   }
 
   // Internal state

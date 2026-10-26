@@ -302,7 +302,7 @@ class BandwidthMeasurementEngine implements Engine {
   }
 
   play(): void {
-    if (!this.#failed && !this.#running) {
+    if (!this.#running) {
       this.#setRunning(true);
       this.#nextMeasurement();
     }
@@ -314,7 +314,6 @@ class BandwidthMeasurementEngine implements Engine {
   #uploadApi: string;
 
   #running: boolean = false;
-  #failed: boolean = false;
   #finished: Record<string, boolean> = { down: false, up: false };
   #results: BandwidthEngineResults = { down: {}, up: {} };
   #measIdx: number = 0;
@@ -475,7 +474,6 @@ class BandwidthMeasurementEngine implements Engine {
           const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
           this.#retries = 0;
           this.pause();
-          this.#failed = true;
           this.#onConnectionError(errorMessage);
         }, this.abortRequestDuration);
         this.#currentAbortController.signal.addEventListener('abort', () =>
@@ -681,7 +679,7 @@ class BandwidthMeasurementEngine implements Engine {
         ) {
           this.#retryTimeout = setTimeout(() => {
             this.#retryTimeout = undefined;
-            if (this.#running && !this.#failed) this.#nextMeasurement();
+            if (this.#running) this.#nextMeasurement();
           }, getRetryDelay(error.retryAfter));
           return;
         }
@@ -695,7 +693,6 @@ class BandwidthMeasurementEngine implements Engine {
               : `Request failed with ${status}: ${url}`;
         this.#retries = 0;
         this.pause();
-        this.#failed = true;
         this.#onConnectionError(message, status);
       });
   }
