@@ -177,6 +177,11 @@ class MeasurementEngine {
 
   #onError: (message: string, status?: number) => void = () => {};
 
+  /**
+   * Called when a measurement fails, with the HTTP status when there is one.
+   * The test records the error on that measurement and continues; call
+   * {@link pause} from this callback to stop it instead.
+   */
   set onError(f: (message: string, status?: number) => void) {
     this.#onError = f;
   }
@@ -495,7 +500,7 @@ class MeasurementEngine {
           msmResults.error = e;
           this.onResultsChange({ type });
           this.#onError(`Connection error while measuring packet loss: ${e}`);
-          this.#next();
+          this.#running && this.#next();
         };
 
         engine!.onCredentialsFailure = () => {
@@ -505,7 +510,7 @@ class MeasurementEngine {
           this.#onError(
             'Error while measuring packet loss: unable to get turn server credentials.'
           );
-          this.#next();
+          this.#running && this.#next();
         };
 
         break;
@@ -588,7 +593,7 @@ class MeasurementEngine {
             `Connection error while measuring latency: ${e}`,
             status
           );
-          this.#next();
+          this.#running && this.#next();
         };
 
         (engine as Engine & { play: () => void }).play!();
@@ -751,7 +756,7 @@ class MeasurementEngine {
               `Connection error while measuring ${type}: ${e}`,
               status
             );
-            this.#next();
+            this.#running && this.#next();
           };
 
           (engine as Engine & { play: () => void }).play!();

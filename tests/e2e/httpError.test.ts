@@ -138,6 +138,51 @@ describe.each([
   });
 });
 
+it('stops when paused from onError and resumes at the next step', async () => {
+  const fetchMock = vi.fn(() =>
+    Promise.resolve(new Response(null, { status: 401 }))
+  );
+  window.fetch = fetchMock;
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  const engine = createEngine([
+    { type: 'latency', numPackets: 1 },
+    { type: 'download', bytes: 1_000, count: 1 }
+  ]);
+  const phases: string[] = [];
+  engine.onPhaseChange = ({ measurement }) => phases.push(measurement.type);
+  const onFinish = vi.fn();
+  const finished = new Promise(resolve => {
+    engine.onFinish = results => {
+      onFinish(results);
+      resolve(results);
+    };
+  });
+
+  const errored = new Promise<void>(resolve => {
+    engine.onError = () => {
+      engine.pause();
+      engine.onError = () => {};
+      resolve();
+    };
+  });
+
+  engine.play();
+  await errored;
+  await new Promise(resolve => setTimeout(resolve, 20));
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(phases).toEqual(['latency']);
+  expect(engine.isRunning).toBe(false);
+  expect(onFinish).not.toHaveBeenCalled();
+
+  engine.play();
+  await finished;
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(phases).toEqual(['latency', 'download']);
+});
+
 it('skips the rest of a direction after bandwidthAbortRequestDuration and finishes', async () => {
   mockPerformanceTiming();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);

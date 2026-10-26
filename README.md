@@ -89,7 +89,7 @@ them.
 | **onRunningChange** | running: *boolean* | Invoked whenever the test engine starts or stops. The current state is included as a function argument. |
 | **onResultsChange** | { type: *string* } | Invoked whenever any item changes in the results, usually indicating the completion of a measurement. The type of measurement that changed is included as an info attribute in the function argument. |
 | **onFinish** | results: *[Results](#results-object)* | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) is included as a function argument. |
-| **onError** | error: *string* | Invoked whenever an error occurs during one of the measurements. The error details are included as a function argument. |
+| **onError** | error: *string*, status: *number \| undefined* | Invoked whenever an error occurs during one of the measurements, with the HTTP status when the failure was an HTTP response. The error is recorded on that measurement and the engine moves on to the next one, so this can fire more than once per test. Call `pause()` from this callback to stop the test instead. |
 
 ### Measurement config
 
