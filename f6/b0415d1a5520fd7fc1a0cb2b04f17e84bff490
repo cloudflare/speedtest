@@ -1,0 +1,20 @@
+AGENTS.md
+  h_9a124c21cc9a2f 34-35
+src/engines/BandwidthEngine/BandwidthEngine.ts
+  h_9a124c21cc9a2f 506-519,641,675-691
+tests/e2e/missingResourceTiming.test.ts
+  h_9a124c21cc9a2f 1-37
+tests/unit/engines/unusableSamples.test.ts
+  h_9a124c21cc9a2f 37,41-42,44,49,55,67,201-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f6b0415d1a5520fd7fc1a0cb2b04f17e84bff490",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
