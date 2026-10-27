@@ -503,9 +503,20 @@ class BandwidthMeasurementEngine implements Engine {
         })
       )
       .then(() => {
-        const perf = performance
-          .getEntriesByName(url)
-          .slice(-1)[0] as PerformanceResourceTiming; // get latest perf timing
+        const perf = performance.getEntriesByName(url).slice(-1)[0] as
+          | PerformanceResourceTiming
+          | undefined; // get latest perf timing
+        if (!perf) {
+          // No Resource Timing support, or the host page cleared the buffer.
+          console.warn(
+            `Discarding ${dir} sample without a resource timing entry`,
+            {
+              url
+            }
+          );
+          this.#scheduleNextMeasurement();
+          return;
+        }
         const timing: BandwidthMeasurementTiming = {
           transferSize: perf.transferSize,
           ttfb: getTtfb(perf),
@@ -627,20 +638,7 @@ class BandwidthMeasurementEngine implements Engine {
           });
         }
 
-        this.#counter += 1;
-        this.#retries = 0;
-
-        if (this.#throttleMs) {
-          const throttleTimeout = setTimeout(
-            () => this.#nextMeasurement(),
-            this.#throttleMs
-          );
-          this.#currentAbortController!.signal.addEventListener('abort', () =>
-            clearTimeout(throttleTimeout)
-          );
-        } else {
-          this.#nextMeasurement();
-        }
+        this.#scheduleNextMeasurement();
       })
       .catch(error => {
         if (this.#currentAbortController!.signal.aborted) {
@@ -672,6 +670,23 @@ class BandwidthMeasurementEngine implements Engine {
         this.#failed = true;
         this.#onConnectionError(message, status);
       });
+  }
+
+  #scheduleNextMeasurement(): void {
+    this.#counter += 1;
+    this.#retries = 0;
+
+    if (this.#throttleMs) {
+      const throttleTimeout = setTimeout(
+        () => this.#nextMeasurement(),
+        this.#throttleMs
+      );
+      this.#currentAbortController!.signal.addEventListener('abort', () =>
+        clearTimeout(throttleTimeout)
+      );
+    } else {
+      this.#nextMeasurement();
+    }
   }
 
   #cancelCurrentMeasurement(reason?: string): void {

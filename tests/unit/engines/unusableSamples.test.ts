@@ -34,24 +34,25 @@ type PerfEntry = ReturnType<typeof perfEntry> & {
 
 /**
  * Runs the engine with one resource timing entry per request, in order, each
- * given as a TTFB or as a full entry.
+ * given as a TTFB, as a full entry, or as `null` for a request with no entry.
  */
 const run = (
   measurements: BandwidthMeasurement[],
-  timings: (number | PerfEntry)[]
+  timings: (number | PerfEntry | null)[],
+  onConnectionError = vi.fn()
 ) => {
-  const entries: PerfEntry[] = [];
+  const entries: (PerfEntry | null)[] = [];
   const queue = [...timings];
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
-      const next = queue.shift() ?? 300;
+      const next = queue.length ? queue.shift()! : 300;
       entries.push(typeof next === 'number' ? perfEntry(next) : next);
       return new Response('');
     })
   );
   vi.stubGlobal('performance', {
-    getEntriesByName: () => entries,
+    getEntriesByName: () => (entries.at(-1) ? entries : []),
     clearResourceTimings: () => {}
   });
 
@@ -63,6 +64,7 @@ const run = (
   engine.finishRequestDuration = 200;
   const onMeasurementResult = vi.fn();
   engine.onMeasurementResult = onMeasurementResult;
+  engine.onConnectionError = onConnectionError;
 
   return new Promise<{
     results: BandwidthEngineResults;
@@ -194,6 +196,24 @@ describe('BandwidthEngine unusable samples', () => {
     const [timing] = results.up[1e5].timings;
     expect(timing.ttfb).toBe(300);
     expect(timing.bps).toBeCloseTo((8 * 1e5 * 1.005) / 0.3);
+  });
+
+  it('counts a request without a resource timing entry and moves on', async () => {
+    const onConnectionError = vi.fn();
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 3 }],
+      [300, null, 300],
+      onConnectionError
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(results.down[1e5].numMeasurements).toBe(3);
+    expect(results.down[1e5].timings).toHaveLength(2);
+    expect(warn).toHaveBeenCalledWith(
+      'Discarding down sample without a resource timing entry',
+      { url: expect.stringContaining('bytes=100000') }
+    );
   });
 
   it('discards an upload with a negative duration', async () => {
