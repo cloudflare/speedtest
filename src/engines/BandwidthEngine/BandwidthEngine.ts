@@ -475,6 +475,7 @@ class BandwidthMeasurementEngine implements Engine {
     }
 
     let serverTime: number | undefined;
+    const requestedAt = performance.now();
     fetch(url, {
       ...fetchOpt,
       signal: this.#currentAbortController!.signal
@@ -503,11 +504,13 @@ class BandwidthMeasurementEngine implements Engine {
         })
       )
       .then(() => {
-        const perf = performance.getEntriesByName(url).slice(-1)[0] as
-          | PerformanceResourceTiming
-          | undefined; // get latest perf timing
+        // Every request in a set shares the URL, so skip earlier requests' entries
+        const perf = performance
+          .getEntriesByName(url)
+          .filter(entry => entry.startTime >= requestedAt)
+          .slice(-1)[0] as PerformanceResourceTiming | undefined;
         if (!perf) {
-          // No Resource Timing support, or the host page cleared the buffer.
+          // No Resource Timing support, a full or cleared buffer, or a late entry
           console.warn(
             `Discarding ${dir} sample without a resource timing entry`,
             {

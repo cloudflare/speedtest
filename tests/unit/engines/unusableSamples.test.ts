@@ -41,18 +41,25 @@ const run = (
   timings: (number | PerfEntry | null)[],
   onConnectionError = vi.fn()
 ) => {
-  const entries: (PerfEntry | null)[] = [];
+  const entries: PerfEntry[] = [];
   const queue = [...timings];
+  // Advances once per request, so each entry is stamped with its own request
+  let clock = 0;
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
       const next = queue.length ? queue.shift()! : 300;
-      entries.push(typeof next === 'number' ? perfEntry(next) : next);
+      if (next !== null)
+        entries.push({
+          ...(typeof next === 'number' ? perfEntry(next) : next),
+          startTime: clock
+        });
       return new Response('');
     })
   );
   vi.stubGlobal('performance', {
-    getEntriesByName: () => (entries.at(-1) ? entries : []),
+    now: () => ++clock,
+    getEntriesByName: () => entries,
     clearResourceTimings: () => {}
   });
 
