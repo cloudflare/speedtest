@@ -398,7 +398,6 @@ class BandwidthMeasurementEngine implements Engine {
       // clear settings
       this.#counter = 0;
       this.#minDuration = -Infinity;
-      performance.clearResourceTimings();
 
       do {
         this.#measIdx += 1; // skip through finished measurements

@@ -60,7 +60,7 @@ const run = (
   vi.stubGlobal('performance', {
     now: () => ++clock,
     getEntriesByName: () => entries,
-    clearResourceTimings: () => {}
+    clearResourceTimings: vi.fn()
   });
 
   const engine = new BandwidthEngine(measurements, {
@@ -221,6 +221,20 @@ describe('BandwidthEngine unusable samples', () => {
       'Discarding down sample without a resource timing entry',
       { url: expect.stringContaining('bytes=100000') }
     );
+  });
+
+  it('keeps the resource timing buffer between sets', async () => {
+    // Clearing it drops entries of requests still in flight elsewhere on the page
+    await run(
+      [
+        { dir: 'down', bytes: 1e5, count: 1, bypassMinDuration: true },
+        { dir: 'down', bytes: 1e6, count: 1 }
+      ],
+      [300, 300]
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(performance.clearResourceTimings).not.toHaveBeenCalled();
   });
 
   it('discards an upload with a negative duration', async () => {
