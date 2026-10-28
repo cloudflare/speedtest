@@ -596,7 +596,10 @@ class MeasurementEngine {
       case 'download':
       case 'upload':
         if (msmResults.finished || msmResults.error) {
-          this.#next(); // skip, already concluded this bandwidth measurement type
+          // Skip: this direction already concluded. Return so the nested
+          // #next() keeps ownership of #curEngine.
+          this.#next();
+          return;
         } else {
           delete msmResults.finishedCurrentRound;
 
