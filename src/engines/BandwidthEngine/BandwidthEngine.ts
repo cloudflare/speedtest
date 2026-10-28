@@ -509,7 +509,7 @@ class BandwidthMeasurementEngine implements Engine {
           .filter(entry => entry.startTime >= requestedAt)
           .slice(-1)[0] as PerformanceResourceTiming | undefined;
         if (!perf) {
-          // No Resource Timing support, a full or cleared buffer, or a late entry
+          // No Resource Timing support, or a full or cleared buffer
           console.warn(
             `Discarding ${dir} sample without a resource timing entry`,
             {
