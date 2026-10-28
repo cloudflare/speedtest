@@ -5,6 +5,7 @@ const instances: {
   onFinished: () => void;
   onCredentialsFailure: (error: string) => void;
 }[] = [];
+let throwOnCreate = false;
 vi.mock('../../src/engines/PacketLossEngine', () => ({
   default: class {
     onFinished = () => {};
@@ -13,6 +14,7 @@ vi.mock('../../src/engines/PacketLossEngine', () => ({
     onMsgReceived = () => {};
     results = {};
     constructor() {
+      if (throwOnCreate) throw new Error('No TURN server configured');
       instances.push(this);
     }
   }
@@ -55,6 +57,7 @@ describe('SpeedTest packet loss phase', () => {
 
   beforeEach(() => {
     instances.length = 0;
+    throwOnCreate = false;
     const entries: ReturnType<typeof perfEntry>[] = [];
     vi.stubGlobal('window', {
       location: { origin: 'https://speed.example.com' }
@@ -120,6 +123,28 @@ describe('SpeedTest packet loss phase', () => {
     instances[1].onCredentialsFailure('nope');
     await finished;
     expect(phases).toEqual(['packetLoss', 'packetLoss', 'download']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs a single test when restarted from a setup error', async () => {
+    throwOnCreate = true;
+    const engine = createEngine();
+    const errors: string[] = [];
+    engine.onError = message => {
+      errors.push(message);
+      if (errors.length === 1) engine.restart();
+    };
+    let errorsAtDownload: number | undefined;
+    engine.onPhaseChange = ({ measurement }) => {
+      if (measurement.type === 'download') errorsAtDownload ??= errors.length;
+    };
+
+    const finished = new Promise(resolve => (engine.onFinish = resolve));
+    engine.play();
+    await finished;
+
+    // The download must wait for the restarted run's own packet loss error
+    expect(errorsAtDownload).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

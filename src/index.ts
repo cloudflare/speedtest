@@ -524,8 +524,9 @@ class MeasurementEngine {
               msmResults.finished = true;
               msmResults.error = message;
               this.onResultsChange({ type });
-              this.#onError(`Error while measuring packet loss: ${message}`);
-              this.#running && this.#next();
+              this.#reportErrorAndContinue(
+                `Error while measuring packet loss: ${message}`
+              );
             });
             return;
           }
