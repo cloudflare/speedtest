@@ -276,7 +276,7 @@ class MeasurementEngine {
     this.#abortTestTimeout = undefined;
 
     const limit = this.#config.abortTestDuration;
-    if (!limit || !this.#running || this.#finished) return;
+    if (!(limit > 0) || !this.#running || this.#finished) return;
 
     this.#abortTestTimeout = setTimeout(
       () => this.#abortTest(),
@@ -363,6 +363,9 @@ class MeasurementEngine {
       engine.onMsgReceived =
       engine.onCredentialsFailure =
       engine.onMeasurementResult =
+      engine.onNewMeasurementStarted =
+      engine.onParallelLatencyResult =
+      engine.onParallelLatencyError =
         () => {};
 
     const curType = this.#curType();

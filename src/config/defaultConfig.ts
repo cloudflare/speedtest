@@ -137,9 +137,9 @@ export interface Config {
 
   /**
    * Total running time (ms, excluding paused time) after which the test is
-   * aborted, including any request in flight. The results collected so far
-   * are kept, `results.raw.error` says why, and `onFinish` fires as usual.
-   * Set to `0` to disable. Default: `0`.
+   * aborted, including any HTTP request in flight. The results collected so
+   * far are kept, `results.raw.error` says why, and `onFinish` fires as usual.
+   * `0` or less disables it. Default: `0`.
    */
   abortTestDuration: number;
 

@@ -353,21 +353,39 @@ describe('abortTestDuration', () => {
     );
 
     const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
-      abortTestDuration: 100
+      abortTestDuration: 500
     });
     const onFinish = vi.fn();
     engine.onFinish = onFinish;
 
+    // Wide margins: the pause alone outlasts the limit
     engine.play();
-    await new Promise(resolve => setTimeout(resolve, 60));
-    engine.pause();
     await new Promise(resolve => setTimeout(resolve, 100));
+    engine.pause();
+    await new Promise(resolve => setTimeout(resolve, 600));
     expect(onFinish).not.toHaveBeenCalled();
 
     const finished = new Promise(resolve => (engine.onFinish = resolve));
     engine.play();
     await finished;
-    expect(engine.results.raw.error).toContain('abortTestDuration (100ms)');
+    expect(engine.results.raw.error).toContain('abortTestDuration (500ms)');
+  });
+
+  it('is disabled by a negative value', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    window.fetch = vi.fn(async () => new Response('ok'));
+
+    const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
+      abortTestDuration: -1
+    });
+    const results = await new Promise<SpeedTest['results']>(resolve => {
+      engine.onFinish = resolve;
+      engine.play();
+    });
+
+    expect(results.raw.error).toBeUndefined();
+    expect(results.getDownloadBandwidthPoints()).toHaveLength(1);
   });
 
   it('clears the reason when restarted', async () => {
