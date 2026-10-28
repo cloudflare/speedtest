@@ -38,6 +38,9 @@ export interface Engine {
   /** Invoked for each parallel-latency sample collected alongside a bandwidth measurement. */
   onParallelLatencyResult?: (...args: any[]) => void;
 
+  /** Invoked when a parallel-latency request fails (bandwidth engines). */
+  onParallelLatencyError?: (...args: any[]) => void;
+
   pause?: () => void;
 
   play?: () => void;

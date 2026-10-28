@@ -39,7 +39,9 @@ export interface RawMeasurementEntry {
 export interface RawResults {
   /** Excluding paused time (ms). */
   totalDurationMs: number | undefined;
-  [key: string]: RawMeasurementEntry | number | undefined;
+  /** Why the test ended early, when it did (e.g. `abortTestDuration`). */
+  error?: string;
+  [key: string]: RawMeasurementEntry | number | string | undefined;
 }
 
 // --- Re-exports for consumers ---

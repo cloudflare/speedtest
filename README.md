@@ -59,6 +59,7 @@ them.
 | **loadedLatencyThrottle**: *number* | Time interval to wait in between loaded latency requests (in milliseconds). | 400 |
 | **bandwidthFinishRequestDuration**: *number* | The minimum duration (in milliseconds) to reach in download/upload measurement sets for halting further measurements with larger file sizes in the same direction. | 1000 |
 | **bandwidthAbortRequestDuration**: *number* | The minimum duration (in milliseconds) to reach in download/upload measurement sets for aborting the test early | 0 (disabled) |
+| **abortTestDuration**: *number* | The total running time (in milliseconds, excluding paused time) after which the whole test is aborted, including any request still in flight. The results collected so far are kept, `results.raw.error` is set to the reason, `onError` is called and `onFinish` fires as usual. | 0 (disabled) |
 | **estimatedServerTime**: *number* | If the download/upload APIs do not return a `server-timing` response header containing the time spent in the server, this fixed value (in milliseconds) will be subtracted from all time-to-first-byte calculations. | 0 |
 | **latencyPercentile**: *number* | The percentile (between 0 and 1) used to calculate latency from a set of measurements. | 0.5 |
 | **bandwidthPercentile**: *number* | The percentile (between 0 and 1) used to calculate bandwidth from a set of measurements. | 0.9 |
@@ -89,7 +90,7 @@ them.
 | **onRunningChange** | running: *boolean* | Invoked whenever the test engine starts or stops. The current state is included as a function argument. |
 | **onResultsChange** | { type: *string* } | Invoked whenever any item changes in the results, usually indicating the completion of a measurement. The type of measurement that changed is included as an info attribute in the function argument. |
 | **onFinish** | results: *[Results](#results-object)* | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) is included as a function argument. |
-| **onError** | error: *string*, status: *number \| undefined* | Invoked whenever an error occurs during one of the measurements, with the HTTP status when the failure was an HTTP response. The error is recorded on that measurement and the engine moves on to the next one, so this can fire more than once per test. Call `pause()` from this callback to stop the test instead. |
+| **onError** | error: *string*, status: *number \| undefined* | Invoked whenever an error occurs during one of the measurements, with the HTTP status when the failure was an HTTP response. The error is recorded on that measurement and the engine moves on to the next one, skipping the remaining download or upload sets of a direction that failed, so this can fire more than once per test. Failed loaded latency requests are reported here too, without affecting their bandwidth measurement. Call `pause()` from this callback to stop the test instead. |
 
 ### Measurement config
 

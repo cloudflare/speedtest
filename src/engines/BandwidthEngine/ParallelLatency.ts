@@ -80,6 +80,11 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
         f(res));
   }
 
+  // Called when a parallel latency request fails; bandwidth keeps measuring
+  set onParallelLatencyError(f: (error: string, status?: number) => void) {
+    this.#latencyEngine && (this.#latencyEngine.onConnectionError = f);
+  }
+
   // Overridden attributes
   get fetchOptions(): RequestInit {
     return super.fetchOptions;

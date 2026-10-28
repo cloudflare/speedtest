@@ -247,6 +247,8 @@ class MeasurementEngine {
    */
   #accumulatedRuntimeMs: number = 0;
 
+  #abortTestTimeout: ReturnType<typeof setTimeout> | undefined;
+
   #running: boolean = false;
   #finished: boolean = false;
 
@@ -265,6 +267,51 @@ class MeasurementEngine {
         this.#startTime = undefined;
       }
     }
+    this.#scheduleAbortTest();
+  }
+
+  // Paused time doesn't count, so the timer only runs while the test does
+  #scheduleAbortTest(): void {
+    clearTimeout(this.#abortTestTimeout);
+    this.#abortTestTimeout = undefined;
+
+    const limit = this.#config.abortTestDuration;
+    if (!limit || !this.#running || this.#finished) return;
+
+    this.#abortTestTimeout = setTimeout(
+      () => this.#abortTest(),
+      Math.max(0, limit - this.#accumulatedRuntimeMs)
+    );
+  }
+
+  #reportErrorAndContinue(...error: [message: string, status?: number]): void {
+    const measurementId = this.#measurementId;
+    this.#onError(...error);
+    if (measurementId !== this.#measurementId) return; // restarted from onError
+    this.#running && this.#next();
+  }
+
+  #abortTest(): void {
+    this.#abortTestTimeout = undefined;
+    const message = `Test aborted. Test exceeded abortTestDuration (${this.#config.abortTestDuration}ms)`;
+    const type = this.#curType();
+    const msmResults = this.#curTypeResults();
+
+    this.#destroyCurEngine();
+    this.#curMsmIdx = this.#config.measurements.length;
+
+    this.#results.raw.error = message;
+    if (type && msmResults) {
+      msmResults.error = message;
+      this.onResultsChange({ type });
+    }
+
+    const measurementId = this.#measurementId;
+    this.#onError(message);
+    if (measurementId !== this.#measurementId) return; // restarted from onError
+
+    this.#setRunning(false);
+    this.#setFinished(true);
   }
 
   #setFinished(finished: boolean): void {
@@ -492,25 +539,25 @@ class MeasurementEngine {
         engine!.onFinished = () => {
           msmResults.finished = true;
           this.onResultsChange({ type });
-          this.#next();
+          this.#running && this.#next();
         };
 
         engine!.onConnectionError = (e: unknown) => {
           msmResults.finished = true;
           msmResults.error = e;
           this.onResultsChange({ type });
-          this.#onError(`Connection error while measuring packet loss: ${e}`);
-          this.#running && this.#next();
+          this.#reportErrorAndContinue(
+            `Connection error while measuring packet loss: ${e}`
+          );
         };
 
         engine!.onCredentialsFailure = () => {
           msmResults.finished = true;
           msmResults.error = 'unable to get turn server credentials';
           this.onResultsChange({ type });
-          this.#onError(
+          this.#reportErrorAndContinue(
             'Error while measuring packet loss: unable to get turn server credentials.'
           );
-          this.#running && this.#next();
         };
 
         break;
@@ -589,11 +636,10 @@ class MeasurementEngine {
           this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
           msmResults.error = e;
           this.onResultsChange({ type });
-          this.#onError(
+          this.#reportErrorAndContinue(
             `Connection error while measuring latency: ${e}`,
             status
           );
-          this.#running && this.#next();
         };
 
         (engine as Engine & { play: () => void }).play!();
@@ -752,11 +798,25 @@ class MeasurementEngine {
             this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
             msmResults.error = e;
             this.onResultsChange({ type });
-            this.#onError(
+            this.#reportErrorAndContinue(
               `Connection error while measuring ${type}: ${e}`,
               status
             );
-            this.#running && this.#next();
+          };
+
+          const measurementId = this.#measurementId;
+          const msmIdx = this.#curMsmIdx;
+          engine.onParallelLatencyError = (e: unknown, status?: number) => {
+            // Ignore late errors once this step is over or the test restarted
+            if (
+              measurementId !== this.#measurementId ||
+              msmIdx !== this.#curMsmIdx
+            )
+              return;
+            this.#onError(
+              `Connection error while measuring loaded latency: ${e}`,
+              status
+            );
           };
 
           (engine as Engine & { play: () => void }).play!();

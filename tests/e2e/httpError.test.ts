@@ -246,7 +246,7 @@ it('skips the rest of a direction after bandwidthAbortRequestDuration and finish
   });
 });
 
-it('keeps measuring bandwidth when a loaded-latency request fails', async () => {
+it('reports a failed loaded-latency request and keeps measuring bandwidth', async () => {
   mockPerformanceTiming();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -277,9 +277,133 @@ it('keeps measuring bandwidth when a loaded-latency request fails', async () => 
   });
 
   expect(fetchMock).toHaveBeenCalledTimes(2);
-  expect(onError).not.toHaveBeenCalled();
+  expect(onError).toHaveBeenCalledExactlyOnceWith(
+    expect.stringMatching(
+      /^Connection error while measuring loaded latency: Request failed with 401:/
+    ),
+    401
+  );
   expect(resultErrors).toEqual([]);
   expect(results.getDownloadBandwidthPoints()).toHaveLength(1);
+});
+
+describe('abortTestDuration', () => {
+  it('aborts the request in flight and finishes with the results so far', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const signals: AbortSignal[] = [];
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const bytes = new URL(input.toString()).searchParams.get('bytes');
+        if (bytes !== '10000000') return Promise.resolve(new Response('ok'));
+        signals.push(init!.signal!);
+        return new Promise((_resolve, reject) =>
+          init!.signal!.addEventListener('abort', () =>
+            reject(init!.signal!.reason)
+          )
+        );
+      }
+    );
+    window.fetch = fetchMock;
+
+    const engine = createEngine(
+      [
+        { type: 'download', bytes: 1e5, count: 1, bypassMinDuration: true },
+        { type: 'download', bytes: 1e7, count: 1 },
+        { type: 'upload', bytes: 1e5, count: 1 }
+      ],
+      { abortTestDuration: 100 }
+    );
+    const errors: string[] = [];
+    engine.onError = message => errors.push(message);
+
+    const results = await new Promise<SpeedTest['results']>(resolve => {
+      engine.onFinish = resolve;
+      engine.play();
+    });
+
+    const message = 'Test aborted. Test exceeded abortTestDuration (100ms)';
+    expect(signals).toHaveLength(1);
+    expect(signals[0].aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(errors).toEqual([message]);
+    expect(results.raw.error).toBe(message);
+    expect(results.raw.download).toMatchObject({ error: message });
+    expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([
+      1e5
+    ]);
+    expect(engine.isFinished).toBe(true);
+    expect(engine.isRunning).toBe(false);
+  });
+
+  it('does not count paused time', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    window.fetch = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+        new Promise((_resolve, reject) =>
+          init!.signal!.addEventListener('abort', () =>
+            reject(init!.signal!.reason)
+          )
+        )
+    );
+
+    const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
+      abortTestDuration: 100
+    });
+    const onFinish = vi.fn();
+    engine.onFinish = onFinish;
+
+    engine.play();
+    await new Promise(resolve => setTimeout(resolve, 60));
+    engine.pause();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(onFinish).not.toHaveBeenCalled();
+
+    const finished = new Promise(resolve => (engine.onFinish = resolve));
+    engine.play();
+    await finished;
+    expect(engine.results.raw.error).toContain('abortTestDuration (100ms)');
+  });
+
+  it('clears the reason when restarted', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    let hang = true;
+    window.fetch = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+        hang
+          ? new Promise((_resolve, reject) =>
+              init!.signal!.addEventListener('abort', () =>
+                reject(init!.signal!.reason)
+              )
+            )
+          : Promise.resolve(new Response('ok'))
+    );
+
+    const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
+      abortTestDuration: 50
+    });
+    await new Promise(resolve => {
+      engine.onFinish = resolve;
+      engine.play();
+    });
+    expect(engine.results.raw.error).toBeDefined();
+
+    hang = false;
+    await new Promise(resolve => {
+      engine.onFinish = resolve;
+      engine.restart();
+    });
+    expect(engine.results.raw.error).toBeUndefined();
+    expect(engine.results.getDownloadBandwidthPoints()).toHaveLength(1);
+  });
 });
 
 describe.each([

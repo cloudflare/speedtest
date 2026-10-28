@@ -135,6 +135,14 @@ export interface Config {
    */
   bandwidthAbortRequestDuration: number;
 
+  /**
+   * Total running time (ms, excluding paused time) after which the test is
+   * aborted, including any request in flight. The results collected so far
+   * are kept, `results.raw.error` says why, and `onFinish` fires as usual.
+   * Set to `0` to disable. Default: `0`.
+   */
+  abortTestDuration: number;
+
   /** Percentile used to compute latency from the sample set (0–1). Default: `0.5` (median). */
   latencyPercentile: number;
   /** Percentile used to compute bandwidth from the sample set (0–1). Default: `0.9`. */
@@ -213,6 +221,7 @@ const defaultConfig: Config = {
 
   // Test abort
   bandwidthAbortRequestDuration: 0, // download/upload duration (ms) to abort measurement early and stop further measurements of that type
+  abortTestDuration: 0, // total running time (ms) to abort the whole test, keeping the results so far
 
   // Result interpretation
   latencyPercentile: 0.5, // Percentile used to calculate latency from a set of measurements
