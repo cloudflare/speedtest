@@ -335,8 +335,7 @@ class MeasurementEngine {
     const type = this.#curType();
     if (!type) return undefined;
     return (
-      (this.#results.raw as Record<string, MeasurementResult>)[type] ||
-      undefined
+      (this.#results.raw[type] as MeasurementResult | undefined) || undefined
     );
   }
 
