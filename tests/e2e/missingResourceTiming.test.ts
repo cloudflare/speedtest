@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import SpeedTest from '../../src/index.ts';
 
-const DOWNLOAD_URL = '/__down?bytes=100000';
+const DOWNLOAD_URL = /\/__down\?(.*&)?bytes=100000(&|$)/;
 
 describe('SpeedTest E2E without a resource timing entry', () => {
   afterEach(() => {
@@ -18,7 +18,7 @@ describe('SpeedTest E2E without a resource timing entry', () => {
       vi.spyOn(performance, 'getEntriesByName').mockImplementation(
         (name, type) => {
           const entries = getEntriesByName(name, type);
-          if (!name.includes(DOWNLOAD_URL)) return entries;
+          if (!DOWNLOAD_URL.test(name)) return entries;
           hiddenStart ??= entries[0]?.startTime;
           return entries.filter(entry => entry.startTime !== hiddenStart);
         }
@@ -43,7 +43,7 @@ describe('SpeedTest E2E without a resource timing entry', () => {
       expect(hiddenStart).toBeDefined();
       expect(warn).toHaveBeenCalledWith(
         'Discarding down sample without a resource timing entry',
-        expect.objectContaining({ url: expect.stringContaining(DOWNLOAD_URL) })
+        expect.objectContaining({ url: expect.stringMatching(DOWNLOAD_URL) })
       );
       expect(onError).not.toHaveBeenCalled();
       expect(results.isFinished).toBe(true);
