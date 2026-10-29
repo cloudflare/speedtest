@@ -321,10 +321,6 @@ class BandwidthMeasurementEngine implements Engine {
   #counter: number = 0;
   #retries: number = 0;
   #missingEntries: number = 0;
-  // Makes every request's URL unique, so its resource timing entry can't be
-  // confused with another request's, even from another engine on the page
-  readonly #engineId = Math.random().toString(36).slice(2, 10);
-  #requestCount: number = 0;
   #retryTimeout: ReturnType<typeof setTimeout> | undefined;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
@@ -443,7 +439,6 @@ class BandwidthMeasurementEngine implements Engine {
     const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
     const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
     qsParams.bytes = `${numBytes}`;
-    qsParams.reqId = `${this.#engineId}-${++this.#requestCount}`;
 
     const urlObj = new URL(apiUrl, window.location.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
@@ -519,7 +514,7 @@ class BandwidthMeasurementEngine implements Engine {
         })
       )
       .then(async () => {
-        // The URL is unique per request; the start time is a second safeguard
+        // Every request in a set shares the URL, so skip earlier requests' entries
         const entries = getRequestEntries(url, requestedAt);
         if (entries.length) return entries;
         // Node's fetch records the entry a task after the body; browsers don't wait

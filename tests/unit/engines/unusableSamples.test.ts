@@ -36,8 +36,8 @@ type PerfEntry = ReturnType<typeof perfEntry> & {
 type LateEntry = { late: number };
 
 /**
- * A request with no entry of its own, while another engine's concurrent
- * request to the same endpoint records one.
+ * A request with no entry of its own, while an entry for the same URL that
+ * started earlier, from another request on the page, is recorded.
  */
 type OtherRequestEntry = { otherRequest: number };
 
@@ -71,7 +71,7 @@ const run = (
         entries.push({
           ...perfEntry(next.otherRequest),
           ...own,
-          name: url.replace(/reqId=[^&]+/, 'reqId=other-1')
+          startTime: own.startTime - 0.5
         });
       else if (next) entries.push({ ...next, ...own });
       return new Response('');
@@ -247,15 +247,7 @@ describe('BandwidthEngine unusable samples', () => {
     );
   });
 
-  it('gives every request its own URL', async () => {
-    await run([{ dir: 'down', bytes: 1e5, count: 3 }], [300, 300, 300]);
-
-    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
-    expect(new Set(urls).size).toBe(3);
-    urls.forEach(url => expect(url).toMatch(/bytes=100000&reqId=\w+-\d+$/));
-  });
-
-  it("never uses another request's entry for the same endpoint", async () => {
+  it("never uses an earlier request's entry for the same URL", async () => {
     const { results } = await run(
       [{ dir: 'down', bytes: 1e5, count: 2 }],
       [300, { otherRequest: 50 }]
