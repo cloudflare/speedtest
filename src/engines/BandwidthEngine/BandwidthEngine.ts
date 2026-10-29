@@ -534,7 +534,6 @@ class BandwidthMeasurementEngine implements Engine {
           );
           if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
             this.pause();
-            this.#failed = true;
             this.#onConnectionError(
               `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
             );

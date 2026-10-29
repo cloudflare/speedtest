@@ -10,8 +10,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Stamped at lookup time, so the entry always counts as the request's own
 const mockPerformanceTiming = () =>
-  vi.spyOn(performance, 'getEntriesByName').mockReturnValue([
+  vi.spyOn(performance, 'getEntriesByName').mockImplementation(() => [
     {
       connectEnd: 0,
       connectStart: 0,
@@ -20,6 +21,7 @@ const mockPerformanceTiming = () =>
       responseEnd: 20,
       responseStart: 10,
       secureConnectionStart: 0,
+      startTime: performance.now(),
       transferSize: 1_000
     } as PerformanceResourceTiming
   ]);
