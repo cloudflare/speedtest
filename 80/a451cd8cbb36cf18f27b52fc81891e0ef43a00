@@ -1,0 +1,16 @@
+tests/e2e/missingResourceTiming.test.ts
+  h_9a124c21cc9a2f 39-43
+tests/unit/engines/unusableSamples.test.ts
+  h_9a124c21cc9a2f 266,269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "80a451cd8cbb36cf18f27b52fc81891e0ef43a00",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
