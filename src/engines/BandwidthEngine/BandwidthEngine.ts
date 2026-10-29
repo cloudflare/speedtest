@@ -518,7 +518,7 @@ class BandwidthMeasurementEngine implements Engine {
         // Every request in a set shares the URL, so skip earlier requests' entries
         const entries = getRequestEntries(url, requestedAt);
         if (entries.length) return entries;
-        // Node's fetch records the entry a task after the body; browsers don't wait
+        // The entry can land a task after the body resolves, so look once more
         await new Promise(resolve => setTimeout(resolve));
         return getRequestEntries(url, requestedAt);
       })
