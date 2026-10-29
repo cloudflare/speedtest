@@ -31,8 +31,6 @@ Uses **Vitest** with two test projects:
   integration (fetch, PerformanceResourceTiming, module loading) with multiple
   measurement phases (latency, download, upload), loaded latency, AIM scoring,
   and raw data point validation. Packet loss is skipped (CORS limitation).
-  Also holds regression tests for browser behaviour, such as missing resource
-  timing entries.
 
 Test files are written in TypeScript (`.test.ts`). Source is also TypeScript.
 
