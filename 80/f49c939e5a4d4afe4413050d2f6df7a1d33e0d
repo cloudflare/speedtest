@@ -1,0 +1,14 @@
+src/engines/BandwidthEngine/BandwidthEngine.ts
+  h_9a124c21cc9a2f 530,541
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "80f49c939e5a4d4afe4413050d2f6df7a1d33e0d",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
