@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import SpeedTest from '../../src/index.ts';
 
+const DOWNLOAD_URL = '/__down?bytes=100000';
+
 describe('SpeedTest E2E without a resource timing entry', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -8,11 +10,19 @@ describe('SpeedTest E2E without a resource timing entry', () => {
 
   it(
     'drops the sample and finishes the test',
-    { timeout: 60_000, retry: 2 },
+    { timeout: 60_000 },
     async () => {
-      // The browser has no entry for the first request, as when the host page
-      // clears the buffer or the entry isn't recorded yet.
-      vi.spyOn(performance, 'getEntriesByName').mockReturnValueOnce([]);
+      // Hide the first download's entry, as when the host page clears the buffer
+      const getEntriesByName = performance.getEntriesByName.bind(performance);
+      let hiddenStart: number | undefined;
+      vi.spyOn(performance, 'getEntriesByName').mockImplementation(
+        (name, type) => {
+          const entries = getEntriesByName(name, type);
+          if (!name.includes(DOWNLOAD_URL)) return entries;
+          hiddenStart ??= entries[0]?.startTime;
+          return entries.filter(entry => entry.startTime !== hiddenStart);
+        }
+      );
 
       const engine = new SpeedTest({
         autoStart: false,
@@ -29,6 +39,7 @@ describe('SpeedTest E2E without a resource timing entry', () => {
         engine.play();
       });
 
+      expect(hiddenStart).toBeDefined();
       expect(onError).not.toHaveBeenCalled();
       expect(results.isFinished).toBe(true);
       expect(results.getDownloadBandwidthPoints()).toHaveLength(2);
