@@ -32,11 +32,15 @@ describe('SpeedTest E2E without a resource timing entry', () => {
         measurements: [{ type: 'download', bytes: 1e5, count: 3 }]
       });
       const onError = vi.fn();
-      engine.onError = onError;
       const warn = vi.spyOn(console, 'warn');
 
       const results = await new Promise<typeof engine.results>(resolve => {
         engine.onFinish = resolve;
+        // Settle on an error too, so a regression fails fast below
+        engine.onError = error => {
+          onError(error);
+          resolve(engine.results);
+        };
         engine.play();
       });
 

@@ -263,10 +263,10 @@ describe('BandwidthEngine unusable samples', () => {
   it('uses an entry recorded a task after the body', async () => {
     const { results } = await run(
       [{ dir: 'down', bytes: 1e5, count: 2 }],
-      [300, { late: 300 }]
+      [300, { late: 500 }]
     );
 
-    expect(results.down[1e5].timings).toHaveLength(2);
+    expect(results.down[1e5].timings.map(t => t.ttfb)).toEqual([300, 500]);
     expect(warn).not.toHaveBeenCalled();
   });
 
