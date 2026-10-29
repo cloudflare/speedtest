@@ -305,6 +305,86 @@ describe('BandwidthEngine unusable samples', () => {
     );
   });
 
+  it('stops when paused while waiting for a late entry', async () => {
+    const entries: PerfEntry[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        setTimeout(() => entries.push(perfEntry(300)));
+        return new Response('');
+      })
+    );
+    const engine = new BandwidthEngine(
+      [{ dir: 'down', bytes: 1e5, count: 2 }],
+      {
+        downloadApiUrl: 'https://speed.example.com/__down',
+        uploadApiUrl: UPLOAD_URL
+      }
+    );
+    vi.stubGlobal('performance', {
+      now: () => 0,
+      getEntriesByName: () => {
+        // Paused just before the engine waits for the entry
+        if (!entries.length) engine.pause();
+        return [...entries];
+      },
+      clearResourceTimings: vi.fn()
+    });
+    engine.getServerTime = null;
+    const onMeasurementResult = vi.fn();
+    engine.onMeasurementResult = onMeasurementResult;
+
+    engine.play();
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(onMeasurementResult).not.toHaveBeenCalled();
+  });
+
+  it('resumes when paused and played again mid-request', async () => {
+    const entries: (PerfEntry & { name: string })[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (vi.mocked(fetch).mock.calls.length === 1)
+          return new Promise<Response>((_, reject) =>
+            init.signal!.addEventListener('abort', () =>
+              reject(new DOMException('aborted', 'AbortError'))
+            )
+          );
+        entries.push({ ...perfEntry(300), name: url });
+        return new Response('');
+      })
+    );
+    vi.stubGlobal('performance', {
+      now: () => 0,
+      getEntriesByName: (name: string) =>
+        entries.filter(entry => entry.name === name),
+      clearResourceTimings: vi.fn()
+    });
+    const engine = new BandwidthEngine(
+      [{ dir: 'down', bytes: 1e5, count: 1 }],
+      {
+        downloadApiUrl: 'https://speed.example.com/__down',
+        uploadApiUrl: UPLOAD_URL
+      }
+    );
+    engine.getServerTime = null;
+    const onConnectionError = vi.fn();
+    engine.onConnectionError = onConnectionError;
+    const finished = new Promise(resolve => {
+      engine.onFinished = resolve;
+    });
+
+    engine.play();
+    engine.pause();
+    engine.play();
+    await finished;
+
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps the resource timing buffer between sets', async () => {
     // Clearing it drops entries of requests still in flight elsewhere on the page
     await run(

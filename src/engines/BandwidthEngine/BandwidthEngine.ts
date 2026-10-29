@@ -675,9 +675,7 @@ class BandwidthMeasurementEngine implements Engine {
         this.#scheduleNextMeasurement();
       })
       .catch(error => {
-        if (this.#currentAbortController!.signal.aborted) {
-          return;
-        }
+        if (signal.aborted) return;
         console.warn(`Error fetching ${url}: ${error}`);
 
         if (
