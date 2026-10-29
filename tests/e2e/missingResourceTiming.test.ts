@@ -33,6 +33,7 @@ describe('SpeedTest E2E without a resource timing entry', () => {
       });
       const onError = vi.fn();
       engine.onError = onError;
+      const warn = vi.spyOn(console, 'warn');
 
       const results = await new Promise<typeof engine.results>(resolve => {
         engine.onFinish = resolve;
@@ -40,6 +41,10 @@ describe('SpeedTest E2E without a resource timing entry', () => {
       });
 
       expect(hiddenStart).toBeDefined();
+      expect(warn).toHaveBeenCalledWith(
+        'Discarding down sample without a resource timing entry',
+        expect.objectContaining({ url: expect.stringContaining(DOWNLOAD_URL) })
+      );
       expect(onError).not.toHaveBeenCalled();
       expect(results.isFinished).toBe(true);
       expect(results.getDownloadBandwidthPoints()).toHaveLength(2);
