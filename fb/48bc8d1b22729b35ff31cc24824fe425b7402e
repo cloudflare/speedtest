@@ -1,0 +1,14 @@
+tests/e2e/missingResourceTiming.test.ts
+  h_9a124c21cc9a2f 4-5,13,15-25,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fb48bc8d1b22729b35ff31cc24824fe425b7402e",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
