@@ -485,6 +485,8 @@ class BandwidthMeasurementEngine implements Engine {
     }
 
     let serverTime: number | undefined;
+    let dbgServerTiming: string | null = null;
+    let dbgHeadersAt = 0;
     const signal = this.#currentAbortController!.signal;
     const requestedAt = performance.now();
     fetch(url, {
@@ -500,6 +502,8 @@ class BandwidthMeasurementEngine implements Engine {
         );
       })
       .then(r => {
+        dbgHeadersAt = performance.now();
+        dbgServerTiming = r.headers.get('server-timing');
         this.getServerTime && (serverTime = this.getServerTime(r));
         return r;
       })
@@ -547,6 +551,43 @@ class BandwidthMeasurementEngine implements Engine {
         }
         this.#missingEntries = 0;
 
+        const dbgUa = navigator.userAgent;
+        console.info(
+          'RTDEBUG ' +
+            JSON.stringify({
+              browser: /Firefox/.test(dbgUa)
+                ? 'firefox'
+                : /Chrome/.test(dbgUa)
+                  ? 'chromium'
+                  : 'webkit',
+              url: url.replace(/^https?:\/\/[^/]+/, ''),
+              requestedAt: +requestedAt.toFixed(1),
+              jsHeadersMs: +(dbgHeadersAt - requestedAt).toFixed(1),
+              jsBodyMs: +(performance.now() - requestedAt).toFixed(1),
+              startTime: +perf.startTime.toFixed(1),
+              fetchStart: perf.fetchStart,
+              domainLookupStart: perf.domainLookupStart,
+              connectStart: perf.connectStart,
+              secureConnectionStart: perf.secureConnectionStart,
+              connectEnd: perf.connectEnd,
+              requestStart: perf.requestStart,
+              firstInterimResponseStart: (perf as InterimAwareTiming)
+                .firstInterimResponseStart,
+              finalResponseHeadersStart: (perf as InterimAwareTiming)
+                .finalResponseHeadersStart,
+              responseStart: perf.responseStart,
+              responseEnd: perf.responseEnd,
+              nextHopProtocol: perf.nextHopProtocol,
+              transferSize: perf.transferSize,
+              serverTimingHeader: dbgServerTiming,
+              serverTimingEntries: perf.serverTiming?.map(e => [
+                e.name,
+                e.duration
+              ]),
+              serverTime,
+              serverTimeDelta: this.#serverTimeDelta
+            })
+        );
         const timing: BandwidthMeasurementTiming = {
           transferSize: perf.transferSize,
           ttfb: getTtfb(perf),
