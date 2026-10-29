@@ -1,0 +1,14 @@
+README.md
+  h_9a124c21cc9a2f 134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c74b592cbbbb1ed153e387605de3c05963e5db6",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
