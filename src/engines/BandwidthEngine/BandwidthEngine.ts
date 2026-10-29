@@ -67,7 +67,6 @@ export type InterimAwareTiming = PerformanceResourceTiming & {
 export const getFinalResponseStart = (perf: InterimAwareTiming): number =>
   perf.finalResponseHeadersStart || perf.responseStart;
 
-/** Time to first byte: time from request start to the final response (ms). */
 /** Missing resource timing entries in a row before giving up on a set. */
 const MAX_MISSING_ENTRIES = 3;
 
@@ -77,6 +76,7 @@ const getRequestEntries = (url: string, since: number) =>
     .getEntriesByName(url)
     .filter(entry => entry.startTime >= since) as PerformanceResourceTiming[];
 
+/** Time to first byte: time from request start to the final response (ms). */
 const getTtfb = (perf: PerformanceResourceTiming): number =>
   getFinalResponseStart(perf) - perf.requestStart;
 
@@ -321,6 +321,10 @@ class BandwidthMeasurementEngine implements Engine {
   #counter: number = 0;
   #retries: number = 0;
   #missingEntries: number = 0;
+  // Makes every request's URL unique, so its resource timing entry can't be
+  // confused with another request's, even from another engine on the page
+  readonly #engineId = Math.random().toString(36).slice(2, 10);
+  #requestCount: number = 0;
   #retryTimeout: ReturnType<typeof setTimeout> | undefined;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
@@ -439,6 +443,7 @@ class BandwidthMeasurementEngine implements Engine {
     const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
     const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
     qsParams.bytes = `${numBytes}`;
+    qsParams.reqId = `${this.#engineId}-${++this.#requestCount}`;
 
     const urlObj = new URL(apiUrl, window.location.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
@@ -514,17 +519,17 @@ class BandwidthMeasurementEngine implements Engine {
         })
       )
       .then(async () => {
-        // Every request in a set shares the URL, so skip earlier requests' entries
+        // The URL is unique per request; the start time is a second safeguard
         const entries = getRequestEntries(url, requestedAt);
         if (entries.length) return entries;
-        // Some runtimes, such as Node, record the entry a task after the body
+        // Node's fetch records the entry a task after the body; browsers don't wait
         await new Promise(resolve => setTimeout(resolve));
         return getRequestEntries(url, requestedAt);
       })
       .then(entries => {
         if (signal.aborted) return;
 
-        const perf = entries.at(-1);
+        const [perf] = entries;
         if (!perf) {
           // A full or cleared buffer, or no Resource Timing support
           console.warn(
@@ -537,7 +542,7 @@ class BandwidthMeasurementEngine implements Engine {
             this.pause();
             this.#failed = true;
             this.#onConnectionError(
-              `No resource timing entries for ${url}. Resource Timing may be unavailable.`
+              `No resource timing entries for ${url}. The host page may be clearing the buffer, or Resource Timing is unavailable.`
             );
             return;
           }

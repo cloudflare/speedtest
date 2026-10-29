@@ -35,18 +35,19 @@ describe('SpeedTest with discarded bandwidth samples', () => {
   });
 
   it('keeps measuring larger sizes after a fully discarded round', async () => {
-    const entries: ReturnType<typeof perfEntry>[] = [];
+    const entries: (ReturnType<typeof perfEntry> & { name: string })[] = [];
     const ttfbs = [0, 1500];
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => {
-        entries.push(perfEntry(ttfbs.shift() ?? 1500));
+      vi.fn(async (url: string) => {
+        entries.push({ ...perfEntry(ttfbs.shift() ?? 1500), name: url });
         return new Response('');
       })
     );
     vi.stubGlobal('performance', {
       now: () => 0,
-      getEntriesByName: () => entries,
+      getEntriesByName: (name: string) =>
+        entries.filter(entry => entry.name === name),
       clearResourceTimings: () => {},
       setResourceTimingBufferSize: () => {}
     });

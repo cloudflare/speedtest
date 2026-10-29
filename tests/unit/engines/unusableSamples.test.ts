@@ -36,35 +36,51 @@ type PerfEntry = ReturnType<typeof perfEntry> & {
 type LateEntry = { late: number };
 
 /**
+ * A request with no entry of its own, while another engine's concurrent
+ * request to the same endpoint records one.
+ */
+type OtherRequestEntry = { otherRequest: number };
+
+type Timing = number | PerfEntry | LateEntry | OtherRequestEntry | null;
+
+/**
  * Runs the engine with one resource timing entry per request, in order, each
- * given as a TTFB, as a full entry, as a {@link LateEntry}, or as `null` for a
- * request with no entry. Resolves when the engine finishes or fails.
+ * given as a TTFB, as a full entry, as a {@link LateEntry}, as an
+ * {@link OtherRequestEntry}, or as `null` for a request with no entry.
+ * Resolves when the engine finishes or fails.
  */
 const run = (
   measurements: BandwidthMeasurement[],
-  timings: (number | PerfEntry | LateEntry | null)[],
+  timings: Timing[],
   onConnectionError = vi.fn()
 ) => {
-  const entries: PerfEntry[] = [];
+  const entries: (PerfEntry & { name: string })[] = [];
   const queue = [...timings];
   // Advances once per request, so each entry is stamped with its own request
   let clock = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => {
+    vi.fn(async (url: string) => {
       const next = queue.length ? queue.shift()! : 300;
-      const startTime = clock;
+      const own = { name: url, startTime: clock };
       if (typeof next === 'number')
-        entries.push({ ...perfEntry(next), startTime });
+        entries.push({ ...perfEntry(next), ...own });
       else if (next && 'late' in next)
-        setTimeout(() => entries.push({ ...perfEntry(next.late), startTime }));
-      else if (next) entries.push({ ...next, startTime });
+        setTimeout(() => entries.push({ ...perfEntry(next.late), ...own }));
+      else if (next && 'otherRequest' in next)
+        entries.push({
+          ...perfEntry(next.otherRequest),
+          ...own,
+          name: url.replace(/reqId=[^&]+/, 'reqId=other-1')
+        });
+      else if (next) entries.push({ ...next, ...own });
       return new Response('');
     })
   );
   vi.stubGlobal('performance', {
     now: () => ++clock,
-    getEntriesByName: () => entries,
+    getEntriesByName: (name: string) =>
+      entries.filter(entry => entry.name === name),
     clearResourceTimings: vi.fn()
   });
 
@@ -228,6 +244,27 @@ describe('BandwidthEngine unusable samples', () => {
     expect(warn).toHaveBeenCalledWith(
       'Discarding down sample without a resource timing entry',
       { url: expect.stringContaining('bytes=100000') }
+    );
+  });
+
+  it('gives every request its own URL', async () => {
+    await run([{ dir: 'down', bytes: 1e5, count: 3 }], [300, 300, 300]);
+
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    expect(new Set(urls).size).toBe(3);
+    urls.forEach(url => expect(url).toMatch(/bytes=100000&reqId=\w+-\d+$/));
+  });
+
+  it("never uses another request's entry for the same endpoint", async () => {
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 2 }],
+      [300, { otherRequest: 50 }]
+    );
+
+    expect(results.down[1e5].timings).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      'Discarding down sample without a resource timing entry',
+      expect.anything()
     );
   });
 
