@@ -1,0 +1,14 @@
+src/index.ts
+  h_9a124c21cc9a2f 199-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "389c0434e9dabd98c26cbc34dc405895407d4eb0",
+  "prompts": {},
+  "humans": {
+    "h_9a124c21cc9a2f": {
+      "author": "André Jesus <ajesus@cloudflare.com>"
+    }
+  }
+}
