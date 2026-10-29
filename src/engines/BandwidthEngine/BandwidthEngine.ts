@@ -527,7 +527,7 @@ class BandwidthMeasurementEngine implements Engine {
 
         const [perf] = entries;
         if (!perf) {
-          // A full or cleared buffer, or no Resource Timing support
+          // A full or cleared buffer, or a runtime that doesn't record entries
           console.warn(
             `Discarding ${dir} sample without a resource timing entry`,
             {
@@ -538,7 +538,7 @@ class BandwidthMeasurementEngine implements Engine {
             this.pause();
             this.#failed = true;
             this.#onConnectionError(
-              `No resource timing entries for ${url}. The host page may be clearing the buffer, or Resource Timing is unavailable.`
+              `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
             );
             return;
           }
