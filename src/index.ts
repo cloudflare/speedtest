@@ -196,9 +196,9 @@ class MeasurementEngine {
   /**
    * Starts or resumes the test.
    *
-   * On first call, clears the browser's resource timing buffer and begins
-   * the measurement sequence. On subsequent calls after {@link pause},
-   * resumes the current phase.
+   * Clears the browser's resource timing buffer on every start and resume,
+   * then begins the measurement sequence or, after {@link pause}, resumes the
+   * current phase.
    */
   play(): void {
     if (!this.#failed && !this.#running) {

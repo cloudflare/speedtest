@@ -32,27 +32,56 @@ type PerfEntry = ReturnType<typeof perfEntry> & {
   finalResponseHeadersStart?: number;
 };
 
+/** A request whose entry is only recorded a task after its body resolves. */
+type LateEntry = { late: number };
+
+/**
+ * A request with no entry of its own, while an entry for the same URL that
+ * started earlier, from another request on the page, is recorded.
+ */
+type OtherRequestEntry = { otherRequest: number };
+
+type Timing = number | PerfEntry | LateEntry | OtherRequestEntry | null;
+
 /**
  * Runs the engine with one resource timing entry per request, in order, each
- * given as a TTFB or as a full entry.
+ * given as a TTFB, as a full entry, as a {@link LateEntry}, as an
+ * {@link OtherRequestEntry}, or as `null` for a request with no entry.
+ * Resolves when the engine finishes or fails.
  */
 const run = (
   measurements: BandwidthMeasurement[],
-  timings: (number | PerfEntry)[]
+  timings: Timing[],
+  onConnectionError = vi.fn()
 ) => {
-  const entries: PerfEntry[] = [];
+  const entries: (PerfEntry & { name: string })[] = [];
   const queue = [...timings];
+  // Advances once per request, so each entry is stamped with its own request
+  let clock = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => {
-      const next = queue.shift() ?? 300;
-      entries.push(typeof next === 'number' ? perfEntry(next) : next);
+    vi.fn(async (url: string) => {
+      const next = queue.length ? queue.shift()! : 300;
+      const own = { name: url, startTime: clock };
+      if (typeof next === 'number')
+        entries.push({ ...perfEntry(next), ...own });
+      else if (next && 'late' in next)
+        setTimeout(() => entries.push({ ...perfEntry(next.late), ...own }));
+      else if (next && 'otherRequest' in next)
+        entries.push({
+          ...perfEntry(next.otherRequest),
+          ...own,
+          startTime: own.startTime - 0.5
+        });
+      else if (next) entries.push({ ...next, ...own });
       return new Response('');
     })
   );
   vi.stubGlobal('performance', {
-    getEntriesByName: () => entries,
-    clearResourceTimings: () => {}
+    now: () => ++clock,
+    getEntriesByName: (name: string) =>
+      entries.filter(entry => entry.name === name),
+    clearResourceTimings: vi.fn()
   });
 
   const engine = new BandwidthEngine(measurements, {
@@ -71,6 +100,10 @@ const run = (
     engine.onFinished = results =>
       // Results are emitted on the next tick.
       setTimeout(() => resolve({ results, onMeasurementResult }));
+    engine.onConnectionError = (...args) => {
+      onConnectionError(...args);
+      resolve({ results: engine.results, onMeasurementResult });
+    };
     engine.play();
   });
 };
@@ -194,6 +227,183 @@ describe('BandwidthEngine unusable samples', () => {
     const [timing] = results.up[1e5].timings;
     expect(timing.ttfb).toBe(300);
     expect(timing.bps).toBeCloseTo((8 * 1e5 * 1.005) / 0.3);
+  });
+
+  it('counts a request without a resource timing entry and moves on', async () => {
+    const onConnectionError = vi.fn();
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 3 }],
+      [300, null, 300],
+      onConnectionError
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(results.down[1e5].numMeasurements).toBe(3);
+    expect(results.down[1e5].timings).toHaveLength(2);
+    expect(warn).toHaveBeenCalledWith(
+      'Discarding down sample without a resource timing entry',
+      { url: expect.stringContaining('bytes=100000') }
+    );
+  });
+
+  it("never uses an earlier request's entry for the same URL", async () => {
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 2 }],
+      [300, { otherRequest: 50 }]
+    );
+
+    expect(results.down[1e5].timings).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      'Discarding down sample without a resource timing entry',
+      expect.anything()
+    );
+  });
+
+  it('uses an entry recorded a task after the body', async () => {
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 2 }],
+      [300, { late: 500 }]
+    );
+
+    expect(results.down[1e5].timings.map(t => t.ttfb)).toEqual([300, 500]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('drops up to two missing entries in a row and carries on', async () => {
+    const onConnectionError = vi.fn();
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 5 }],
+      [300, null, null, 300, null],
+      onConnectionError
+    );
+
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(results.down[1e5].numMeasurements).toBe(5);
+    expect(results.down[1e5].timings).toHaveLength(2);
+  });
+
+  it('counts missing entries in a row per set', async () => {
+    const onConnectionError = vi.fn();
+    const { results } = await run(
+      [
+        { dir: 'down', bytes: 1e5, count: 3, bypassMinDuration: true },
+        { dir: 'down', bytes: 1e6, count: 2 }
+      ],
+      [300, null, null, null, 300],
+      onConnectionError
+    );
+
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(results.down[1e6].timings).toHaveLength(1);
+  });
+
+  it('fails after three missing entries in a row', async () => {
+    const onConnectionError = vi.fn();
+    await run(
+      [{ dir: 'down', bytes: 1e5, count: 5 }],
+      [null, null, null, 300, 300],
+      onConnectionError
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onConnectionError).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining('No resource timing entries for')
+    );
+  });
+
+  it('stops when paused while waiting for a late entry', async () => {
+    const entries: PerfEntry[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        setTimeout(() => entries.push(perfEntry(300)));
+        return new Response('');
+      })
+    );
+    const engine = new BandwidthEngine(
+      [{ dir: 'down', bytes: 1e5, count: 2 }],
+      {
+        downloadApiUrl: 'https://speed.example.com/__down',
+        uploadApiUrl: UPLOAD_URL
+      }
+    );
+    vi.stubGlobal('performance', {
+      now: () => 0,
+      getEntriesByName: () => {
+        // Paused just before the engine waits for the entry
+        if (!entries.length) engine.pause();
+        return [...entries];
+      },
+      clearResourceTimings: vi.fn()
+    });
+    engine.getServerTime = null;
+    const onMeasurementResult = vi.fn();
+    engine.onMeasurementResult = onMeasurementResult;
+
+    engine.play();
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(onMeasurementResult).not.toHaveBeenCalled();
+  });
+
+  it('resumes when paused and played again mid-request', async () => {
+    const entries: (PerfEntry & { name: string })[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (vi.mocked(fetch).mock.calls.length === 1)
+          return new Promise<Response>((_, reject) =>
+            init.signal!.addEventListener('abort', () =>
+              reject(new DOMException('aborted', 'AbortError'))
+            )
+          );
+        entries.push({ ...perfEntry(300), name: url });
+        return new Response('');
+      })
+    );
+    vi.stubGlobal('performance', {
+      now: () => 0,
+      getEntriesByName: (name: string) =>
+        entries.filter(entry => entry.name === name),
+      clearResourceTimings: vi.fn()
+    });
+    const engine = new BandwidthEngine(
+      [{ dir: 'down', bytes: 1e5, count: 1 }],
+      {
+        downloadApiUrl: 'https://speed.example.com/__down',
+        uploadApiUrl: UPLOAD_URL
+      }
+    );
+    engine.getServerTime = null;
+    const onConnectionError = vi.fn();
+    engine.onConnectionError = onConnectionError;
+    const finished = new Promise(resolve => {
+      engine.onFinished = resolve;
+    });
+
+    engine.play();
+    engine.pause();
+    engine.play();
+    await finished;
+
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the resource timing buffer between sets', async () => {
+    // Clearing it drops entries of requests still in flight elsewhere on the page
+    await run(
+      [
+        { dir: 'down', bytes: 1e5, count: 1, bypassMinDuration: true },
+        { dir: 'down', bytes: 1e6, count: 1 }
+      ],
+      [300, 300]
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(performance.clearResourceTimings).not.toHaveBeenCalled();
   });
 
   it('discards an upload with a negative duration', async () => {
