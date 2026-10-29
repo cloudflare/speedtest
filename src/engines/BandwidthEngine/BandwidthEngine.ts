@@ -407,6 +407,7 @@ class BandwidthMeasurementEngine implements Engine {
 
       // clear settings
       this.#counter = 0;
+      this.#missingEntries = 0;
       this.#minDuration = -Infinity;
 
       do {

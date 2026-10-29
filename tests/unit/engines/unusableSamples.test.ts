@@ -283,6 +283,21 @@ describe('BandwidthEngine unusable samples', () => {
     expect(results.down[1e5].timings).toHaveLength(2);
   });
 
+  it('counts missing entries in a row per set', async () => {
+    const onConnectionError = vi.fn();
+    const { results } = await run(
+      [
+        { dir: 'down', bytes: 1e5, count: 3, bypassMinDuration: true },
+        { dir: 'down', bytes: 1e6, count: 2 }
+      ],
+      [300, null, null, null, 300],
+      onConnectionError
+    );
+
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(results.down[1e6].timings).toHaveLength(1);
+  });
+
   it('fails after three missing entries in a row', async () => {
     const onConnectionError = vi.fn();
     await run(
