@@ -32,13 +32,17 @@ type PerfEntry = ReturnType<typeof perfEntry> & {
   finalResponseHeadersStart?: number;
 };
 
+/** A request whose entry is only recorded a task after its body resolves. */
+type LateEntry = { late: number };
+
 /**
  * Runs the engine with one resource timing entry per request, in order, each
- * given as a TTFB, as a full entry, or as `null` for a request with no entry.
+ * given as a TTFB, as a full entry, as a {@link LateEntry}, or as `null` for a
+ * request with no entry. Resolves when the engine finishes or fails.
  */
 const run = (
   measurements: BandwidthMeasurement[],
-  timings: (number | PerfEntry | null)[],
+  timings: (number | PerfEntry | LateEntry | null)[],
   onConnectionError = vi.fn()
 ) => {
   const entries: PerfEntry[] = [];
@@ -49,11 +53,12 @@ const run = (
     'fetch',
     vi.fn(async () => {
       const next = queue.length ? queue.shift()! : 300;
-      if (next !== null)
-        entries.push({
-          ...(typeof next === 'number' ? perfEntry(next) : next),
-          startTime: clock
-        });
+      const startTime = clock;
+      if (typeof next === 'number')
+        entries.push({ ...perfEntry(next), startTime });
+      else if (next && 'late' in next)
+        setTimeout(() => entries.push({ ...perfEntry(next.late), startTime }));
+      else if (next) entries.push({ ...next, startTime });
       return new Response('');
     })
   );
@@ -71,7 +76,6 @@ const run = (
   engine.finishRequestDuration = 200;
   const onMeasurementResult = vi.fn();
   engine.onMeasurementResult = onMeasurementResult;
-  engine.onConnectionError = onConnectionError;
 
   return new Promise<{
     results: BandwidthEngineResults;
@@ -80,6 +84,10 @@ const run = (
     engine.onFinished = results =>
       // Results are emitted on the next tick.
       setTimeout(() => resolve({ results, onMeasurementResult }));
+    engine.onConnectionError = (...args) => {
+      onConnectionError(...args);
+      resolve({ results: engine.results, onMeasurementResult });
+    };
     engine.play();
   });
 };
@@ -220,6 +228,43 @@ describe('BandwidthEngine unusable samples', () => {
     expect(warn).toHaveBeenCalledWith(
       'Discarding down sample without a resource timing entry',
       { url: expect.stringContaining('bytes=100000') }
+    );
+  });
+
+  it('uses an entry recorded a task after the body', async () => {
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 2 }],
+      [300, { late: 300 }]
+    );
+
+    expect(results.down[1e5].timings).toHaveLength(2);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('drops up to two missing entries in a row and carries on', async () => {
+    const onConnectionError = vi.fn();
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 5 }],
+      [300, null, null, 300, null],
+      onConnectionError
+    );
+
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(results.down[1e5].numMeasurements).toBe(5);
+    expect(results.down[1e5].timings).toHaveLength(2);
+  });
+
+  it('fails after three missing entries in a row', async () => {
+    const onConnectionError = vi.fn();
+    await run(
+      [{ dir: 'down', bytes: 1e5, count: 5 }],
+      [null, null, null, 300, 300],
+      onConnectionError
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onConnectionError).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining('No resource timing entries for')
     );
   });
 

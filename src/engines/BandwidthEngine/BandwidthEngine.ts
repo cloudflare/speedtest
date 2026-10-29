@@ -68,6 +68,15 @@ export const getFinalResponseStart = (perf: InterimAwareTiming): number =>
   perf.finalResponseHeadersStart || perf.responseStart;
 
 /** Time to first byte: time from request start to the final response (ms). */
+/** Missing resource timing entries in a row before giving up on a set. */
+const MAX_MISSING_ENTRIES = 3;
+
+/** Entries for `url` from requests started at or after `since`. */
+const getRequestEntries = (url: string, since: number) =>
+  performance
+    .getEntriesByName(url)
+    .filter(entry => entry.startTime >= since) as PerformanceResourceTiming[];
+
 const getTtfb = (perf: PerformanceResourceTiming): number =>
   getFinalResponseStart(perf) - perf.requestStart;
 
@@ -311,6 +320,7 @@ class BandwidthMeasurementEngine implements Engine {
   #measIdx: number = 0;
   #counter: number = 0;
   #retries: number = 0;
+  #missingEntries: number = 0;
   #retryTimeout: ReturnType<typeof setTimeout> | undefined;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
@@ -474,10 +484,11 @@ class BandwidthMeasurementEngine implements Engine {
     }
 
     let serverTime: number | undefined;
+    const signal = this.#currentAbortController!.signal;
     const requestedAt = performance.now();
     fetch(url, {
       ...fetchOpt,
-      signal: this.#currentAbortController!.signal
+      signal
     })
       .then(r => {
         if (r.ok) return r;
@@ -502,23 +513,39 @@ class BandwidthMeasurementEngine implements Engine {
           return body;
         })
       )
-      .then(() => {
+      .then(async () => {
         // Every request in a set shares the URL, so skip earlier requests' entries
-        const perf = performance
-          .getEntriesByName(url)
-          .filter(entry => entry.startTime >= requestedAt)
-          .slice(-1)[0] as PerformanceResourceTiming | undefined;
+        const entries = getRequestEntries(url, requestedAt);
+        if (entries.length) return entries;
+        // Some runtimes, such as Node, record the entry a task after the body
+        await new Promise(resolve => setTimeout(resolve));
+        return getRequestEntries(url, requestedAt);
+      })
+      .then(entries => {
+        if (signal.aborted) return;
+
+        const perf = entries.at(-1);
         if (!perf) {
-          // No Resource Timing support, or a full or cleared buffer
+          // A full or cleared buffer, or no Resource Timing support
           console.warn(
             `Discarding ${dir} sample without a resource timing entry`,
             {
               url
             }
           );
+          if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
+            this.pause();
+            this.#failed = true;
+            this.#onConnectionError(
+              `No resource timing entries for ${url}. Resource Timing may be unavailable.`
+            );
+            return;
+          }
           this.#scheduleNextMeasurement();
           return;
         }
+        this.#missingEntries = 0;
+
         const timing: BandwidthMeasurementTiming = {
           transferSize: perf.transferSize,
           ttfb: getTtfb(perf),
@@ -635,7 +662,7 @@ class BandwidthMeasurementEngine implements Engine {
                 .finalResponseHeadersStart,
               responseEnd: perf.responseEnd,
               nextHopProtocol: perf.nextHopProtocol,
-              entries: performance.getEntriesByName(url).length
+              entries: entries.length
             }
           });
         }
