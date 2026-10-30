@@ -306,6 +306,7 @@ it.each([500, 401, 403])(
       1e5, 1e5, 1e5, 1e6
     ]);
     expect(results.getUploadBandwidthPoints()).toHaveLength(1);
+    expect(results.raw.download).not.toHaveProperty('error');
   }
 );
 
@@ -349,63 +350,6 @@ it('reports a failed loaded-latency request and keeps measuring bandwidth', asyn
   expect(resultErrors).toEqual([]);
   expect(results.getDownloadBandwidthPoints()).toHaveLength(1);
 });
-
-it.each([500, 401, 403])(
-  'skips a mid-step %i and carries on with the step',
-  async status => {
-    mockPerformanceTiming();
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const requests: string[] = [];
-    let downloads = 0;
-    window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
-      const url = new URL(input.toString());
-      requests.push(
-        `${url.pathname.slice(1)} ${url.searchParams.get('bytes')}`
-      );
-      const failed = url.pathname === '/down' && ++downloads === 3;
-      return Promise.resolve(
-        new Response(failed ? null : 'ok', { status: failed ? status : 200 })
-      );
-    });
-
-    const engine = createEngine([
-      { type: 'download', bytes: 1e5, count: 4 },
-      { type: 'upload', bytes: 1e5, count: 1 },
-      { type: 'download', bytes: 1e6, count: 1 }
-    ]);
-    const errors: { message: string; status?: number }[] = [];
-    engine.onError = (message, errorStatus) =>
-      errors.push({ message, status: errorStatus });
-
-    const results = await new Promise<SpeedTest['results']>(resolve => {
-      engine.onFinish = resolve;
-      engine.play();
-    });
-
-    expect(requests).toEqual([
-      'down 100000',
-      'down 100000',
-      'down 100000',
-      'down 100000',
-      'up 100000',
-      'down 1000000'
-    ]);
-    expect(errors).toEqual([
-      {
-        message: expect.stringContaining(
-          `Connection error while measuring download: Request failed with ${status}`
-        ),
-        status
-      }
-    ]);
-    expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([
-      1e5, 1e5, 1e5, 1e6
-    ]);
-    expect(results.raw.download).not.toHaveProperty('error');
-  }
-);
 
 it('stops the test after three missing resource timing entries in a row', async () => {
   vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
@@ -612,6 +556,139 @@ describe('abortTestDuration', () => {
     expect(engine.results.raw.error).toBeUndefined();
     expect(engine.results.getDownloadBandwidthPoints()).toHaveLength(1);
   });
+
+  it('runs a single new test when restarted from its onError', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    let hang = true;
+    const fetchMock = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+        hang
+          ? new Promise((_resolve, reject) =>
+              init!.signal!.addEventListener('abort', () =>
+                reject(new TypeError('Failed to fetch'))
+              )
+            )
+          : Promise.resolve(new Response('ok'))
+    );
+    window.fetch = fetchMock;
+
+    const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
+      abortTestDuration: 50
+    });
+    const errors: string[] = [];
+    engine.onError = message => {
+      errors.push(message);
+      hang = false;
+      engine.restart();
+      engine.play();
+    };
+    const onFinish = vi.fn();
+
+    await new Promise<void>(resolve => {
+      engine.onFinish = results => {
+        onFinish(results);
+        resolve();
+      };
+      engine.play();
+    });
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(errors).toEqual([
+      'Test aborted. Test exceeded abortTestDuration (50ms)'
+    ]);
+    expect(onFinish).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(engine.results.raw.error).toBeUndefined();
+    expect(engine.results.getDownloadBandwidthPoints()).toHaveLength(1);
+  });
+
+  it('reports nothing after onFinish when the aborted request fails', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    window.fetch = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+        new Promise((_resolve, reject) =>
+          init!.signal!.addEventListener('abort', () =>
+            setTimeout(() => reject(new TypeError('Failed to fetch')), 10)
+          )
+        )
+    );
+
+    const engine = createEngine(
+      [
+        { type: 'latency', numPackets: 1 },
+        { type: 'download', bytes: 1e5, count: 1 }
+      ],
+      { abortTestDuration: 50 }
+    );
+    const errors: string[] = [];
+    engine.onError = message => errors.push(message);
+
+    await new Promise(resolve => {
+      engine.onFinish = resolve;
+      engine.play();
+    });
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(errors).toEqual([
+      'Test aborted. Test exceeded abortTestDuration (50ms)'
+    ]);
+  });
+});
+
+it('stops the test when loaded latency gets no resource timing entries', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  // The download hangs, so only the loaded-latency pings look up an entry
+  vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
+
+  let downloadSignal: AbortSignal | undefined;
+  const fetchMock = vi.fn(
+    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (new URL(input.toString()).searchParams.get('bytes') === '0') {
+        return Promise.resolve(new Response('ok'));
+      }
+      downloadSignal = init!.signal!;
+      return new Promise((_resolve, reject) =>
+        init!.signal!.addEventListener('abort', () =>
+          reject(init!.signal!.reason)
+        )
+      );
+    }
+  );
+  window.fetch = fetchMock;
+
+  const engine = createEngine(
+    [
+      { type: 'download', bytes: 1e5, count: 1 },
+      { type: 'upload', bytes: 1e5, count: 1 }
+    ],
+    { measureDownloadLoadedLatency: true, loadedLatencyThrottle: 10 }
+  );
+  const onFinish = vi.fn();
+  engine.onFinish = onFinish;
+  const message = await new Promise<string>(resolve => {
+    engine.onError = resolve;
+    engine.play();
+  });
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  expect(message).toContain(
+    'Connection error while measuring download: No resource timing entries'
+  );
+  expect(downloadSignal?.aborted).toBe(true);
+  expect(engine.isRunning).toBe(false);
+  expect(onFinish).not.toHaveBeenCalled();
+  expect(
+    fetchMock.mock.calls.filter(([input]) =>
+      new URL(input.toString()).pathname.endsWith('/up')
+    )
+  ).toHaveLength(0);
 });
 
 describe.each([
