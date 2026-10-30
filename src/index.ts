@@ -206,7 +206,7 @@ class MeasurementEngine {
    * current phase.
    */
   play(): void {
-    if (!this.#running) {
+    if (!this.#failed && !this.#running) {
       // Clear timings before running the engine
       performance.clearResourceTimings();
 
@@ -251,6 +251,7 @@ class MeasurementEngine {
 
   #running: boolean = false;
   #finished: boolean = false;
+  #failed: boolean = false;
 
   // Internal methods
   #setRunning(running: boolean): void {
@@ -282,6 +283,19 @@ class MeasurementEngine {
       () => this.#abortTest(),
       Math.max(0, limit - this.#accumulatedRuntimeMs)
     );
+  }
+
+  // The engine can't measure at all, so stop for good (play() does nothing)
+  #failTest(message: string): void {
+    const type = this.#curType();
+    const msmResults = this.#curTypeResults();
+    if (type && msmResults) {
+      msmResults.error = message;
+      this.onResultsChange({ type });
+    }
+    this.#failed = true;
+    this.pause();
+    this.#onError(message);
   }
 
   #reportErrorAndContinue(...error: [message: string, status?: number]): void {
@@ -348,6 +362,7 @@ class MeasurementEngine {
 
     this.#setRunning(false);
     this.#setFinished(false);
+    this.#failed = false;
 
     this.#results.clear();
     this.#accumulatedRuntimeMs = 0;
@@ -365,6 +380,7 @@ class MeasurementEngine {
       engine.onNewMeasurementStarted =
       engine.onParallelLatencyResult =
       engine.onParallelLatencyError =
+      engine.onFatalError =
         () => {};
 
     const curType = this.#curType();
@@ -640,6 +656,8 @@ class MeasurementEngine {
             `Connection error while measuring latency: ${e}`,
             status
           );
+        engine.onFatalError = (e: unknown) =>
+          this.#failTest(`Connection error while measuring latency: ${e}`);
 
         (engine as Engine & { play: () => void }).play!();
         break;
@@ -799,6 +817,8 @@ class MeasurementEngine {
               `Connection error while measuring ${type}: ${e}`,
               status
             );
+          engine.onFatalError = (e: unknown) =>
+            this.#failTest(`Connection error while measuring ${type}: ${e}`);
 
           const measurementId = this.#measurementId;
           const msmIdx = this.#curMsmIdx;

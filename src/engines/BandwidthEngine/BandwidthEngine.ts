@@ -290,6 +290,10 @@ class BandwidthMeasurementEngine implements Engine {
   set onConnectionError(f: (error: string, status?: number) => void) {
     this.#onConnectionError = f;
   }
+  #onFatalError: (error: string) => void = () => {}; // Invoked when the engine can't measure at all, after pausing itself
+  set onFatalError(f: (error: string) => void) {
+    this.#onFatalError = f;
+  }
 
   // Public methods
   pause(): void {
@@ -532,8 +536,8 @@ class BandwidthMeasurementEngine implements Engine {
             }
           );
           if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
-            this.#missingEntries = 0;
-            this.#skipFailedRequest(
+            this.pause();
+            this.#onFatalError(
               `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
             );
             return;

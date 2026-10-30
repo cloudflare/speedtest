@@ -93,6 +93,15 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
     this.#latencyEngine && (this.#latencyEngine.fetchOptions = fetchOptions);
   }
 
+  set onFatalError(onFatalError: (error: string) => void) {
+    super.onFatalError = onFatalError;
+    this.#latencyEngine &&
+      (this.#latencyEngine.onFatalError = (error: string) => {
+        this.pause();
+        onFatalError(error);
+      });
+  }
+
   set onRunningChange(onRunningChange: (running: boolean) => void) {
     super.onRunningChange = (running: boolean) => {
       this.#setLatencyRunning(running);

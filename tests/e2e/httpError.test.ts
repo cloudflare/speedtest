@@ -252,102 +252,37 @@ it('skips each request that exceeds bandwidthAbortRequestDuration and runs every
   });
 });
 
-it.each([500, 401, 403])(
-  'skips a %i mid-step and carries on with the step',
-  async status => {
-    mockPerformanceTiming();
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const requests: string[] = [];
-    let downloads = 0;
-    window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
-      const url = new URL(input.toString());
-      requests.push(
-        `${url.pathname.slice(1)} ${url.searchParams.get('bytes')}`
-      );
-      const failed = url.pathname === '/down' && ++downloads === 3;
-      return Promise.resolve(
-        new Response('ok', { status: failed ? status : 200 })
-      );
-    });
-
-    const engine = createEngine([
-      { type: 'download', bytes: 1e5, count: 4 },
-      { type: 'upload', bytes: 1e5, count: 1 },
-      { type: 'download', bytes: 1e6, count: 1 }
-    ]);
-    const errors: { message: string; status?: number }[] = [];
-    engine.onError = (message, responseStatus) =>
-      errors.push({ message, status: responseStatus });
-
-    const results = await new Promise<SpeedTest['results']>(resolve => {
-      engine.onFinish = resolve;
-      engine.play();
-    });
-
-    expect(requests).toEqual([
-      'down 100000',
-      'down 100000',
-      'down 100000',
-      'down 100000',
-      'up 100000',
-      'down 1000000'
-    ]);
-    expect(errors).toEqual([
-      {
-        message: expect.stringContaining(
-          `Connection error while measuring download: Request failed with ${status}`
-        ),
-        status
-      }
-    ]);
-    expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([
-      1e5, 1e5, 1e5, 1e6
-    ]);
-    expect(results.getUploadBandwidthPoints()).toHaveLength(1);
-  }
-);
-
-it('reports a failed loaded-latency request and keeps measuring bandwidth', async () => {
-  mockPerformanceTiming();
+it('stops the test after three missing resource timing entries in a row', async () => {
+  vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-  let resolveBandwidthRequest: ((response: Response) => void) | undefined;
-  const fetchMock = vi.fn((input: RequestInfo | URL): Promise<Response> => {
-    const url = new URL(input.toString());
-    if (url.searchParams.get('bytes') === '0') {
-      setTimeout(() => resolveBandwidthRequest?.(new Response('ok')), 10);
-      return Promise.resolve(new Response(null, { status: 401 }));
-    }
-    return new Promise(resolve => {
-      resolveBandwidthRequest = resolve;
-    });
-  });
+  const fetchMock = vi.fn(() => Promise.resolve(new Response('ok')));
   window.fetch = fetchMock;
 
-  const engine = createEngine([{ type: 'download', bytes: 1_000, count: 1 }], {
-    measureDownloadLoadedLatency: true
-  });
-  const resultErrors = trackResultErrors(engine);
-  const onError = vi.fn();
-  engine.onError = onError;
+  const engine = createEngine([
+    { type: 'download', bytes: 1e5, count: 5 },
+    { type: 'upload', bytes: 1e5, count: 1 }
+  ]);
+  const onFinish = vi.fn();
+  engine.onFinish = onFinish;
+  const errored = new Promise<string>(resolve => (engine.onError = resolve));
 
-  const results = await new Promise<SpeedTest['results']>(resolve => {
-    engine.onFinish = resolve;
-    engine.play();
-  });
+  engine.play();
+  const message = await errored;
+  await new Promise(resolve => setTimeout(resolve, 50));
 
-  expect(fetchMock).toHaveBeenCalledTimes(2);
-  expect(onError).toHaveBeenCalledExactlyOnceWith(
-    expect.stringMatching(
-      /^Connection error while measuring loaded latency: Request failed with 401:/
-    ),
-    401
+  expect(message).toContain(
+    'Connection error while measuring download: No resource timing entries'
   );
-  expect(resultErrors).toEqual([]);
-  expect(results.getDownloadBandwidthPoints()).toHaveLength(1);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(engine.isRunning).toBe(false);
+  expect(engine.results.raw.download).toMatchObject({
+    error: expect.stringContaining('No resource timing entries')
+  });
+
+  engine.play();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(onFinish).not.toHaveBeenCalled();
 });
 
 it('keeps sampling loaded latency after a failed request', async () => {

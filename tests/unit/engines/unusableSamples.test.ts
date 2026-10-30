@@ -52,7 +52,8 @@ type Timing = number | PerfEntry | LateEntry | OtherRequestEntry | null;
 const run = (
   measurements: BandwidthMeasurement[],
   timings: Timing[],
-  onConnectionError = vi.fn()
+  onConnectionError = vi.fn(),
+  onFatalError = vi.fn()
 ) => {
   const entries: (PerfEntry & { name: string })[] = [];
   const queue = [...timings];
@@ -101,6 +102,10 @@ const run = (
       // Results are emitted on the next tick.
       setTimeout(() => resolve({ results, onMeasurementResult }));
     engine.onConnectionError = onConnectionError;
+    engine.onFatalError = (...args) => {
+      onFatalError(...args);
+      resolve({ results: engine.results, onMeasurementResult });
+    };
     engine.play();
   });
 };
@@ -295,20 +300,21 @@ describe('BandwidthEngine unusable samples', () => {
     expect(results.down[1e6].timings).toHaveLength(1);
   });
 
-  it('reports three missing entries in a row and carries on', async () => {
+  it('fails after three missing entries in a row', async () => {
     const onConnectionError = vi.fn();
-    const { results } = await run(
+    const onFatalError = vi.fn();
+    await run(
       [{ dir: 'down', bytes: 1e5, count: 5 }],
       [null, null, null, 300, 300],
-      onConnectionError
+      onConnectionError,
+      onFatalError
     );
 
-    expect(fetch).toHaveBeenCalledTimes(5);
-    expect(onConnectionError).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining('No resource timing entries for'),
-      undefined
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onConnectionError).not.toHaveBeenCalled();
+    expect(onFatalError).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining('No resource timing entries for')
     );
-    expect(results.down[1e5].timings).toHaveLength(2);
   });
 
   it('stops when paused while waiting for a late entry', async () => {
