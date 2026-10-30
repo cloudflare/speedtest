@@ -130,16 +130,18 @@ export interface Config {
   estimatedServerTime: number;
 
   /**
-   * Per-request duration (ms) at which to abort the current request and stop
-   * further rounds of that bandwidth type. Set to `0` to disable. Default: `0`.
+   * Per-request duration (ms) at which to abort a download, upload or latency
+   * request. The request is skipped like any failed one, and the test carries
+   * on. Set to `0` to disable. Default: `0`.
    */
   bandwidthAbortRequestDuration: number;
 
   /**
    * Total running time (ms, excluding paused time) after which the test is
-   * aborted, including any HTTP request in flight. The results collected so
-   * far are kept, `results.raw.error` says why, and `onFinish` fires as usual.
-   * `0` or less disables it. Default: `0`.
+   * aborted, including any download, upload or latency request in flight. A
+   * running packet loss or reachability measurement isn't stopped. The results
+   * collected so far are kept, `results.raw.error` says why, and `onFinish`
+   * fires as usual. `0` or less disables it. Default: `0`.
    */
   abortTestDuration: number;
 
@@ -220,7 +222,7 @@ const defaultConfig: Config = {
   estimatedServerTime: 0, // ms to discount from latency calculation (if not present in response headers)
 
   // Test abort
-  bandwidthAbortRequestDuration: 0, // download/upload duration (ms) to abort measurement early and stop further measurements of that type
+  bandwidthAbortRequestDuration: 0, // request duration (ms) after which a request is aborted and skipped
   abortTestDuration: 0, // total running time (ms) to abort the whole test, keeping the results so far
 
   // Result interpretation

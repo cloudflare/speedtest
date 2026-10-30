@@ -95,7 +95,7 @@ describe.each([
     'Connection failed'
   ]
 ])('bandwidth %s', (_label, respond, status, reason) => {
-  it('records the error on each step and finishes the test', async () => {
+  it('skips each failed request and runs every step', async () => {
     const fetchMock = vi.fn(respond);
     window.fetch = fetchMock;
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -117,22 +117,18 @@ describe.each([
     engine.play();
     await finished;
 
-    // The second download is skipped, as its direction already errored
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(phases).toEqual(['latency', 'download', 'upload', 'download']);
     expect(errors).toEqual(
-      ['latency', 'download', 'upload'].map(type => ({
+      ['latency', 'download', 'upload', 'download'].map(type => ({
         message: expect.stringContaining(
           `Connection error while measuring ${type}: ${reason}`
         ),
         status
       }))
     );
-    expect(resultErrors).toEqual([
-      expect.stringContaining(reason),
-      expect.stringContaining(reason),
-      expect.stringContaining(reason)
-    ]);
+    // A failed request doesn't end its step, so no step records an error
+    expect(resultErrors).toEqual([]);
     expect(engine.isFinished).toBe(true);
     expect(engine.isRunning).toBe(false);
     expect(() => engine.results.getSummary()).not.toThrow();
@@ -140,7 +136,7 @@ describe.each([
   });
 });
 
-it('stops when paused from onError and resumes at the next step', async () => {
+it('stops when paused from onError and retries the request on resume', async () => {
   const fetchMock = vi.fn(() =>
     Promise.resolve(new Response(null, { status: 401 }))
   );
@@ -181,11 +177,12 @@ it('stops when paused from onError and resumes at the next step', async () => {
   engine.play();
   await finished;
 
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+  // The paused latency request is sent again, then the download
+  expect(fetchMock).toHaveBeenCalledTimes(3);
   expect(phases).toEqual(['latency', 'download']);
 });
 
-it('skips the rest of a direction after bandwidthAbortRequestDuration and finishes', async () => {
+it('skips each request that exceeds bandwidthAbortRequestDuration and runs every step', async () => {
   mockPerformanceTiming();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -212,13 +209,14 @@ it('skips the rest of a direction after bandwidthAbortRequestDuration and finish
     [
       { type: 'download', bytes: 1e5, count: 1 },
       { type: 'upload', bytes: 1e5, count: 1 },
-      { type: 'download', bytes: 1e7, count: 1 },
+      { type: 'download', bytes: 1e7, count: 2 },
       { type: 'upload', bytes: 5e6, count: 1 },
       { type: 'download', bytes: 2.5e7, count: 1 },
       { type: 'latency', numPackets: 1 }
     ],
     { bandwidthAbortRequestDuration: 50 }
   );
+  const resultErrors = trackResultErrors(engine);
   const errors: string[] = [];
   engine.onError = message => errors.push(message);
 
@@ -231,13 +229,19 @@ it('skips the rest of a direction after bandwidthAbortRequestDuration and finish
     'down 100000',
     'up 100000',
     'down 10000000',
+    'down 10000000',
     'up 5000000',
+    'down 25000000',
     'down 0'
   ]);
   expect(errors).toEqual([
+    expect.stringContaining('exceeded bandwidthAbortRequestDuration (50ms)'),
     expect.stringContaining('exceeded bandwidthAbortRequestDuration (50ms)')
   ]);
-  expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([1e5]);
+  expect(resultErrors).toEqual([]);
+  expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([
+    1e5, 2.5e7
+  ]);
   expect(results.getUploadBandwidthPoints().map(d => d.bytes)).toEqual([
     1e5, 5e6
   ]);
@@ -248,52 +252,62 @@ it('skips the rest of a direction after bandwidthAbortRequestDuration and finish
   });
 });
 
-it('keeps the samples taken before a 500 mid-step', async () => {
-  mockPerformanceTiming();
-  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+it.each([500, 401, 403])(
+  'skips a %i mid-step and carries on with the step',
+  async status => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-  const requests: string[] = [];
-  let downloads = 0;
-  window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
-    const url = new URL(input.toString());
-    requests.push(`${url.pathname.slice(1)} ${url.searchParams.get('bytes')}`);
-    const failed = url.pathname === '/down' && ++downloads === 3;
-    return Promise.resolve(new Response('ok', { status: failed ? 500 : 200 }));
-  });
+    const requests: string[] = [];
+    let downloads = 0;
+    window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = new URL(input.toString());
+      requests.push(
+        `${url.pathname.slice(1)} ${url.searchParams.get('bytes')}`
+      );
+      const failed = url.pathname === '/down' && ++downloads === 3;
+      return Promise.resolve(
+        new Response('ok', { status: failed ? status : 200 })
+      );
+    });
 
-  const engine = createEngine([
-    { type: 'download', bytes: 1e5, count: 4 },
-    { type: 'upload', bytes: 1e5, count: 1 },
-    { type: 'download', bytes: 1e6, count: 1 }
-  ]);
-  const errors: { message: string; status?: number }[] = [];
-  engine.onError = (message, status) => errors.push({ message, status });
+    const engine = createEngine([
+      { type: 'download', bytes: 1e5, count: 4 },
+      { type: 'upload', bytes: 1e5, count: 1 },
+      { type: 'download', bytes: 1e6, count: 1 }
+    ]);
+    const errors: { message: string; status?: number }[] = [];
+    engine.onError = (message, responseStatus) =>
+      errors.push({ message, status: responseStatus });
 
-  const results = await new Promise<SpeedTest['results']>(resolve => {
-    engine.onFinish = resolve;
-    engine.play();
-  });
+    const results = await new Promise<SpeedTest['results']>(resolve => {
+      engine.onFinish = resolve;
+      engine.play();
+    });
 
-  expect(requests).toEqual([
-    'down 100000',
-    'down 100000',
-    'down 100000',
-    'up 100000'
-  ]);
-  expect(errors).toEqual([
-    {
-      message: expect.stringContaining(
-        'Connection error while measuring download: Request failed with 500'
-      ),
-      status: 500
-    }
-  ]);
-  expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([
-    1e5, 1e5
-  ]);
-  expect(results.getUploadBandwidthPoints()).toHaveLength(1);
-});
+    expect(requests).toEqual([
+      'down 100000',
+      'down 100000',
+      'down 100000',
+      'down 100000',
+      'up 100000',
+      'down 1000000'
+    ]);
+    expect(errors).toEqual([
+      {
+        message: expect.stringContaining(
+          `Connection error while measuring download: Request failed with ${status}`
+        ),
+        status
+      }
+    ]);
+    expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([
+      1e5, 1e5, 1e5, 1e6
+    ]);
+    expect(results.getUploadBandwidthPoints()).toHaveLength(1);
+  }
+);
 
 it('reports a failed loaded-latency request and keeps measuring bandwidth', async () => {
   mockPerformanceTiming();
@@ -334,6 +348,43 @@ it('reports a failed loaded-latency request and keeps measuring bandwidth', asyn
   );
   expect(resultErrors).toEqual([]);
   expect(results.getDownloadBandwidthPoints()).toHaveLength(1);
+});
+
+it('keeps sampling loaded latency after a failed request', async () => {
+  mockPerformanceTiming();
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+  let pings = 0;
+  window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+    const url = new URL(input.toString());
+    if (url.searchParams.get('bytes') === '0') {
+      const status = ++pings === 1 ? 500 : 200;
+      return Promise.resolve(new Response('ok', { status }));
+    }
+    return new Promise(resolve =>
+      setTimeout(() => resolve(new Response('ok')), 150)
+    );
+  });
+
+  const engine = createEngine([{ type: 'download', bytes: 1_000, count: 1 }], {
+    measureDownloadLoadedLatency: true,
+    loadedLatencyThrottle: 10
+  });
+  const onError = vi.fn();
+  engine.onError = onError;
+
+  await new Promise(resolve => {
+    engine.onFinish = resolve;
+    engine.play();
+  });
+
+  expect(onError).toHaveBeenCalledOnce();
+  const download = engine.results.raw.download!.results as Record<
+    number,
+    { sideLatency: unknown[] }
+  >;
+  expect(download[1_000].sideLatency.length).toBeGreaterThan(0);
 });
 
 describe('abortTestDuration', () => {

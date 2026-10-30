@@ -468,15 +468,14 @@ class BandwidthMeasurementEngine implements Engine {
       this.#currentAbortController?.abort('restarting engine');
 
       // create new abort controller
-      this.#currentAbortController = new AbortController();
+      const controller = (this.#currentAbortController = new AbortController());
       if (this.abortRequestDuration) {
         const abortTimeout = setTimeout(() => {
-          const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
-          this.#retries = 0;
-          this.pause();
-          this.#onConnectionError(errorMessage);
+          const errorMessage = `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes aborted. Request exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
+          controller.abort(errorMessage);
+          this.#skipFailedRequest(errorMessage);
         }, this.abortRequestDuration);
-        this.#currentAbortController.signal.addEventListener('abort', () =>
+        controller.signal.addEventListener('abort', () =>
           clearTimeout(abortTimeout)
         );
       }
@@ -533,8 +532,8 @@ class BandwidthMeasurementEngine implements Engine {
             }
           );
           if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
-            this.pause();
-            this.#onConnectionError(
+            this.#missingEntries = 0;
+            this.#skipFailedRequest(
               `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
             );
             return;
@@ -690,10 +689,15 @@ class BandwidthMeasurementEngine implements Engine {
             : status === undefined
               ? `Connection failed to ${url}.`
               : `Request failed with ${status}: ${url}`;
-        this.#retries = 0;
-        this.pause();
-        this.#onConnectionError(message, status);
+        this.#skipFailedRequest(message, status);
       });
+  }
+
+  // Reports a failed request and moves on, so one failure can't end the set
+  #skipFailedRequest(message: string, status?: number): void {
+    this.#retries = 0;
+    this.#onConnectionError(message, status);
+    this.#running && this.#scheduleNextMeasurement();
   }
 
   #scheduleNextMeasurement(): void {

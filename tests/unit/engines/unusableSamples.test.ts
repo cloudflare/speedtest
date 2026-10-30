@@ -100,10 +100,7 @@ const run = (
     engine.onFinished = results =>
       // Results are emitted on the next tick.
       setTimeout(() => resolve({ results, onMeasurementResult }));
-    engine.onConnectionError = (...args) => {
-      onConnectionError(...args);
-      resolve({ results: engine.results, onMeasurementResult });
-    };
+    engine.onConnectionError = onConnectionError;
     engine.play();
   });
 };
@@ -298,18 +295,20 @@ describe('BandwidthEngine unusable samples', () => {
     expect(results.down[1e6].timings).toHaveLength(1);
   });
 
-  it('fails after three missing entries in a row', async () => {
+  it('reports three missing entries in a row and carries on', async () => {
     const onConnectionError = vi.fn();
-    await run(
+    const { results } = await run(
       [{ dir: 'down', bytes: 1e5, count: 5 }],
       [null, null, null, 300, 300],
       onConnectionError
     );
 
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(5);
     expect(onConnectionError).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining('No resource timing entries for')
+      expect.stringContaining('No resource timing entries for'),
+      undefined
     );
+    expect(results.down[1e5].timings).toHaveLength(2);
   });
 
   it('stops when paused while waiting for a late entry', async () => {

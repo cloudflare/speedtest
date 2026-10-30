@@ -380,8 +380,7 @@ class MeasurementEngine {
       resumeResults &&
       resumeResults.started &&
       !resumeResults.finished &&
-      !resumeResults.finishedCurrentRound &&
-      !resumeResults.error
+      !resumeResults.finishedCurrentRound
     ) {
       this.#curEngine?.play?.();
       return;
@@ -635,22 +634,19 @@ class MeasurementEngine {
           this.#running && this.#next();
         };
 
-        engine.onConnectionError = (e: unknown, status?: number) => {
-          this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
-          msmResults.error = e;
-          this.onResultsChange({ type });
-          this.#reportErrorAndContinue(
+        // The engine skips the failed request and carries on with the step
+        engine.onConnectionError = (e: unknown, status?: number) =>
+          this.#onError(
             `Connection error while measuring latency: ${e}`,
             status
           );
-        };
 
         (engine as Engine & { play: () => void }).play!();
         break;
       }
       case 'download':
       case 'upload':
-        if (msmResults.finished || msmResults.error) {
+        if (msmResults.finished) {
           // Skip: this direction already concluded. Return so the nested
           // #next() keeps ownership of #curEngine.
           this.#next();
@@ -797,15 +793,12 @@ class MeasurementEngine {
             this.#running && this.#next();
           };
 
-          engine.onConnectionError = (e: unknown, status?: number) => {
-            this.#serverTimeDelta = (engine as BandwidthEngine).serverTimeDelta;
-            msmResults.error = e;
-            this.onResultsChange({ type });
-            this.#reportErrorAndContinue(
+          // The engine skips the failed request and carries on with the step
+          engine.onConnectionError = (e: unknown, status?: number) =>
+            this.#onError(
               `Connection error while measuring ${type}: ${e}`,
               status
             );
-          };
 
           const measurementId = this.#measurementId;
           const msmIdx = this.#curMsmIdx;

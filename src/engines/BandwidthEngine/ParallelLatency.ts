@@ -63,7 +63,6 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       };
 
       super.onRunningChange = this.#setLatencyRunning;
-      super.onConnectionError = () => this.#latencyEngine!.pause();
     }
   }
 
@@ -80,7 +79,7 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
         f(res));
   }
 
-  // Called when a parallel latency request fails; bandwidth keeps measuring
+  // Called when a parallel latency request fails; both engines keep measuring
   set onParallelLatencyError(f: (error: string, status?: number) => void) {
     this.#latencyEngine && (this.#latencyEngine.onConnectionError = f);
   }
@@ -98,15 +97,6 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
     super.onRunningChange = (running: boolean) => {
       this.#setLatencyRunning(running);
       onRunningChange(running);
-    };
-  }
-
-  set onConnectionError(
-    onConnectionError: (error: string, status?: number) => void
-  ) {
-    super.onConnectionError = (...args: [string, number?]) => {
-      this.#latencyEngine && this.#latencyEngine.pause();
-      onConnectionError(...args);
     };
   }
 
