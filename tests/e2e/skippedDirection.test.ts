@@ -19,6 +19,7 @@ it('pauses the step that follows a skipped direction', async () => {
       responseEnd: 1_500,
       responseStart: 10,
       secureConnectionStart: 0,
+      startTime: Number.MAX_SAFE_INTEGER,
       transferSize: 1_000
     } as PerformanceResourceTiming
   ]);
@@ -62,4 +63,8 @@ it('pauses the step that follows a skipped direction', async () => {
   engine.pause();
 
   expect(latencySignal?.aborted).toBe(true);
+  const requested = vi
+    .mocked(window.fetch)
+    .mock.calls.map(([input]) => input.toString());
+  expect(requested).not.toContainEqual(expect.stringContaining('bytes=10000'));
 });
