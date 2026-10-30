@@ -695,6 +695,9 @@ class BandwidthMeasurementEngine implements Engine {
 
   // Reports a failed request and moves on, so one failure can't end the set
   #skipFailedRequest(message: string, status?: number): void {
+    // An abort can land during a 429 backoff; its retry must not run too
+    clearTimeout(this.#retryTimeout);
+    this.#retryTimeout = undefined;
     this.#retries = 0;
     this.#onConnectionError(message, status);
     this.#running && this.#scheduleNextMeasurement();

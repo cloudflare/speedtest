@@ -593,6 +593,39 @@ it('cancels a pending 429 retry when paused', async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
+it('drops a pending 429 retry when the request is aborted', async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  const fetchMock = vi.fn(
+    (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (++calls === 1)
+        return Promise.resolve(
+          new Response(null, { status: 429, headers: { 'retry-after': '1' } })
+        );
+      return new Promise((_resolve, reject) =>
+        init?.signal?.addEventListener('abort', () =>
+          reject(init.signal?.reason)
+        )
+      );
+    }
+  );
+  window.fetch = fetchMock;
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 5 }], {
+    downloadApiUrl: 'https://example.com/down',
+    uploadApiUrl: 'https://example.com/up'
+  });
+  engine.abortRequestDuration = 900;
+
+  engine.play();
+  // The abort fires during the 1 s backoff and moves on to the next request
+  await vi.advanceTimersByTimeAsync(1_100);
+  engine.pause();
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 it('cancels the old engine 429 retry when restarted', async () => {
   vi.useFakeTimers();
   const fetchMock = vi
