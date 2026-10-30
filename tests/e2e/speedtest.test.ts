@@ -80,11 +80,11 @@ describe('SpeedTest E2E', () => {
         }
         originalWarn(...args);
       });
-      const assertNoLibraryErrors = () => {
-        if (libraryErrors.length) {
-          throw new Error(`${LIBRARY_ERROR}: ${libraryErrors.join('; ')}`);
-        }
-      };
+      // A library bug can surface as a timeout or error, so report it first
+      const libraryError = () =>
+        libraryErrors.length
+          ? new Error(`${LIBRARY_ERROR}: ${libraryErrors.join('; ')}`)
+          : undefined;
       window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
         const url =
           typeof input === 'string'
@@ -101,7 +101,7 @@ describe('SpeedTest E2E', () => {
           );
         }
         return originalFetch(input, init).then(r => {
-          if (!r.ok) networkErrors.add(`Error: ${r.statusText}`);
+          if (!r.ok) networkErrors.add(String(new Error(r.statusText)));
           const text = r.text.bind(r);
           r.text = () => text().catch(recordNetworkError);
           return r;
@@ -117,26 +117,24 @@ describe('SpeedTest E2E', () => {
       // Run the speed test and wait for completion
       const resultsObj = await new Promise<typeof engine.results>(
         (resolve, reject) => {
-          const timeout = setTimeout(() => {
+          // Stop the engine so its requests can't leak into a retry
+          const fail = (message: string) => {
+            clearTimeout(timeout);
+            engine.pause();
             restoreFetch();
-            reject(new Error('Speed test timed out after 90 seconds'));
-          }, 90_000);
+            reject(libraryError() ?? new Error(message));
+          };
+          const timeout = setTimeout(
+            () => fail('Speed test timed out after 90 seconds'),
+            90_000
+          );
 
           engine.onFinish = results => {
             clearTimeout(timeout);
             resolve(results);
           };
 
-          engine.onError = error => {
-            clearTimeout(timeout);
-            restoreFetch();
-            try {
-              assertNoLibraryErrors();
-              reject(new Error(`Speed test error: ${error}`));
-            } catch (libraryError) {
-              reject(libraryError);
-            }
-          };
+          engine.onError = error => fail(`Speed test error: ${error}`);
 
           engine.play();
         }
@@ -159,12 +157,15 @@ describe('SpeedTest E2E', () => {
       let aimResponse: AimLogResponse;
       try {
         aimResponse = await Promise.race([aimResponsePromise, aimLogTimeout]);
+      } catch (error) {
+        throw libraryError() ?? error;
       } finally {
         clearTimeout(aimLogTimer);
         restoreFetch();
       }
 
-      assertNoLibraryErrors();
+      const bug = libraryError();
+      if (bug) throw bug;
 
       // ── Engine state ──────────────────────────────────────────────
       expect(resultsObj.isFinished).toBe(true);
