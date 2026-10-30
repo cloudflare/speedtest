@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import SpeedTest, { type AimLogResponse } from '../../src/index.ts';
 
 const VALID_CLASSIFICATIONS = ['bad', 'poor', 'average', 'good', 'great'];
@@ -8,12 +8,23 @@ const VALID_CLASSIFICATIONS = ['bad', 'poor', 'average', 'good', 'great'];
 const AIM_LOG_URL = 'https://speed.cloudflare.com/__results';
 const STUB_REQUEST_ID = '11111111-2222-3333-4444-555555555555';
 
+// Marks failures caused by the library throwing, which retries would hide.
+const LIBRARY_ERROR = 'Library threw while handling a response';
+
 describe('SpeedTest E2E', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it(
     'runs a realistic speed test and produces valid results',
     {
       timeout: 120_000,
-      retry: 2
+      // Retry network flakiness, but not bugs that only show up sometimes
+      retry: {
+        count: 2,
+        condition: error => !error.message?.includes(LIBRARY_ERROR)
+      }
     },
     async () => {
       const engine = new SpeedTest({
@@ -49,6 +60,26 @@ describe('SpeedTest E2E', () => {
       const restoreFetch = () => {
         window.fetch = originalFetch;
       };
+
+      // Any `Error fetching` warning that isn't a failed request, an HTTP error
+      // or a failed body read means the library itself threw.
+      const networkErrors = new Set<string>();
+      const recordNetworkError = (error: unknown): never => {
+        networkErrors.add(String(error));
+        throw error;
+      };
+      const libraryErrors: string[] = [];
+      const originalWarn = console.warn;
+      vi.spyOn(console, 'warn').mockImplementation((...args) => {
+        const match = /^Error fetching \S+: ([\s\S]*)$/.exec(String(args[0]));
+        if (match && !networkErrors.has(match[1])) libraryErrors.push(match[1]);
+        originalWarn(...args);
+      });
+      const assertNoLibraryErrors = () => {
+        if (libraryErrors.length) {
+          throw new Error(`${LIBRARY_ERROR}: ${libraryErrors.join('; ')}`);
+        }
+      };
       window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
         const url =
           typeof input === 'string'
@@ -64,7 +95,12 @@ describe('SpeedTest E2E', () => {
             })
           );
         }
-        return originalFetch(input, init);
+        return originalFetch(input, init).then(r => {
+          if (!r.ok) networkErrors.add(`Error: ${r.statusText}`);
+          const text = r.text.bind(r);
+          r.text = () => text().catch(recordNetworkError);
+          return r;
+        }, recordNetworkError);
       };
 
       // onResultsLogged fires shortly after onFinish (once the log request
@@ -89,7 +125,12 @@ describe('SpeedTest E2E', () => {
           engine.onError = error => {
             clearTimeout(timeout);
             restoreFetch();
-            reject(new Error(`Speed test error: ${error}`));
+            try {
+              assertNoLibraryErrors();
+              reject(new Error(`Speed test error: ${error}`));
+            } catch (libraryError) {
+              reject(libraryError);
+            }
           };
 
           engine.play();
@@ -117,6 +158,8 @@ describe('SpeedTest E2E', () => {
         clearTimeout(aimLogTimer);
         restoreFetch();
       }
+
+      assertNoLibraryErrors();
 
       // ── Engine state ──────────────────────────────────────────────
       expect(resultsObj.isFinished).toBe(true);
