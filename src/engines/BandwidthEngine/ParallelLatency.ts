@@ -63,7 +63,6 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
       };
 
       super.onRunningChange = this.#setLatencyRunning;
-      super.onConnectionError = () => this.#latencyEngine!.pause();
     }
   }
 
@@ -80,6 +79,11 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
         f(res));
   }
 
+  // Called when a parallel latency request fails; both engines keep measuring
+  set onParallelLatencyError(f: (error: string, status?: number) => void) {
+    this.#latencyEngine && (this.#latencyEngine.onConnectionError = f);
+  }
+
   // Overridden attributes
   get fetchOptions(): RequestInit {
     return super.fetchOptions;
@@ -89,26 +93,20 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
     this.#latencyEngine && (this.#latencyEngine.fetchOptions = fetchOptions);
   }
 
+  set onFatalError(onFatalError: (error: string) => void) {
+    super.onFatalError = onFatalError;
+    this.#latencyEngine &&
+      (this.#latencyEngine.onFatalError = (error: string) => {
+        this.pause();
+        onFatalError(error);
+      });
+  }
+
   set onRunningChange(onRunningChange: (running: boolean) => void) {
     super.onRunningChange = (running: boolean) => {
       this.#setLatencyRunning(running);
       onRunningChange(running);
     };
-  }
-
-  set onConnectionError(
-    onConnectionError: (error: string, status?: number) => void
-  ) {
-    super.onConnectionError = (...args: [string, number?]) => {
-      this.#latencyEngine && this.#latencyEngine.pause();
-      onConnectionError(...args);
-    };
-    if (this.#latencyEngine) {
-      this.#latencyEngine.onConnectionError = (...args: [string, number?]) => {
-        this.pause();
-        onConnectionError(...args);
-      };
-    }
   }
 
   // Internal state

@@ -58,7 +58,8 @@ them.
 | **measureUploadLoadedLatency**: *boolean* | Whether to perform additional latency measurements simultaneously with upload requests, to measure loaded latency (during upload). | `true` |
 | **loadedLatencyThrottle**: *number* | Time interval to wait in between loaded latency requests (in milliseconds). | 400 |
 | **bandwidthFinishRequestDuration**: *number* | The minimum duration (in milliseconds) to reach in download/upload measurement sets for halting further measurements with larger file sizes in the same direction. | 1000 |
-| **bandwidthAbortRequestDuration**: *number* | The minimum duration (in milliseconds) to reach in download/upload measurement sets for aborting the test early | 0 (disabled) |
+| **bandwidthAbortRequestDuration**: *number* | The maximum duration (in milliseconds) of a single download, upload or latency request. Requests that take longer are aborted and skipped. | 0 (disabled) |
+| **abortTestDuration**: *number* | The maximum running time (in milliseconds, excluding paused time) of the whole test. When it's reached, the test ends with the results collected so far. Use it to cap the total time when `bandwidthAbortRequestDuration` is set. | 0 (disabled) |
 | **estimatedServerTime**: *number* | If the download/upload APIs do not return a `server-timing` response header containing the time spent in the server, this fixed value (in milliseconds) will be subtracted from all time-to-first-byte calculations. | 0 |
 | **latencyPercentile**: *number* | The percentile (between 0 and 1) used to calculate latency from a set of measurements. | 0.5 |
 | **bandwidthPercentile**: *number* | The percentile (between 0 and 1) used to calculate bandwidth from a set of measurements. | 0.9 |
@@ -89,7 +90,7 @@ them.
 | **onRunningChange** | running: *boolean* | Invoked whenever the test engine starts or stops. The current state is included as a function argument. |
 | **onResultsChange** | { type: *string* } | Invoked whenever any item changes in the results, usually indicating the completion of a measurement. The type of measurement that changed is included as an info attribute in the function argument. |
 | **onFinish** | results: *[Results](#results-object)* | Invoked whenever the test engine finishes all the measurements. The final [results object](#results-object) is included as a function argument. |
-| **onError** | error: *string* | Invoked whenever an error occurs during one of the measurements. The error details are included as a function argument. |
+| **onError** | error: *string*, status: *number \| undefined* | Invoked whenever an error occurs during one of the measurements, with the HTTP status when available. Most errors don't stop the test; call `pause()` from this callback to stop it. |
 
 ### Measurement config
 

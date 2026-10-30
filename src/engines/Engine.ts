@@ -23,6 +23,9 @@ export interface Engine {
   /** Invoked when a connection-level error prevents measurement. */
   onConnectionError?: (...args: any[]) => void;
 
+  /** Invoked when the engine can't measure at all and has paused itself. */
+  onFatalError?: (...args: any[]) => void;
+
   /** Invoked when a message is received (packet-loss engines). */
   onMsgReceived?: (...args: any[]) => void;
 
@@ -37,6 +40,9 @@ export interface Engine {
 
   /** Invoked for each parallel-latency sample collected alongside a bandwidth measurement. */
   onParallelLatencyResult?: (...args: any[]) => void;
+
+  /** Invoked when a parallel-latency request fails (bandwidth engines). */
+  onParallelLatencyError?: (...args: any[]) => void;
 
   pause?: () => void;
 

@@ -177,6 +177,11 @@ class MeasurementEngine {
 
   #onError: (message: string, status?: number) => void = () => {};
 
+  /**
+   * Called when an error occurs, with the HTTP status when available. Most
+   * errors don't stop the test; call {@link pause} from this callback to stop
+   * it.
+   */
   set onError(f: (message: string, status?: number) => void) {
     this.#onError = f;
   }
@@ -242,6 +247,8 @@ class MeasurementEngine {
    */
   #accumulatedRuntimeMs: number = 0;
 
+  #abortTestTimeout: ReturnType<typeof setTimeout> | undefined;
+
   #running: boolean = false;
   #finished: boolean = false;
   #failed: boolean = false;
@@ -261,6 +268,64 @@ class MeasurementEngine {
         this.#startTime = undefined;
       }
     }
+    this.#scheduleAbortTest();
+  }
+
+  // Paused time doesn't count, so the timer only runs while the test does
+  #scheduleAbortTest(): void {
+    clearTimeout(this.#abortTestTimeout);
+    this.#abortTestTimeout = undefined;
+
+    const limit = this.#config.abortTestDuration;
+    if (!(limit > 0) || !this.#running || this.#finished) return;
+
+    this.#abortTestTimeout = setTimeout(
+      () => this.#abortTest(),
+      Math.max(0, limit - this.#accumulatedRuntimeMs)
+    );
+  }
+
+  // The engine can't measure at all, so stop for good (play() does nothing)
+  #failTest(message: string): void {
+    const type = this.#curType();
+    const msmResults = this.#curTypeResults();
+    if (type && msmResults) {
+      msmResults.error = message;
+      this.onResultsChange({ type });
+    }
+    this.#failed = true;
+    this.pause();
+    this.#onError(message);
+  }
+
+  #reportErrorAndContinue(...error: [message: string, status?: number]): void {
+    const measurementId = this.#measurementId;
+    this.#onError(...error);
+    if (measurementId !== this.#measurementId) return; // restarted from onError
+    this.#running && this.#next();
+  }
+
+  #abortTest(): void {
+    this.#abortTestTimeout = undefined;
+    const message = `Test aborted. Test exceeded abortTestDuration (${this.#config.abortTestDuration}ms)`;
+    const type = this.#curType();
+    const msmResults = this.#curTypeResults();
+
+    this.#destroyCurEngine();
+    this.#curMsmIdx = this.#config.measurements.length;
+
+    this.#results.raw.error = message;
+    if (type && msmResults) {
+      msmResults.error = message;
+      this.onResultsChange({ type });
+    }
+
+    const measurementId = this.#measurementId;
+    this.#onError(message);
+    if (measurementId !== this.#measurementId) return; // restarted from onError
+
+    this.#setRunning(false);
+    this.#setFinished(true);
   }
 
   #setFinished(finished: boolean): void {
@@ -284,8 +349,7 @@ class MeasurementEngine {
     const type = this.#curType();
     if (!type) return undefined;
     return (
-      (this.#results.raw as Record<string, MeasurementResult>)[type] ||
-      undefined
+      (this.#results.raw[type] as MeasurementResult | undefined) || undefined
     );
   }
 
@@ -313,6 +377,10 @@ class MeasurementEngine {
       engine.onMsgReceived =
       engine.onCredentialsFailure =
       engine.onMeasurementResult =
+      engine.onNewMeasurementStarted =
+      engine.onParallelLatencyResult =
+      engine.onParallelLatencyError =
+      engine.onFatalError =
         () => {};
 
     const curType = this.#curType();
@@ -328,8 +396,7 @@ class MeasurementEngine {
       resumeResults &&
       resumeResults.started &&
       !resumeResults.finished &&
-      !resumeResults.finishedCurrentRound &&
-      !resumeResults.error
+      !resumeResults.finishedCurrentRound
     ) {
       this.#curEngine?.play?.();
       return;
@@ -471,8 +538,9 @@ class MeasurementEngine {
               msmResults.finished = true;
               msmResults.error = message;
               this.onResultsChange({ type });
-              this.#onError(`Error while measuring packet loss: ${message}`);
-              this.#running && this.#next();
+              this.#reportErrorAndContinue(
+                `Error while measuring packet loss: ${message}`
+              );
             });
             return;
           }
@@ -489,25 +557,25 @@ class MeasurementEngine {
         engine!.onFinished = () => {
           msmResults.finished = true;
           this.onResultsChange({ type });
-          this.#next();
+          this.#running && this.#next();
         };
 
         engine!.onConnectionError = (e: unknown) => {
           msmResults.finished = true;
           msmResults.error = e;
           this.onResultsChange({ type });
-          this.#onError(`Connection error while measuring packet loss: ${e}`);
-          this.#next();
+          this.#reportErrorAndContinue(
+            `Connection error while measuring packet loss: ${e}`
+          );
         };
 
         engine!.onCredentialsFailure = () => {
           msmResults.finished = true;
           msmResults.error = 'unable to get turn server credentials';
           this.onResultsChange({ type });
-          this.#onError(
+          this.#reportErrorAndContinue(
             'Error while measuring packet loss: unable to get turn server credentials.'
           );
-          this.#next();
         };
 
         break;
@@ -582,20 +650,21 @@ class MeasurementEngine {
           this.#running && this.#next();
         };
 
-        engine.onConnectionError = (e: unknown, status?: number) => {
-          msmResults.error = e;
-          this.#failed = true;
-          this.pause();
-          this.onResultsChange({ type });
-          this.#onError(String(e), status);
-        };
+        // The engine skips the failed request and carries on with the step
+        engine.onConnectionError = (e: unknown, status?: number) =>
+          this.#onError(
+            `Connection error while measuring latency: ${e}`,
+            status
+          );
+        engine.onFatalError = (e: unknown) =>
+          this.#failTest(`Connection error while measuring latency: ${e}`);
 
         (engine as Engine & { play: () => void }).play!();
         break;
       }
       case 'download':
       case 'upload':
-        if (msmResults.finished || msmResults.error) {
+        if (msmResults.finished) {
           // Skip: this direction already concluded. Return so the nested
           // #next() keeps ownership of #curEngine.
           this.#next();
@@ -742,12 +811,28 @@ class MeasurementEngine {
             this.#running && this.#next();
           };
 
-          engine.onConnectionError = (e: unknown, status?: number) => {
-            msmResults.error = e;
-            this.#failed = true;
-            this.pause();
-            this.onResultsChange({ type });
-            this.#onError(String(e), status);
+          // The engine skips the failed request and carries on with the step
+          engine.onConnectionError = (e: unknown, status?: number) =>
+            this.#onError(
+              `Connection error while measuring ${type}: ${e}`,
+              status
+            );
+          engine.onFatalError = (e: unknown) =>
+            this.#failTest(`Connection error while measuring ${type}: ${e}`);
+
+          const measurementId = this.#measurementId;
+          const msmIdx = this.#curMsmIdx;
+          engine.onParallelLatencyError = (e: unknown, status?: number) => {
+            // Ignore late errors once this step is over or the test restarted
+            if (
+              measurementId !== this.#measurementId ||
+              msmIdx !== this.#curMsmIdx
+            )
+              return;
+            this.#onError(
+              `Connection error while measuring loaded latency: ${e}`,
+              status
+            );
           };
 
           (engine as Engine & { play: () => void }).play!();

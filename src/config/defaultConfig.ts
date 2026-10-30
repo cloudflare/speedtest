@@ -130,10 +130,17 @@ export interface Config {
   estimatedServerTime: number;
 
   /**
-   * Per-request duration (ms) at which to abort the current request and stop
-   * further rounds of that bandwidth type. Set to `0` to disable. Default: `0`.
+   * Maximum duration (ms) of a single download, upload or latency request.
+   * Longer requests are aborted and skipped. `0` disables it. Default: `0`.
    */
   bandwidthAbortRequestDuration: number;
+
+  /**
+   * Maximum running time (ms, excluding paused time) of the whole test. When
+   * reached, the test ends with the results collected so far. `0` or less
+   * disables it. Default: `0`.
+   */
+  abortTestDuration: number;
 
   /** Percentile used to compute latency from the sample set (0–1). Default: `0.5` (median). */
   latencyPercentile: number;
@@ -212,7 +219,8 @@ const defaultConfig: Config = {
   estimatedServerTime: 0, // ms to discount from latency calculation (if not present in response headers)
 
   // Test abort
-  bandwidthAbortRequestDuration: 0, // download/upload duration (ms) to abort measurement early and stop further measurements of that type
+  bandwidthAbortRequestDuration: 0, // request duration (ms) after which a request is aborted and skipped
+  abortTestDuration: 0, // total running time (ms) to abort the whole test, keeping the results so far
 
   // Result interpretation
   latencyPercentile: 0.5, // Percentile used to calculate latency from a set of measurements

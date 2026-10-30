@@ -290,6 +290,10 @@ class BandwidthMeasurementEngine implements Engine {
   set onConnectionError(f: (error: string, status?: number) => void) {
     this.#onConnectionError = f;
   }
+  #onFatalError: (error: string) => void = () => {}; // Invoked when the engine can't measure at all, after pausing itself
+  set onFatalError(f: (error: string) => void) {
+    this.#onFatalError = f;
+  }
 
   // Public methods
   pause(): void {
@@ -302,7 +306,7 @@ class BandwidthMeasurementEngine implements Engine {
   }
 
   play(): void {
-    if (!this.#failed && !this.#running) {
+    if (!this.#running) {
       this.#setRunning(true);
       this.#nextMeasurement();
     }
@@ -314,7 +318,6 @@ class BandwidthMeasurementEngine implements Engine {
   #uploadApi: string;
 
   #running: boolean = false;
-  #failed: boolean = false;
   #finished: Record<string, boolean> = { down: false, up: false };
   #results: BandwidthEngineResults = { down: {}, up: {} };
   #measIdx: number = 0;
@@ -469,16 +472,14 @@ class BandwidthMeasurementEngine implements Engine {
       this.#currentAbortController?.abort('restarting engine');
 
       // create new abort controller
-      this.#currentAbortController = new AbortController();
+      const controller = (this.#currentAbortController = new AbortController());
       if (this.abortRequestDuration) {
         const abortTimeout = setTimeout(() => {
-          const errorMessage = `${isDown ? 'Download' : 'Upload'} measurement of ${numBytes} bytes aborted. Measurement exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
-          this.#retries = 0;
-          this.pause();
-          this.#failed = true;
-          this.#onConnectionError(errorMessage);
+          const errorMessage = `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes aborted. Request exceeded bandwidthAbortRequestDuration (${this.abortRequestDuration}ms)`;
+          controller.abort(errorMessage);
+          this.#skipFailedRequest(errorMessage);
         }, this.abortRequestDuration);
-        this.#currentAbortController.signal.addEventListener('abort', () =>
+        controller.signal.addEventListener('abort', () =>
           clearTimeout(abortTimeout)
         );
       }
@@ -536,8 +537,7 @@ class BandwidthMeasurementEngine implements Engine {
           );
           if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
             this.pause();
-            this.#failed = true;
-            this.#onConnectionError(
+            this.#onFatalError(
               `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
             );
             return;
@@ -681,7 +681,7 @@ class BandwidthMeasurementEngine implements Engine {
         ) {
           this.#retryTimeout = setTimeout(() => {
             this.#retryTimeout = undefined;
-            if (this.#running && !this.#failed) this.#nextMeasurement();
+            if (this.#running) this.#nextMeasurement();
           }, getRetryDelay(error.retryAfter));
           return;
         }
@@ -693,11 +693,18 @@ class BandwidthMeasurementEngine implements Engine {
             : status === undefined
               ? `Connection failed to ${url}.`
               : `Request failed with ${status}: ${url}`;
-        this.#retries = 0;
-        this.pause();
-        this.#failed = true;
-        this.#onConnectionError(message, status);
+        this.#skipFailedRequest(message, status);
       });
+  }
+
+  // Reports a failed request and moves on, so one failure can't end the set
+  #skipFailedRequest(message: string, status?: number): void {
+    // An abort can land during a 429 backoff; its retry must not run too
+    clearTimeout(this.#retryTimeout);
+    this.#retryTimeout = undefined;
+    this.#retries = 0;
+    this.#onConnectionError(message, status);
+    this.#running && this.#scheduleNextMeasurement();
   }
 
   #scheduleNextMeasurement(): void {
