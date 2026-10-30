@@ -130,18 +130,15 @@ export interface Config {
   estimatedServerTime: number;
 
   /**
-   * Per-request duration (ms) at which to abort a download, upload or latency
-   * request. The request is skipped like any failed one, and the test carries
-   * on. Set to `0` to disable. Default: `0`.
+   * Maximum duration (ms) of a single download, upload or latency request.
+   * Longer requests are aborted and skipped. `0` disables it. Default: `0`.
    */
   bandwidthAbortRequestDuration: number;
 
   /**
-   * Total running time (ms, excluding paused time) after which the test is
-   * aborted, including any download, upload or latency request in flight. A
-   * running packet loss or reachability measurement isn't stopped. The results
-   * collected so far are kept, `results.raw.error` says why, and `onFinish`
-   * fires as usual. `0` or less disables it. Default: `0`.
+   * Maximum running time (ms, excluding paused time) of the whole test. When
+   * reached, the test ends with the results collected so far. `0` or less
+   * disables it. Default: `0`.
    */
   abortTestDuration: number;
 

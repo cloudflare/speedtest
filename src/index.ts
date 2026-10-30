@@ -178,9 +178,9 @@ class MeasurementEngine {
   #onError: (message: string, status?: number) => void = () => {};
 
   /**
-   * Called when a request or measurement fails, with the HTTP status when
-   * there is one. A failed request is skipped and the test continues; call
-   * {@link pause} from this callback to stop it instead.
+   * Called when an error occurs, with the HTTP status when available. Most
+   * errors don't stop the test; call {@link pause} from this callback to stop
+   * it.
    */
   set onError(f: (message: string, status?: number) => void) {
     this.#onError = f;
