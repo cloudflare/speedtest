@@ -8,8 +8,8 @@ const VALID_CLASSIFICATIONS = ['bad', 'poor', 'average', 'good', 'great'];
 const AIM_LOG_URL = 'https://speed.cloudflare.com/__results';
 const STUB_REQUEST_ID = '11111111-2222-3333-4444-555555555555';
 
-// Marks failures caused by the library throwing, which retries would hide.
-const LIBRARY_ERROR = 'Library threw while handling a response';
+// Marks failures caused by library bugs, which retries would hide.
+const LIBRARY_ERROR = 'Library bug, not retried';
 
 describe('SpeedTest E2E', () => {
   afterEach(() => {
@@ -61,8 +61,9 @@ describe('SpeedTest E2E', () => {
         window.fetch = originalFetch;
       };
 
-      // Any `Error fetching` warning that isn't a failed request, an HTTP error
-      // or a failed body read means the library itself threw.
+      // An `Error fetching` warning that isn't a failed request, an HTTP error or
+      // a failed body read means the library threw. Against the live endpoint,
+      // a sample without a resource timing entry is a bug too.
       const networkErrors = new Set<string>();
       const recordNetworkError = (error: unknown): never => {
         networkErrors.add(String(error));
@@ -71,8 +72,12 @@ describe('SpeedTest E2E', () => {
       const libraryErrors: string[] = [];
       const originalWarn = console.warn;
       vi.spyOn(console, 'warn').mockImplementation((...args) => {
-        const match = /^Error fetching \S+: ([\s\S]*)$/.exec(String(args[0]));
+        const message = String(args[0]);
+        const match = /^Error fetching \S+: ([\s\S]*)$/.exec(message);
         if (match && !networkErrors.has(match[1])) libraryErrors.push(match[1]);
+        if (message.endsWith('without a resource timing entry')) {
+          libraryErrors.push(message);
+        }
         originalWarn(...args);
       });
       const assertNoLibraryErrors = () => {
