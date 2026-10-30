@@ -19,11 +19,9 @@ export default defineConfig({
             enabled: true,
             provider: playwright(),
             headless: true,
-            instances: [
-              { browser: 'chromium' },
-              { browser: 'firefox' },
-              { browser: 'webkit' }
-            ]
+            // Firefox is left out: on new HTTPS connections close to the server it
+            // stamps responseStart before any response bytes arrive, so latency is 0.
+            instances: [{ browser: 'chromium' }, { browser: 'webkit' }]
           }
         }
       }
