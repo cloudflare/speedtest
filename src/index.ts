@@ -11,7 +11,7 @@ import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
 import PacketLossEngine from './engines/PacketLossEngine';
 import ReachabilityEngine from './engines/ReachabilityEngine';
 
-import Results from './Results';
+import Results, { type MeasurementType } from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
@@ -20,19 +20,6 @@ import type { AuthorizationOptions } from './utils/authorization';
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
 const OPTIMAL_SIZE_RATIO = 0.5; // of largest size reached in measurement
-
-/** All measurement types the engine can encounter at runtime. */
-type MeasurementType =
-  | 'latency'
-  | 'latencyUnderLoad'
-  | 'download'
-  | 'upload'
-  | 'packetLoss'
-  | 'packetLossUnderLoad'
-  | 'v4Reachability'
-  | 'v6Reachability'
-  | 'rpki'
-  | 'nxdomain';
 
 /**
  * A single measurement step configuration. The exact properties depend on

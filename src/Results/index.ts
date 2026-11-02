@@ -36,8 +36,8 @@ export interface RawMeasurementEntry {
   [key: string]: unknown;
 }
 
-/** Measurement types with an entry in {@link RawResults}, one per configured type. */
-export type RawMeasurementType =
+/** All measurement types the engine can run; each configured one has an entry in {@link RawResults}. */
+export type MeasurementType =
   | 'latency'
   | 'latencyUnderLoad'
   | 'download'
@@ -54,7 +54,7 @@ export type RawResults = {
   totalDurationMs: number | undefined;
   /** Why the test ended early, when it did (e.g. `abortTestDuration`). */
   error?: string;
-} & { [type in RawMeasurementType]?: RawMeasurementEntry };
+} & { [type in MeasurementType]?: RawMeasurementEntry };
 
 // --- Re-exports for consumers ---
 
@@ -234,7 +234,7 @@ class Results {
   // Internal methods
   #calcGetter = (
     calcFn: keyof MeasurementCalculations,
-    resKey: RawMeasurementType,
+    resKey: MeasurementType,
     defaultVal: unknown = undefined,
     surfaceError = false
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
