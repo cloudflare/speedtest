@@ -43,11 +43,8 @@ describe('abortRequestDuration', () => {
     ).toBe(0);
   });
 
-  it('sets the deprecated key to the resolved value', () => {
-    const config = resolveConfig({
-      abortRequestDuration: 3_000,
-      bandwidthAbortRequestDuration: 5_000
-    });
-    expect(config.bandwidthAbortRequestDuration).toBe(3_000);
+  it('keeps the deprecated key out of the resolved config', () => {
+    const config = resolveConfig({ bandwidthAbortRequestDuration: 5_000 });
+    expect(config).not.toHaveProperty('bandwidthAbortRequestDuration');
   });
 });

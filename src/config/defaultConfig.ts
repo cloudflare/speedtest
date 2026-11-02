@@ -135,9 +135,6 @@ export interface Config {
    */
   abortRequestDuration: number;
 
-  /** @deprecated Use {@link abortRequestDuration}, which wins if both are set. */
-  bandwidthAbortRequestDuration: number;
-
   /**
    * Maximum running time (ms, excluding paused time) of the whole test. When
    * reached, the test ends with the results collected so far. `0` or less
@@ -164,7 +161,10 @@ export interface Config {
  * override individual options; omitted properties fall back to their defaults
  * in {@link defaultConfig}.
  */
-export type ConfigOptions = Partial<Config>;
+export type ConfigOptions = Partial<Config> & {
+  /** @deprecated Use `abortRequestDuration`, which wins if both are set. */
+  bandwidthAbortRequestDuration?: number;
+};
 
 const REL_API_URL = 'https://speed.cloudflare.com';
 
@@ -223,7 +223,6 @@ const defaultConfig: Config = {
 
   // Test abort
   abortRequestDuration: 0, // request duration (ms) after which a request is aborted and skipped
-  bandwidthAbortRequestDuration: 0, // deprecated alias of abortRequestDuration
   abortTestDuration: 0, // total running time (ms) to abort the whole test, keeping the results so far
 
   // Result interpretation

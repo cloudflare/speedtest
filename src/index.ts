@@ -110,19 +110,18 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  */
 class MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
+    // The deprecated alias is resolved here and kept out of the merged config
+    const { bandwidthAbortRequestDuration, ...options } = userConfig;
     this.#config = Object.assign(
       {},
       defaultConfig,
-      userConfig,
+      options,
       internalConfig
     ) as SpeedTestConfig;
-    // Read from userConfig: both names default to 0, so the merge can't tell
-    // which one was set
     this.#config.abortRequestDuration =
-      this.#config.bandwidthAbortRequestDuration =
-        userConfig.abortRequestDuration ??
-        userConfig.bandwidthAbortRequestDuration ??
-        defaultConfig.abortRequestDuration;
+      options.abortRequestDuration ??
+      bandwidthAbortRequestDuration ??
+      defaultConfig.abortRequestDuration;
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {
