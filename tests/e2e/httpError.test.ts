@@ -182,7 +182,7 @@ it('stops when paused from onError and retries the request on resume', async () 
   expect(phases).toEqual(['latency', 'download']);
 });
 
-it('skips each request that exceeds bandwidthAbortRequestDuration and runs every step', async () => {
+it('skips each request that exceeds abortRequestDuration and runs every step', async () => {
   mockPerformanceTiming();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -214,7 +214,7 @@ it('skips each request that exceeds bandwidthAbortRequestDuration and runs every
       { type: 'download', bytes: 2.5e7, count: 1 },
       { type: 'latency', numPackets: 1 }
     ],
-    { bandwidthAbortRequestDuration: 50 }
+    { abortRequestDuration: 50 }
   );
   const resultErrors = trackResultErrors(engine);
   const errors: string[] = [];
@@ -235,8 +235,8 @@ it('skips each request that exceeds bandwidthAbortRequestDuration and runs every
     'down 0'
   ]);
   expect(errors).toEqual([
-    expect.stringContaining('exceeded bandwidthAbortRequestDuration (50ms)'),
-    expect.stringContaining('exceeded bandwidthAbortRequestDuration (50ms)')
+    expect.stringContaining('exceeded abortRequestDuration (50ms)'),
+    expect.stringContaining('exceeded abortRequestDuration (50ms)')
   ]);
   expect(resultErrors).toEqual([]);
   expect(results.getDownloadBandwidthPoints().map(d => d.bytes)).toEqual([

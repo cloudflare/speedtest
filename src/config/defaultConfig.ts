@@ -130,9 +130,12 @@ export interface Config {
   estimatedServerTime: number;
 
   /**
-   * Maximum duration (ms) of a single download, upload or latency request.
-   * Longer requests are aborted and skipped. `0` disables it. Default: `0`.
+   * Maximum duration (ms) of a single request. Longer requests are aborted and
+   * skipped. `0` disables it. Default: `0`.
    */
+  abortRequestDuration: number;
+
+  /** @deprecated Use {@link abortRequestDuration}, which wins if both are set. */
   bandwidthAbortRequestDuration: number;
 
   /**
@@ -219,7 +222,8 @@ const defaultConfig: Config = {
   estimatedServerTime: 0, // ms to discount from latency calculation (if not present in response headers)
 
   // Test abort
-  bandwidthAbortRequestDuration: 0, // request duration (ms) after which a request is aborted and skipped
+  abortRequestDuration: 0, // request duration (ms) after which a request is aborted and skipped
+  bandwidthAbortRequestDuration: 0, // deprecated alias of abortRequestDuration
   abortTestDuration: 0, // total running time (ms) to abort the whole test, keeping the results so far
 
   // Result interpretation

@@ -116,6 +116,12 @@ class MeasurementEngine {
       userConfig,
       internalConfig
     ) as SpeedTestConfig;
+    // Read from userConfig: both names default to 0, so the merge can't tell
+    // which one was set
+    this.#config.abortRequestDuration =
+      userConfig.abortRequestDuration ??
+      userConfig.bandwidthAbortRequestDuration ??
+      defaultConfig.abortRequestDuration;
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {
@@ -598,7 +604,7 @@ class MeasurementEngine {
           : {};
         (
           engine as Engine & { abortRequestDuration: number }
-        ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
+        ).abortRequestDuration = this.#config.abortRequestDuration;
 
         if (!msmConfig.loadDown && !msmConfig.loadUp) {
           const eng = engine as Engine & { qsParams: Record<string, string> };
@@ -688,7 +694,7 @@ class MeasurementEngine {
           ).finishRequestDuration = this.#config.bandwidthFinishRequestDuration;
           (
             engine as Engine & { abortRequestDuration: number }
-          ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
+          ).abortRequestDuration = this.#config.abortRequestDuration;
 
           engine.onNewMeasurementStarted = (...args: unknown[]) => {
             const { count, bytes } = args[0] as {
