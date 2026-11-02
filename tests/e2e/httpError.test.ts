@@ -351,37 +351,41 @@ it('reports a failed loaded-latency request and keeps measuring bandwidth', asyn
   expect(results.getDownloadBandwidthPoints()).toHaveLength(1);
 });
 
-it('stops the test after three missing resource timing entries in a row', async () => {
+it('ends the test without logging after three missing resource timing entries', async () => {
   vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   const fetchMock = vi.fn(() => Promise.resolve(new Response('ok')));
   window.fetch = fetchMock;
 
-  const engine = createEngine([
-    { type: 'download', bytes: 1e5, count: 5 },
-    { type: 'upload', bytes: 1e5, count: 1 }
-  ]);
-  const onFinish = vi.fn();
-  engine.onFinish = onFinish;
-  const errored = new Promise<string>(resolve => (engine.onError = resolve));
-
-  engine.play();
-  const message = await errored;
-  await new Promise(resolve => setTimeout(resolve, 50));
-
-  expect(message).toContain(
-    'Connection error while measuring download: No resource timing entries'
+  const engine = createEngine(
+    [
+      { type: 'download', bytes: 1e5, count: 5 },
+      { type: 'upload', bytes: 1e5, count: 1 }
+    ],
+    { logAimApiUrl: 'https://example.com/__results' }
   );
-  expect(fetchMock).toHaveBeenCalledTimes(3);
-  expect(engine.isRunning).toBe(false);
-  expect(engine.results.raw.download).toMatchObject({
-    error: expect.stringContaining('No resource timing entries')
-  });
+  const errors: string[] = [];
+  engine.onError = message => errors.push(message);
+  const onResultsLogged = vi.fn();
+  engine.onResultsLogged = onResultsLogged;
 
-  engine.play();
+  const results = await new Promise<SpeedTest['results']>(resolve => {
+    engine.onFinish = resolve;
+    engine.play();
+  });
   await new Promise(resolve => setTimeout(resolve, 50));
+
+  expect(errors).toEqual([
+    expect.stringContaining(
+      'Connection error while measuring download: No resource timing entries'
+    )
+  ]);
   expect(fetchMock).toHaveBeenCalledTimes(3);
-  expect(onFinish).not.toHaveBeenCalled();
+  expect(results.raw.error).toBe(errors[0]);
+  expect(results.raw.download).toMatchObject({ error: errors[0] });
+  expect(engine.isFinished).toBe(true);
+  expect(engine.isRunning).toBe(false);
+  expect(onResultsLogged).not.toHaveBeenCalled();
 });
 
 it('keeps sampling loaded latency after a failed request', async () => {
@@ -470,6 +474,36 @@ describe('abortTestDuration', () => {
     ]);
     expect(engine.isFinished).toBe(true);
     expect(engine.isRunning).toBe(false);
+  });
+
+  it('still submits the results to logAimApiUrl', async () => {
+    mockPerformanceTiming();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    window.fetch = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+        new URL(input.toString()).pathname === '/__results'
+          ? Promise.resolve(Response.json({ requestId: 'abc' }))
+          : new Promise((_resolve, reject) =>
+              init!.signal!.addEventListener('abort', () =>
+                reject(init!.signal!.reason)
+              )
+            )
+    );
+
+    const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
+      abortTestDuration: 50,
+      logAimApiUrl: 'https://example.com/__results'
+    });
+    engine.onError = () => {};
+
+    await expect(
+      new Promise(resolve => {
+        engine.onResultsLogged = resolve;
+        engine.play();
+      })
+    ).resolves.toEqual({ requestId: 'abc' });
   });
 
   it('does not count paused time', async () => {
@@ -641,7 +675,7 @@ describe('abortTestDuration', () => {
   });
 });
 
-it('stops the test when loaded latency gets no resource timing entries', async () => {
+it('ends the test when loaded latency gets no resource timing entries', async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
   // The download hangs, so only the loaded-latency pings look up an entry
@@ -683,7 +717,8 @@ it('stops the test when loaded latency gets no resource timing entries', async (
   );
   expect(downloadSignal?.aborted).toBe(true);
   expect(engine.isRunning).toBe(false);
-  expect(onFinish).not.toHaveBeenCalled();
+  expect(onFinish).toHaveBeenCalledOnce();
+  expect(engine.results.raw.error).toBe(message);
   expect(
     fetchMock.mock.calls.filter(([input]) =>
       new URL(input.toString()).pathname.endsWith('/up')
