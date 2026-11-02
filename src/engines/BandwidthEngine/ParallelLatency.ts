@@ -93,6 +93,15 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
     this.#latencyEngine && (this.#latencyEngine.fetchOptions = fetchOptions);
   }
 
+  get abortRequestDuration(): number {
+    return super.abortRequestDuration;
+  }
+  set abortRequestDuration(abortRequestDuration: number) {
+    super.abortRequestDuration = abortRequestDuration;
+    this.#latencyEngine &&
+      (this.#latencyEngine.abortRequestDuration = abortRequestDuration);
+  }
+
   set onFatalError(onFatalError: (error: string) => void) {
     super.onFatalError = onFatalError;
     this.#latencyEngine &&
@@ -121,11 +130,10 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
         this.#latencyEngine.pause();
       } else {
         // slight delay in starting latency measurements
-        this.#latencyTimeout = setTimeout(() => {
-          // Set after construction, so it's copied when the pings start
-          this.#latencyEngine!.abortRequestDuration = this.abortRequestDuration;
-          this.#latencyEngine!.play();
-        }, 20);
+        this.#latencyTimeout = setTimeout(
+          () => this.#latencyEngine!.play(),
+          20
+        );
       }
     }
   };

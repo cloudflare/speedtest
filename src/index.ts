@@ -119,9 +119,10 @@ class MeasurementEngine {
     // Read from userConfig: both names default to 0, so the merge can't tell
     // which one was set
     this.#config.abortRequestDuration =
-      userConfig.abortRequestDuration ??
-      userConfig.bandwidthAbortRequestDuration ??
-      defaultConfig.abortRequestDuration;
+      this.#config.bandwidthAbortRequestDuration =
+        userConfig.abortRequestDuration ??
+        userConfig.bandwidthAbortRequestDuration ??
+        defaultConfig.abortRequestDuration;
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {

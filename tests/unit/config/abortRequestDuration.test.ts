@@ -9,9 +9,11 @@ class InspectableEngine extends SpeedTestEngine {
   }
 }
 
+const resolveConfig = (userConfig: ConfigOptions) =>
+  new InspectableEngine({ autoStart: false, ...userConfig }).resolvedConfig;
+
 const resolveAbort = (userConfig: ConfigOptions) =>
-  new InspectableEngine({ autoStart: false, ...userConfig }).resolvedConfig
-    .abortRequestDuration;
+  resolveConfig(userConfig).abortRequestDuration;
 
 describe('abortRequestDuration', () => {
   it('is disabled by default', () => {
@@ -39,5 +41,13 @@ describe('abortRequestDuration', () => {
         bandwidthAbortRequestDuration: 5_000
       })
     ).toBe(0);
+  });
+
+  it('sets the deprecated key to the resolved value', () => {
+    const config = resolveConfig({
+      abortRequestDuration: 3_000,
+      bandwidthAbortRequestDuration: 5_000
+    });
+    expect(config.bandwidthAbortRequestDuration).toBe(3_000);
   });
 });
