@@ -505,6 +505,75 @@ it('aborts a loaded-latency ping that exceeds abortRequestDuration', async () =>
   expect(download[1_000].sideLatency.length).toBeGreaterThan(0);
 });
 
+it('does not abort a loaded-latency ping that succeeded during the throttle wait', async () => {
+  mockPerformanceTiming();
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+  window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+    const url = new URL(input.toString());
+    const delay = url.searchParams.get('bytes') === '0' ? 10 : 60;
+    return new Promise(resolve =>
+      setTimeout(() => resolve(new Response('ok')), delay)
+    );
+  });
+
+  const engine = createEngine([{ type: 'download', bytes: 1_000, count: 10 }], {
+    abortRequestDuration: 100,
+    measureDownloadLoadedLatency: true,
+    loadedLatencyThrottle: 200
+  });
+  const onError = vi.fn();
+  engine.onError = onError;
+
+  await new Promise(resolve => {
+    engine.onFinish = resolve;
+    engine.play();
+  });
+
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it('stops loaded-latency pings when the step ends after an aborted ping', async () => {
+  mockPerformanceTiming();
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+  let pings = 0;
+  window.fetch = vi.fn(
+    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = new URL(input.toString());
+      if (url.searchParams.get('bytes') === '0' && ++pings === 1) {
+        return new Promise((_resolve, reject) =>
+          init!.signal!.addEventListener('abort', () =>
+            reject(init!.signal!.reason)
+          )
+        );
+      }
+      return new Promise(resolve =>
+        setTimeout(() => resolve(new Response('ok')), 150)
+      );
+    }
+  );
+
+  // The ping aborts at 200ms and its throttle runs past the step's end (300ms)
+  const engine = createEngine([{ type: 'download', bytes: 1_000, count: 2 }], {
+    abortRequestDuration: 200,
+    measureDownloadLoadedLatency: true,
+    loadedLatencyThrottle: 150
+  });
+  engine.onError = () => undefined;
+
+  await new Promise(resolve => {
+    engine.onFinish = resolve;
+    engine.play();
+  });
+  const pingsAtFinish = pings;
+  await new Promise(resolve => setTimeout(resolve, 600));
+
+  expect(pings).toBe(pingsAtFinish);
+});
+
 describe('abortTestDuration', () => {
   it('aborts the request in flight and finishes with the results so far', async () => {
     mockPerformanceTiming();

@@ -249,7 +249,13 @@ class BandwidthMeasurementEngine implements Engine {
   }
 
   finishRequestDuration: number = 1000; // download/upload duration (ms) to reach for stopping further measurements
-  abortRequestDuration: number = 0;
+  #abortRequestDuration: number = 0; // request duration (ms) after which a request is aborted and skipped
+  get abortRequestDuration(): number {
+    return this.#abortRequestDuration;
+  }
+  set abortRequestDuration(v: number) {
+    this.#abortRequestDuration = v;
+  }
   getServerTime: ((r: Response) => number | undefined) | null = cfGetServerTime; // method to extract server time from response
 
   #responseHook: (r: ResponseHookPayload) => void = () => {}; // pipe-through of response objects
@@ -301,6 +307,8 @@ class BandwidthMeasurementEngine implements Engine {
       clearTimeout(this.#retryTimeout);
       this.#retryTimeout = undefined;
     }
+    clearTimeout(this.#abortTimeout);
+    clearTimeout(this.#throttleTimeout);
     this.#cancelCurrentMeasurement(`pause()`);
     this.#setRunning(false);
   }
@@ -325,6 +333,8 @@ class BandwidthMeasurementEngine implements Engine {
   #retries: number = 0;
   #missingEntries: number = 0;
   #retryTimeout: ReturnType<typeof setTimeout> | undefined;
+  #abortTimeout: ReturnType<typeof setTimeout> | undefined;
+  #throttleTimeout: ReturnType<typeof setTimeout> | undefined;
   #minDuration: number = -Infinity; // of current measurement
   #throttleMs: number = 0;
   #estimatedServerTime: number = 0;
@@ -470,18 +480,16 @@ class BandwidthMeasurementEngine implements Engine {
     ) {
       // abort existing abort controller
       this.#currentAbortController?.abort('restarting engine');
+      clearTimeout(this.#abortTimeout);
 
       // create new abort controller
       const controller = (this.#currentAbortController = new AbortController());
       if (this.abortRequestDuration) {
-        const abortTimeout = setTimeout(() => {
+        this.#abortTimeout = setTimeout(() => {
           const errorMessage = `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes aborted. Request exceeded abortRequestDuration (${this.abortRequestDuration}ms)`;
           controller.abort(errorMessage);
           this.#skipFailedRequest(errorMessage);
         }, this.abortRequestDuration);
-        controller.signal.addEventListener('abort', () =>
-          clearTimeout(abortTimeout)
-        );
       }
     }
 
@@ -708,17 +716,18 @@ class BandwidthMeasurementEngine implements Engine {
   }
 
   #scheduleNextMeasurement(): void {
+    // The request has settled, so its abort timer must not fire during the throttle
+    clearTimeout(this.#abortTimeout);
     this.#counter += 1;
     this.#retries = 0;
 
     if (this.#throttleMs) {
-      const throttleTimeout = setTimeout(
-        () => this.#nextMeasurement(),
-        this.#throttleMs
-      );
-      this.#currentAbortController!.signal.addEventListener('abort', () =>
-        clearTimeout(throttleTimeout)
-      );
+      // Cleared by pause(): the controller may already be aborted, so its
+      // abort event can't cancel this
+      this.#throttleTimeout = setTimeout(() => {
+        this.#throttleTimeout = undefined;
+        if (this.#running) this.#nextMeasurement();
+      }, this.#throttleMs);
     } else {
       this.#nextMeasurement();
     }
