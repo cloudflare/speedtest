@@ -456,6 +456,55 @@ it('keeps sampling loaded latency after a failed request', async () => {
   expect(download[1_000].sideLatency.length).toBeGreaterThan(0);
 });
 
+it('aborts a loaded-latency ping that exceeds abortRequestDuration', async () => {
+  mockPerformanceTiming();
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+  let pings = 0;
+  window.fetch = vi.fn(
+    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = new URL(input.toString());
+      if (url.searchParams.get('bytes') === '0' && ++pings === 1) {
+        return new Promise((_resolve, reject) =>
+          init!.signal!.addEventListener('abort', () =>
+            reject(init!.signal!.reason)
+          )
+        );
+      }
+      // Each download stays under the abort, so only the hung ping is aborted
+      return new Promise(resolve =>
+        setTimeout(() => resolve(new Response('ok')), 40)
+      );
+    }
+  );
+
+  const engine = createEngine([{ type: 'download', bytes: 1_000, count: 8 }], {
+    abortRequestDuration: 100,
+    measureDownloadLoadedLatency: true,
+    loadedLatencyThrottle: 10
+  });
+  const errors: string[] = [];
+  engine.onError = message => errors.push(message);
+
+  await new Promise(resolve => {
+    engine.onFinish = resolve;
+    engine.play();
+  });
+
+  expect(errors).toEqual([
+    expect.stringMatching(
+      /^Connection error while measuring loaded latency: .*exceeded abortRequestDuration \(100ms\)/
+    )
+  ]);
+  const download = engine.results.raw.download!.results as Record<
+    number,
+    { sideLatency: unknown[]; timings: unknown[] }
+  >;
+  expect(download[1_000].timings).toHaveLength(8);
+  expect(download[1_000].sideLatency.length).toBeGreaterThan(0);
+});
+
 describe('abortTestDuration', () => {
   it('aborts the request in flight and finishes with the results so far', async () => {
     mockPerformanceTiming();

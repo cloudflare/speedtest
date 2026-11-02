@@ -121,10 +121,11 @@ class BandwidthWithParallelLatencyEngine extends BandwidthEngine {
         this.#latencyEngine.pause();
       } else {
         // slight delay in starting latency measurements
-        this.#latencyTimeout = setTimeout(
-          () => this.#latencyEngine!.play(),
-          20
-        );
+        this.#latencyTimeout = setTimeout(() => {
+          // Set after construction, so it's copied when the pings start
+          this.#latencyEngine!.abortRequestDuration = this.abortRequestDuration;
+          this.#latencyEngine!.play();
+        }, 20);
       }
     }
   };
