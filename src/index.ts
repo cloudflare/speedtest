@@ -239,6 +239,7 @@ class MeasurementEngine {
 
   #running: boolean = false;
   #finished: boolean = false;
+  #skipLog: boolean = false;
 
   // Internal methods
   #setRunning(running: boolean): void {
@@ -296,19 +297,22 @@ class MeasurementEngine {
       this.onResultsChange({ type });
     }
 
+    // Set before onError, which can finish the test itself via pause() + play()
+    this.#skipLog = skipLog;
     const measurementId = this.#measurementId;
     this.#onError(message);
     if (measurementId !== this.#measurementId) return; // restarted from onError
 
     this.#setRunning(false);
-    this.#setFinished(true, skipLog);
+    this.#setFinished(true);
   }
 
-  #setFinished(finished: boolean, skipLog = false): void {
+  #setFinished(finished: boolean): void {
     if (finished !== this.#finished) {
       this.#finished = finished;
       if (finished) {
         this.#results.raw.totalDurationMs = this.#accumulatedRuntimeMs;
+        const skipLog = this.#skipLog;
         setTimeout(() => this.#onFinish(this.results, { skipLog }));
       }
     }
@@ -338,6 +342,7 @@ class MeasurementEngine {
 
     this.#setRunning(false);
     this.#setFinished(false);
+    this.#skipLog = false;
 
     this.#results.clear();
     this.#accumulatedRuntimeMs = 0;

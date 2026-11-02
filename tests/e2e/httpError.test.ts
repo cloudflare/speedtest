@@ -388,6 +388,37 @@ it('ends the test without logging after three missing resource timing entries', 
   expect(onResultsLogged).not.toHaveBeenCalled();
 });
 
+it('does not log a test ended by missing entries when resumed from onError', async () => {
+  vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const fetchMock = vi.fn(() => Promise.resolve(new Response('ok')));
+  window.fetch = fetchMock;
+
+  const engine = createEngine([{ type: 'download', bytes: 1e5, count: 5 }], {
+    logAimApiUrl: 'https://example.com/__results'
+  });
+  engine.onError = () => {
+    engine.pause();
+    engine.play();
+  };
+  const onFinish = vi.fn();
+  const onResultsLogged = vi.fn();
+  engine.onResultsLogged = onResultsLogged;
+
+  await new Promise<void>(resolve => {
+    engine.onFinish = results => {
+      onFinish(results);
+      resolve();
+    };
+    engine.play();
+  });
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  expect(onFinish).toHaveBeenCalledOnce();
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(onResultsLogged).not.toHaveBeenCalled();
+});
+
 it('keeps sampling loaded latency after a failed request', async () => {
   mockPerformanceTiming();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
