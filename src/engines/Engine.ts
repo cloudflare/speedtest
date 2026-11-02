@@ -20,8 +20,11 @@ export interface Engine {
    */
   onFinished: (...args: any[]) => void;
 
-  /** Invoked when a connection-level error prevents measurement. */
+  /** Invoked when a request fails; the engine skips it and carries on. */
   onConnectionError?: (...args: any[]) => void;
+
+  /** Invoked when the engine can't measure at all and has paused itself. */
+  onFatalError?: (...args: any[]) => void;
 
   /** Invoked when a message is received (packet-loss engines). */
   onMsgReceived?: (...args: any[]) => void;
@@ -37,6 +40,9 @@ export interface Engine {
 
   /** Invoked for each parallel-latency sample collected alongside a bandwidth measurement. */
   onParallelLatencyResult?: (...args: any[]) => void;
+
+  /** Invoked when a parallel-latency request fails (bandwidth engines). */
+  onParallelLatencyError?: (...args: any[]) => void;
 
   pause?: () => void;
 
@@ -55,8 +61,8 @@ export interface Engine {
   finishRequestDuration?: number;
 
   /**
-   * Maximum allowed request duration (ms). If a single request exceeds this
-   * value the engine aborts the measurement.
+   * Maximum allowed request duration (ms). A request that exceeds it is
+   * aborted and skipped.
    */
   abortRequestDuration?: number;
 }

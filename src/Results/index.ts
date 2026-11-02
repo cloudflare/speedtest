@@ -36,11 +36,25 @@ export interface RawMeasurementEntry {
   [key: string]: unknown;
 }
 
-export interface RawResults {
+/** All measurement types the engine can run; each configured one has an entry in {@link RawResults}. */
+export type MeasurementType =
+  | 'latency'
+  | 'latencyUnderLoad'
+  | 'download'
+  | 'upload'
+  | 'packetLoss'
+  | 'packetLossUnderLoad'
+  | 'v4Reachability'
+  | 'v6Reachability'
+  | 'rpki'
+  | 'nxdomain';
+
+export type RawResults = {
   /** Excluding paused time (ms). */
   totalDurationMs: number | undefined;
-  [key: string]: RawMeasurementEntry | number | undefined;
-}
+  /** Why the test ended early, when it did (e.g. `abortTestDuration`). */
+  error?: string;
+} & { [type in MeasurementType]?: RawMeasurementEntry };
 
 // --- Re-exports for consumers ---
 
@@ -220,7 +234,7 @@ class Results {
   // Internal methods
   #calcGetter = (
     calcFn: keyof MeasurementCalculations,
-    resKey: string,
+    resKey: MeasurementType,
     defaultVal: unknown = undefined,
     surfaceError = false
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

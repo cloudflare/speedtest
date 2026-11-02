@@ -11,7 +11,7 @@ import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
 import PacketLossEngine from './engines/PacketLossEngine';
 import ReachabilityEngine from './engines/ReachabilityEngine';
 
-import Results from './Results';
+import Results, { type MeasurementType } from './Results';
 import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
@@ -20,19 +20,6 @@ import type { AuthorizationOptions } from './utils/authorization';
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
 const OPTIMAL_SIZE_RATIO = 0.5; // of largest size reached in measurement
-
-/** All measurement types the engine can encounter at runtime. */
-type MeasurementType =
-  | 'latency'
-  | 'latencyUnderLoad'
-  | 'download'
-  | 'upload'
-  | 'packetLoss'
-  | 'packetLossUnderLoad'
-  | 'v4Reachability'
-  | 'v6Reachability'
-  | 'rpki'
-  | 'nxdomain';
 
 /**
  * A single measurement step configuration. The exact properties depend on
@@ -123,12 +110,18 @@ const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
  */
 class MeasurementEngine {
   constructor(userConfig: ConfigOptions = {}) {
+    // The deprecated alias is resolved here and kept out of the merged config
+    const { bandwidthAbortRequestDuration, ...options } = userConfig;
     this.#config = Object.assign(
       {},
       defaultConfig,
-      userConfig,
+      options,
       internalConfig
     ) as SpeedTestConfig;
+    this.#config.abortRequestDuration =
+      options.abortRequestDuration ??
+      bandwidthAbortRequestDuration ??
+      defaultConfig.abortRequestDuration;
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {
@@ -169,7 +162,8 @@ class MeasurementEngine {
 
   onPhaseChange: (payload: PhaseChangePayload) => void = () => {};
 
-  #onFinish: (results: Results) => void = () => {};
+  // skipLog is internal: SpeedTestEngine reads it to skip the AIM log
+  #onFinish: (results: Results, end?: { skipLog: boolean }) => void = () => {};
 
   set onFinish(f: (results: Results) => void) {
     this.#onFinish = f;
@@ -177,6 +171,11 @@ class MeasurementEngine {
 
   #onError: (message: string, status?: number) => void = () => {};
 
+  /**
+   * Called when an error occurs, with the HTTP status when available. Most
+   * errors don't stop the test; call {@link pause} from this callback to stop
+   * it.
+   */
   set onError(f: (message: string, status?: number) => void) {
     this.#onError = f;
   }
@@ -201,7 +200,7 @@ class MeasurementEngine {
    * current phase.
    */
   play(): void {
-    if (!this.#failed && !this.#running) {
+    if (!this.#running) {
       // Clear timings before running the engine
       performance.clearResourceTimings();
 
@@ -242,9 +241,11 @@ class MeasurementEngine {
    */
   #accumulatedRuntimeMs: number = 0;
 
+  #abortTestTimeout: ReturnType<typeof setTimeout> | undefined;
+
   #running: boolean = false;
   #finished: boolean = false;
-  #failed: boolean = false;
+  #skipLog: boolean = false;
 
   // Internal methods
   #setRunning(running: boolean): void {
@@ -261,6 +262,55 @@ class MeasurementEngine {
         this.#startTime = undefined;
       }
     }
+    this.#scheduleAbortTest();
+  }
+
+  // Paused time doesn't count, so the timer only runs while the test does
+  #scheduleAbortTest(): void {
+    clearTimeout(this.#abortTestTimeout);
+    this.#abortTestTimeout = undefined;
+
+    const limit = this.#config.abortTestDuration;
+    if (!(limit > 0) || !this.#running || this.#finished) return;
+
+    this.#abortTestTimeout = setTimeout(
+      () =>
+        this.#endTest(
+          `Test aborted. Test exceeded abortTestDuration (${this.#config.abortTestDuration}ms)`
+        ),
+      Math.max(0, limit - this.#accumulatedRuntimeMs)
+    );
+  }
+
+  #reportErrorAndContinue(...error: [message: string, status?: number]): void {
+    const measurementId = this.#measurementId;
+    this.#onError(...error);
+    if (measurementId !== this.#measurementId) return; // restarted from onError
+    this.#running && this.#next();
+  }
+
+  // Ends the test early, keeping the results collected so far
+  #endTest(message: string, { skipLog = false } = {}): void {
+    const type = this.#curType();
+    const msmResults = this.#curTypeResults();
+
+    this.#destroyCurEngine();
+    this.#curMsmIdx = this.#config.measurements.length;
+
+    this.#results.raw.error = message;
+    if (type && msmResults) {
+      msmResults.error = message;
+      this.onResultsChange({ type });
+    }
+
+    // Set before onError, which can finish the test itself via pause() + play()
+    this.#skipLog = skipLog;
+    const measurementId = this.#measurementId;
+    this.#onError(message);
+    if (measurementId !== this.#measurementId) return; // restarted from onError
+
+    this.#setRunning(false);
+    this.#setFinished(true);
   }
 
   #setFinished(finished: boolean): void {
@@ -268,7 +318,8 @@ class MeasurementEngine {
       this.#finished = finished;
       if (finished) {
         this.#results.raw.totalDurationMs = this.#accumulatedRuntimeMs;
-        setTimeout(() => this.#onFinish(this.results));
+        const skipLog = this.#skipLog;
+        setTimeout(() => this.#onFinish(this.results, { skipLog }));
       }
     }
   }
@@ -284,8 +335,7 @@ class MeasurementEngine {
     const type = this.#curType();
     if (!type) return undefined;
     return (
-      (this.#results.raw as Record<string, MeasurementResult>)[type] ||
-      undefined
+      (this.#results.raw[type] as MeasurementResult | undefined) || undefined
     );
   }
 
@@ -298,7 +348,7 @@ class MeasurementEngine {
 
     this.#setRunning(false);
     this.#setFinished(false);
-    this.#failed = false;
+    this.#skipLog = false;
 
     this.#results.clear();
     this.#accumulatedRuntimeMs = 0;
@@ -313,6 +363,10 @@ class MeasurementEngine {
       engine.onMsgReceived =
       engine.onCredentialsFailure =
       engine.onMeasurementResult =
+      engine.onNewMeasurementStarted =
+      engine.onParallelLatencyResult =
+      engine.onParallelLatencyError =
+      engine.onFatalError =
         () => {};
 
     const curType = this.#curType();
@@ -328,8 +382,7 @@ class MeasurementEngine {
       resumeResults &&
       resumeResults.started &&
       !resumeResults.finished &&
-      !resumeResults.finishedCurrentRound &&
-      !resumeResults.error
+      !resumeResults.finishedCurrentRound
     ) {
       this.#curEngine?.play?.();
       return;
@@ -471,8 +524,9 @@ class MeasurementEngine {
               msmResults.finished = true;
               msmResults.error = message;
               this.onResultsChange({ type });
-              this.#onError(`Error while measuring packet loss: ${message}`);
-              this.#running && this.#next();
+              this.#reportErrorAndContinue(
+                `Error while measuring packet loss: ${message}`
+              );
             });
             return;
           }
@@ -489,25 +543,25 @@ class MeasurementEngine {
         engine!.onFinished = () => {
           msmResults.finished = true;
           this.onResultsChange({ type });
-          this.#next();
+          this.#running && this.#next();
         };
 
         engine!.onConnectionError = (e: unknown) => {
           msmResults.finished = true;
           msmResults.error = e;
           this.onResultsChange({ type });
-          this.#onError(`Connection error while measuring packet loss: ${e}`);
-          this.#next();
+          this.#reportErrorAndContinue(
+            `Connection error while measuring packet loss: ${e}`
+          );
         };
 
         engine!.onCredentialsFailure = () => {
           msmResults.finished = true;
           msmResults.error = 'unable to get turn server credentials';
           this.onResultsChange({ type });
-          this.#onError(
+          this.#reportErrorAndContinue(
             'Error while measuring packet loss: unable to get turn server credentials.'
           );
-          this.#next();
         };
 
         break;
@@ -550,7 +604,7 @@ class MeasurementEngine {
           : {};
         (
           engine as Engine & { abortRequestDuration: number }
-        ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
+        ).abortRequestDuration = this.#config.abortRequestDuration;
 
         if (!msmConfig.loadDown && !msmConfig.loadUp) {
           const eng = engine as Engine & { qsParams: Record<string, string> };
@@ -582,20 +636,23 @@ class MeasurementEngine {
           this.#running && this.#next();
         };
 
-        engine.onConnectionError = (e: unknown, status?: number) => {
-          msmResults.error = e;
-          this.#failed = true;
-          this.pause();
-          this.onResultsChange({ type });
-          this.#onError(String(e), status);
-        };
+        // The engine skips the failed request and carries on with the step
+        engine.onConnectionError = (e: unknown, status?: number) =>
+          this.#onError(
+            `Connection error while measuring latency: ${e}`,
+            status
+          );
+        engine.onFatalError = (e: unknown) =>
+          this.#endTest(`Connection error while measuring latency: ${e}`, {
+            skipLog: true
+          });
 
         (engine as Engine & { play: () => void }).play!();
         break;
       }
       case 'download':
       case 'upload':
-        if (msmResults.finished || msmResults.error) {
+        if (msmResults.finished) {
           // Skip: this direction already concluded. Return so the nested
           // #next() keeps ownership of #curEngine.
           this.#next();
@@ -637,7 +694,7 @@ class MeasurementEngine {
           ).finishRequestDuration = this.#config.bandwidthFinishRequestDuration;
           (
             engine as Engine & { abortRequestDuration: number }
-          ).abortRequestDuration = this.#config.bandwidthAbortRequestDuration;
+          ).abortRequestDuration = this.#config.abortRequestDuration;
 
           engine.onNewMeasurementStarted = (...args: unknown[]) => {
             const { count, bytes } = args[0] as {
@@ -742,12 +799,30 @@ class MeasurementEngine {
             this.#running && this.#next();
           };
 
-          engine.onConnectionError = (e: unknown, status?: number) => {
-            msmResults.error = e;
-            this.#failed = true;
-            this.pause();
-            this.onResultsChange({ type });
-            this.#onError(String(e), status);
+          // The engine skips the failed request and carries on with the step
+          engine.onConnectionError = (e: unknown, status?: number) =>
+            this.#onError(
+              `Connection error while measuring ${type}: ${e}`,
+              status
+            );
+          engine.onFatalError = (e: unknown) =>
+            this.#endTest(`Connection error while measuring ${type}: ${e}`, {
+              skipLog: true
+            });
+
+          const measurementId = this.#measurementId;
+          const msmIdx = this.#curMsmIdx;
+          engine.onParallelLatencyError = (e: unknown, status?: number) => {
+            // Ignore late errors once this step is over or the test restarted
+            if (
+              measurementId !== this.#measurementId ||
+              msmIdx !== this.#curMsmIdx
+            )
+              return;
+            this.#onError(
+              `Connection error while measuring loaded latency: ${e}`,
+              status
+            );
           };
 
           (engine as Engine & { play: () => void }).play!();
@@ -794,9 +869,9 @@ class SpeedTestEngine extends MeasurementEngine {
    * to the AIM API automatically.
    */
   set onFinish(onFinish: (results: Results) => void) {
-    super.onFinish = (results: Results) => {
+    super.onFinish = (results: Results, end?: { skipLog: boolean }) => {
       onFinish(results);
-      this.#logFinalResults(results);
+      this.#logFinalResults(results, end);
     };
   }
 
@@ -812,9 +887,9 @@ class SpeedTestEngine extends MeasurementEngine {
   onResultsLogged: (response: AimLogResponse) => void = () => {};
 
   // Internal methods
-  #logFinalResults = (results: Results): void => {
+  #logFinalResults = (results: Results, end?: { skipLog: boolean }): void => {
     const apiUrl = this.config.logAimApiUrl;
-    if (!apiUrl) {
+    if (!apiUrl || end?.skipLog) {
       return;
     }
     logFinalResults(results, {

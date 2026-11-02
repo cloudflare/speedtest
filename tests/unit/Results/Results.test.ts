@@ -37,7 +37,7 @@ describe('Results', () => {
 
     it('marks all measurements as not started and not finished', () => {
       const results = createResults();
-      for (const key of ['latency', 'download', 'upload']) {
+      for (const key of ['latency', 'download', 'upload'] as const) {
         const entry = results.raw[key] as RawMeasurementEntry;
         expect(entry.started).toBe(false);
         expect(entry.finished).toBe(false);
