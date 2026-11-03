@@ -110,4 +110,35 @@ describe('measurementTargets config', () => {
         })
     ).toThrow(/Invalid measurementUploadPath "up"/);
   });
+
+  it('falls back to the defaults for explicitly undefined options', () => {
+    expect(
+      () =>
+        new SpeedTest({
+          autoStart: false,
+          measurementTargets: undefined,
+          measurementDownloadPath: undefined,
+          measurementUploadPath: undefined
+        })
+    ).not.toThrow();
+  });
+
+  it.each([
+    [
+      { measurementTargets: 'https://a.example.com' },
+      'Invalid measurementTargets: expected an array of origins, got string'
+    ],
+    [
+      { measurementTargets: [42] },
+      'Invalid measurementTargets entry "42": expected an origin such as https://speed.cloudflare.com'
+    ],
+    [
+      { measurementDownloadPath: 42 },
+      'Invalid measurementDownloadPath: expected a path starting with /, got number'
+    ]
+  ])('rejects %o with a TypeError', (config, message) => {
+    expect(
+      () => new SpeedTest({ autoStart: false, ...(config as object) })
+    ).toThrow(new TypeError(message));
+  });
 });

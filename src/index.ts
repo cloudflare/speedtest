@@ -126,6 +126,11 @@ class MeasurementEngine {
       options.abortRequestDuration ??
       bandwidthAbortRequestDuration ??
       defaultConfig.abortRequestDuration;
+    // An explicit `undefined` would otherwise replace the default
+    this.#config.measurementTargets ??= defaultConfig.measurementTargets;
+    this.#config.measurementDownloadPath ??=
+      defaultConfig.measurementDownloadPath;
+    this.#config.measurementUploadPath ??= defaultConfig.measurementUploadPath;
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {

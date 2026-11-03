@@ -2,7 +2,7 @@
 const parseOrigin = (target: string): string => {
   let url: URL | undefined;
   try {
-    url = new URL(target);
+    url = typeof target === 'string' ? new URL(target) : undefined;
   } catch {
     // Reported below with the other invalid shapes
   }
@@ -30,6 +30,16 @@ export const resolveApiUrls = (
   { path, option }: { path: string; option: string },
   fallbackUrl: string
 ): string[] => {
+  if (!Array.isArray(targets)) {
+    throw new TypeError(
+      `Invalid measurementTargets: expected an array of origins, got ${typeof targets}`
+    );
+  }
+  if (typeof path !== 'string') {
+    throw new TypeError(
+      `Invalid ${option}: expected a path starting with /, got ${typeof path}`
+    );
+  }
   const resolve = (origin: string): string => {
     let url: URL | undefined;
     try {

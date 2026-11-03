@@ -74,7 +74,9 @@ export interface Config {
    * {@link measurementDownloadPath} and {@link measurementUploadPath}.
    * Requests round-robin across the origins, starting at a random one for each
    * measurement set. An entry that isn't a bare http(s) origin throws a
-   * `TypeError` on construction. Default: `[]`.
+   * `TypeError` on construction. Latency and jitter are measured across all
+   * targets, so they should be equivalent endpoints of one service. Targets on
+   * another origin must send `Timing-Allow-Origin`. Default: `[]`.
    */
   measurementTargets: string[];
   /**
@@ -173,8 +175,9 @@ export interface Config {
   estimatedServerTime: number;
 
   /**
-   * Maximum duration (ms) of a single request. Longer requests are aborted and
-   * skipped. `0` disables it. Default: `0`.
+   * Maximum duration (ms) of a single request, or of a whole batch for
+   * `parallel` steps. Longer requests are aborted and skipped. `0` disables
+   * it. Default: `0`.
    */
   abortRequestDuration: number;
 
