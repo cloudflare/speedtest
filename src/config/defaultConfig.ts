@@ -70,12 +70,25 @@ export interface Config {
    */
   uploadApiUrl: string;
   /**
-   * Origins for latency, download and upload requests, which go to their
-   * `/__down` and `/__up` paths. Requests round-robin across the origins,
-   * starting at a random one for each measurement set. An entry that isn't a
-   * bare http(s) origin throws a `TypeError` on construction. Default: `[]`.
+   * Origins for latency, download and upload requests, which go to
+   * {@link measurementDownloadPath} and {@link measurementUploadPath}.
+   * Requests round-robin across the origins, starting at a random one for each
+   * measurement set. An entry that isn't a bare http(s) origin throws a
+   * `TypeError` on construction. Default: `[]`.
    */
   measurementTargets: string[];
+  /**
+   * Path for latency and download requests on each of the
+   * {@link measurementTargets}. May include a query string. A path not starting
+   * with `/` throws a `TypeError` on construction. Default: `/__down`.
+   */
+  measurementDownloadPath: string;
+  /**
+   * Path for upload requests on each of the {@link measurementTargets}. May
+   * include a query string. A path not starting with `/` throws a `TypeError`
+   * on construction. Default: `/__up`.
+   */
+  measurementUploadPath: string;
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
@@ -203,6 +216,8 @@ const defaultConfig: Config = {
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
   measurementTargets: [],
+  measurementDownloadPath: '/__down',
+  measurementUploadPath: '/__up',
   logMeasurementApiUrl: null,
   logAimApiUrl: `${REL_API_URL}/__results`,
   turnServerUri: null,

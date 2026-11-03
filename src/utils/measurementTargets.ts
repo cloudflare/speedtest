@@ -23,13 +23,20 @@ const parseOrigin = (target: string): string => {
 /**
  * API URLs at `path`, one per measurement target origin, or the fallback URL
  * when there are no targets. Throws a `TypeError` for a target that isn't an
- * http(s) origin.
+ * http(s) origin, or a path that doesn't start with `/`.
  */
 export const resolveApiUrls = (
   targets: string[],
-  path: '/__down' | '/__up',
+  { path, option }: { path: string; option: string },
   fallbackUrl: string
-): string[] =>
-  targets.length
+): string[] => {
+  // `//` would make the path a protocol-relative URL to another host
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    throw new TypeError(
+      `Invalid ${option} "${path}": expected a path starting with /`
+    );
+  }
+  return targets.length
     ? targets.map(target => new URL(path, parseOrigin(target)).href)
     : [fallbackUrl];
+};

@@ -136,12 +136,18 @@ class MeasurementEngine {
     // Resolved upfront, so an invalid target fails here rather than mid-test
     this.#downloadApiUrls = resolveApiUrls(
       this.#config.measurementTargets,
-      '/__down',
+      {
+        path: this.#config.measurementDownloadPath,
+        option: 'measurementDownloadPath'
+      },
       this.#config.downloadApiUrl
     );
     this.#uploadApiUrls = resolveApiUrls(
       this.#config.measurementTargets,
-      '/__up',
+      {
+        path: this.#config.measurementUploadPath,
+        option: 'measurementUploadPath'
+      },
       this.#config.uploadApiUrl
     );
     this.#results = new Results(this.#config);

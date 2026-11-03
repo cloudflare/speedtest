@@ -44,7 +44,9 @@ them.
 | Config option | Description | Default |
 | --- | --- | :--: |
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
-| **measurementTargets**: *string[]* | The origins to send latency, download and upload requests to, at their `/__down` and `/__up` paths. Requests round-robin across the origins, starting at a random one for each measurement set. Packet loss under load only uses the first. When empty, `downloadApiUrl` and `uploadApiUrl` are used instead. An entry that isn't a bare `http(s)` origin throws a `TypeError` when the engine is created. | `[]` |
+| **measurementTargets**: *string[]* | The origins to send latency, download and upload requests to, at `measurementDownloadPath` and `measurementUploadPath`. Requests round-robin across the origins, starting at a random one for each measurement set. Packet loss under load only uses the first. When empty, `downloadApiUrl` and `uploadApiUrl` are used instead. An entry that isn't a bare `http(s)` origin throws a `TypeError` when the engine is created. | `[]` |
+| **measurementDownloadPath**: *string* | The path for latency and download requests on each of the `measurementTargets`. It may include a query string. A path that doesn't start with `/` throws a `TypeError` when the engine is created. | `/__down` |
+| **measurementUploadPath**: *string* | The path for upload requests on each of the `measurementTargets`. It may include a query string. A path that doesn't start with `/` throws a `TypeError` when the engine is created. | `/__up` |
 | **downloadApiUrl**: *string* | *Deprecated: use `measurementTargets`.* The URL of the API for performing download GET requests, used when `measurementTargets` is empty. | `https://speed.cloudflare.com/__down` |
 | **uploadApiUrl**: *string* | *Deprecated: use `measurementTargets`.* The URL of the API for performing upload POST requests, used when `measurementTargets` is empty. | `https://speed.cloudflare.com/__up` |
 | **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss, e.g. `turn.cloudflare.com:3478`. See [packetLoss](#packetloss). | `null` |
