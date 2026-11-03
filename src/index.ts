@@ -8,6 +8,7 @@ import {
 } from './config';
 import { type Engine } from './engines/Engine';
 import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
+import { getSampleBytes } from './engines/BandwidthEngine/BandwidthEngine';
 import PacketLossEngine from './engines/PacketLossEngine';
 import ReachabilityEngine from './engines/ReachabilityEngine';
 
@@ -37,6 +38,8 @@ interface MeasurementStep {
   count?: number;
   /** Skip the minimum-duration filter for this round (download/upload types). */
   bypassMinDuration?: boolean;
+  /** Concurrent requests per sample (download/upload types). */
+  parallel?: number;
   /** Number of packets sent per batch (packetLoss types). */
   batchSize?: number;
   /** Delay between batches in ms (packetLoss types). */
@@ -509,8 +512,9 @@ class MeasurementEngine {
               uploadChunkSize: msmConfig.loadUp
                 ? this.#optimalUploadChunkSize
                 : undefined,
-              downloadApiUrl,
-              uploadApiUrl,
+              // The load generator takes a single URL
+              downloadApiUrl: [downloadApiUrl].flat()[0],
+              uploadApiUrl: [uploadApiUrl].flat()[0],
 
               ...ptCfg
             }) as Engine;
@@ -740,7 +744,12 @@ class MeasurementEngine {
           engine.onParallelLatencyResult = (res: unknown) => {
             // merge in new latency result
             (
-              msmResults.results[msmConfig.bytes!] as {
+              msmResults.results[
+                getSampleBytes({
+                  bytes: msmConfig.bytes!,
+                  parallel: msmConfig.parallel
+                })
+              ] as {
                 sideLatency: unknown[];
               }
             ).sideLatency.push(res);

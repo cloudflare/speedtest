@@ -8,10 +8,18 @@ export interface BandwidthMeasurementConfig {
   type: 'download' | 'upload';
   /** Payload size per HTTP request in bytes (e.g., 1e5 = 100KB, 1e7 = 10MB). */
   bytes: number;
-  /** Number of requests to issue at this payload size. */
+  /** Number of samples to take: requests, or batches of `parallel` requests. */
   count: number;
   /** If `true`, skip the minimum-duration filter for this round. */
   bypassMinDuration?: boolean;
+  /**
+   * Concurrent requests per sample. Each batch of `parallel` requests yields
+   * one sample of `bytes * parallel` bytes, timed from the first request start
+   * to the last completion. Default: `1`.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  parallel?: number;
 }
 
 /** WebRTC TURN-based packet loss measurement phase. */
@@ -45,10 +53,16 @@ export interface Config {
   /** Whether to start the test immediately on construction. Default: `true`. */
   autoStart: boolean;
 
-  /** URL for download requests. Default: `https://speed.cloudflare.com/__down`. */
-  downloadApiUrl: string;
-  /** URL for upload requests. Default: `https://speed.cloudflare.com/__up`. */
-  uploadApiUrl: string;
+  /**
+   * URL for download requests, or several to round-robin latency and download
+   * requests across. Default: `https://speed.cloudflare.com/__down`.
+   */
+  downloadApiUrl: string | string[];
+  /**
+   * URL for upload requests, or several to round-robin upload requests
+   * across. Default: `https://speed.cloudflare.com/__up`.
+   */
+  uploadApiUrl: string | string[];
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */

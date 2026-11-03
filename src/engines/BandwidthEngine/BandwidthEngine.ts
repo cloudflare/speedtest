@@ -146,9 +146,102 @@ const genContent = (() => {
 export interface BandwidthMeasurement {
   dir: 'down' | 'up';
   bytes: number;
+  /** Number of samples. Each sample is one batch of `parallel` requests. */
   count: number;
   bypassMinDuration?: boolean;
+  /** Concurrent requests per sample. Default: `1`. */
+  parallel?: number;
 }
+
+/** Concurrent requests per sample, as a positive integer. */
+export const getParallelism = ({
+  parallel
+}: Pick<BandwidthMeasurement, 'parallel'>): number =>
+  Math.max(1, Math.floor(parallel ?? 1) || 1);
+
+/** Bytes one sample transfers: the payload of every request in its batch. */
+export const getSampleBytes = (
+  meas: Pick<BandwidthMeasurement, 'bytes' | 'parallel'>
+): number => meas.bytes * getParallelism(meas);
+
+/** One request of a parallel batch: its resource timing and server time. */
+export interface BatchRequestTiming {
+  perf: Pick<
+    InterimAwareTiming,
+    | 'requestStart'
+    | 'responseStart'
+    | 'responseEnd'
+    | 'transferSize'
+    | 'finalResponseHeadersStart'
+  >;
+  serverTime?: number;
+}
+
+/**
+ * Combines a batch of concurrent requests into one sample, as if it were a
+ * single request spanning the first request start to the last completion.
+ * Like sequential samples, downloads exclude server time (the smallest of the
+ * batch, as that much is certain to overlap) and uploads end at the response.
+ */
+export const aggregateBatchTiming = (
+  requests: BatchRequestTiming[],
+  {
+    isDown,
+    numBytes,
+    estimatedServerTime = 0,
+    serverTimeDelta = 0
+  }: {
+    isDown: boolean;
+    numBytes: number;
+    estimatedServerTime?: number;
+    serverTimeDelta?: number;
+  }
+): BandwidthMeasurementTiming => {
+  const perRequest = requests.map(({ perf, serverTime }) => {
+    const finalStart = getFinalResponseStart(perf as InterimAwareTiming);
+    const ttfb = finalStart - perf.requestStart;
+    const baseServerTime = serverTime || estimatedServerTime;
+    let ping = ttfb - baseServerTime - serverTimeDelta;
+    if (ping <= 1) ping = Math.max(0, ttfb - baseServerTime);
+    return { ttfb, ping, serverAdjustment: ttfb - ping, finalStart };
+  });
+
+  const start = Math.min(...requests.map(({ perf }) => perf.requestStart));
+  const lastResponseEnd = Math.max(
+    ...requests.map(({ perf }) => perf.responseEnd)
+  );
+  const lastFinalStart = Math.max(...perRequest.map(r => r.finalStart));
+  const ping = Math.min(...perRequest.map(r => r.ping));
+  const duration = isDown
+    ? lastResponseEnd -
+      start -
+      Math.min(...perRequest.map(r => r.serverAdjustment))
+    : lastFinalStart - start;
+
+  // A missing size on any request makes the speed fall back to an estimate
+  const transferSize = requests.every(({ perf }) => perf.transferSize)
+    ? requests.reduce((sum, { perf }) => sum + perf.transferSize, 0)
+    : 0;
+  const serverTimes = requests
+    .map(({ serverTime }) => serverTime)
+    .filter((t): t is number => !!t);
+  const totalBytes = numBytes * requests.length;
+
+  return {
+    transferSize,
+    ttfb: Math.min(...perRequest.map(r => r.ttfb)),
+    payloadDownloadTime: isDown
+      ? Math.max(0, duration - ping)
+      : Math.max(0, lastResponseEnd - lastFinalStart),
+    serverTime: serverTimes.length ? Math.min(...serverTimes) : -1,
+    measTime: new Date(),
+    ping,
+    duration,
+    bps: isDown
+      ? calcDownloadSpeed({ duration, transferSize }, totalBytes)
+      : calcUploadSpeed({ duration }, totalBytes)
+  };
+};
 
 export interface BandwidthMeasurementTiming {
   transferSize: number;
@@ -183,18 +276,25 @@ export interface ResponseHookPayload {
 }
 
 export interface BandwidthEngineOptions {
-  downloadApiUrl?: string;
-  uploadApiUrl?: string;
+  /** One URL, or several to round-robin requests across. */
+  downloadApiUrl?: string | string[];
+  /** One URL, or several to round-robin requests across. */
+  uploadApiUrl?: string | string[];
   throttleMs?: number;
   estimatedServerTime?: number;
   serverTimeDelta?: number;
   authorization?: AuthorizationOptions | null;
 }
 
+const toUrlList = (url: string | string[] | undefined): string[] =>
+  (Array.isArray(url) ? url : [url]).filter((u): u is string => !!u);
+
 /**
- * Measures download and upload bandwidth via sequential HTTP requests.
- * Each request's timing is extracted from the browser's PerformanceResourceTiming
+ * Measures download and upload bandwidth via HTTP requests, run one at a time
+ * or, for measurements with `parallel` > 1, in concurrent batches. Each
+ * request's timing is extracted from the browser's PerformanceResourceTiming
  * API, providing accurate transfer duration independent of JS execution overhead.
+ * Requests round-robin across the API URLs, from a random starting URL.
  * Supports configurable retry logic and abort thresholds.
  */
 class BandwidthMeasurementEngine implements Engine {
@@ -210,12 +310,18 @@ class BandwidthMeasurementEngine implements Engine {
     }: BandwidthEngineOptions = {}
   ) {
     if (!measurements) throw new Error('Missing measurements argument');
-    if (!downloadApiUrl) throw new Error('Missing downloadApiUrl argument');
-    if (!uploadApiUrl) throw new Error('Missing uploadApiUrl argument');
+    const downloadApis = toUrlList(downloadApiUrl);
+    const uploadApis = toUrlList(uploadApiUrl);
+    if (!downloadApis.length)
+      throw new Error('Missing downloadApiUrl argument');
+    if (!uploadApis.length) throw new Error('Missing uploadApiUrl argument');
 
     this.#measurements = measurements;
-    this.#downloadApi = downloadApiUrl;
-    this.#uploadApi = uploadApiUrl;
+    this.#apis = { down: downloadApis, up: uploadApis };
+    this.#apiIdx = {
+      down: Math.floor(Math.random() * downloadApis.length),
+      up: Math.floor(Math.random() * uploadApis.length)
+    };
     this.#throttleMs = throttleMs;
     this.#estimatedServerTime = Math.max(0, estimatedServerTime);
     this.#serverTimeDelta = Math.max(0, serverTimeDelta);
@@ -322,8 +428,8 @@ class BandwidthMeasurementEngine implements Engine {
 
   // Internal state
   #measurements: BandwidthMeasurement[];
-  #downloadApi: string;
-  #uploadApi: string;
+  #apis: Record<'down' | 'up', string[]>;
+  #apiIdx: Record<'down' | 'up', number>;
 
   #running: boolean = false;
   #finished: Record<string, boolean> = { down: false, up: false };
@@ -362,7 +468,10 @@ class BandwidthMeasurementEngine implements Engine {
     measIdx: number,
     measTiming?: BandwidthMeasurementTiming
   ): void {
-    const { bytes, dir } = this.#measurements[measIdx];
+    const meas = this.#measurements[measIdx];
+    const { dir } = meas;
+    // Parallel samples are keyed by the bytes of their whole batch
+    const bytes = getSampleBytes(meas);
 
     const results = this.#results;
 
@@ -372,7 +481,7 @@ class BandwidthMeasurementEngine implements Engine {
           timings: [],
           // count all measurements with same bytes and direction
           numMeasurements: this.#measurements
-            .filter(({ bytes: b, dir: d }) => bytes === b && dir === d)
+            .filter(m => getSampleBytes(m) === bytes && m.dir === dir)
             .map(m => m.count)
             .reduce((agg, cnt) => agg + cnt, 0)
         };
@@ -396,7 +505,7 @@ class BandwidthMeasurementEngine implements Engine {
         );
       });
     } else {
-      this.#onNewMeasurementStarted(this.#measurements[measIdx], results);
+      this.#onNewMeasurementStarted({ ...meas, bytes }, results);
     }
   }
 
@@ -447,54 +556,20 @@ class BandwidthMeasurementEngine implements Engine {
       this.#saveMeasurementResults(measIdx); // register measurement start
     }
 
+    if (getParallelism(meas) > 1) {
+      this.#runBatch(meas, measIdx);
+      return;
+    }
+
     const { bytes: numBytes, dir } = meas;
     const isDown = dir === 'down';
 
-    const apiUrl = isDown ? this.#downloadApi : this.#uploadApi;
-    const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
-    qsParams.bytes = `${numBytes}`;
-
-    const urlObj = new URL(apiUrl, window.location.origin);
-    Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
-    const url = urlObj.href;
-
-    const fetchOpt: RequestInit = withAuthorizationHeader(
-      Object.assign(
-        {},
-        isDown
-          ? {}
-          : {
-              method: 'POST',
-              body: genContent(numBytes)
-            },
-        this.#fetchOptions
-      ),
-      this.#authorization,
-      url
+    const { url, qsParams, fetchOpt } = this.#buildRequest(dir, numBytes);
+    const { signal } = this.#prepareAbortController(
+      `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes`
     );
 
-    if (
-      this.#retries === 0 ||
-      !this.#currentAbortController ||
-      this.#currentAbortController.signal.aborted
-    ) {
-      // abort existing abort controller
-      this.#currentAbortController?.abort('restarting engine');
-      clearTimeout(this.#abortTimeout);
-
-      // create new abort controller
-      const controller = (this.#currentAbortController = new AbortController());
-      if (this.abortRequestDuration) {
-        this.#abortTimeout = setTimeout(() => {
-          const errorMessage = `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes aborted. Request exceeded abortRequestDuration (${this.abortRequestDuration}ms)`;
-          controller.abort(errorMessage);
-          this.#skipFailedRequest(errorMessage);
-        }, this.abortRequestDuration);
-      }
-    }
-
     let serverTime: number | undefined;
-    const signal = this.#currentAbortController!.signal;
     const requestedAt = performance.now();
     fetch(url, {
       ...fetchOpt,
@@ -680,29 +755,211 @@ class BandwidthMeasurementEngine implements Engine {
       })
       .catch(error => {
         if (signal.aborted) return;
-        console.warn(`Error fetching ${url}: ${error}`);
+        this.#handleRequestError(error, url);
+      });
+  }
 
-        if (
-          error instanceof HttpError &&
-          error.status === 429 &&
-          this.#retries++ < MAX_RETRIES
-        ) {
-          this.#retryTimeout = setTimeout(() => {
-            this.#retryTimeout = undefined;
-            if (this.#running) this.#nextMeasurement();
-          }, getRetryDelay(error.retryAfter));
+  /** Runs one batch of concurrent requests and saves it as a single sample. */
+  #runBatch(meas: BandwidthMeasurement, measIdx: number): void {
+    const { bytes: numBytes, dir } = meas;
+    const isDown = dir === 'down';
+    const parallel = getParallelism(meas);
+
+    const requests = Array.from({ length: parallel }, (_, i) =>
+      // Distinct URLs, so each request's resource timing entry can be told apart
+      this.#buildRequest(dir, numBytes, { req: `${i}` })
+    );
+    const controller = this.#prepareAbortController(
+      `${isDown ? 'Download' : 'Upload'} batch of ${parallel}x${numBytes} bytes`
+    );
+    const signal = controller.signal;
+    const requestedAt = performance.now();
+
+    Promise.all(
+      requests.map(({ url, fetchOpt }) =>
+        fetch(url, { ...fetchOpt, signal })
+          .then(r => {
+            if (r.ok) return r;
+            throw new HttpError(
+              r.status,
+              r.statusText,
+              r.headers.get('retry-after')
+            );
+          })
+          .then(async r => {
+            const serverTime = this.getServerTime?.(r) ?? undefined;
+            const body = await r.text();
+            this.#responseHook({ url, headers: r.headers, body });
+            return serverTime;
+          })
+          .catch(error => {
+            if (!signal.aborted) {
+              // One failed request voids the batch, so stop the rest
+              controller.abort('batch request failed');
+              this.#handleRequestError(error, url);
+            }
+            throw error;
+          })
+      )
+    )
+      .then(async serverTimes => {
+        const findEntries = () =>
+          requests.map(({ url }) => getRequestEntries(url, requestedAt)[0]);
+        let entries = findEntries();
+        if (entries.some(entry => !entry)) {
+          await new Promise(resolve => setTimeout(resolve));
+          entries = findEntries();
+        }
+        if (signal.aborted) return;
+
+        const missing = requests.filter((_, i) => !entries[i]);
+        if (missing.length) {
+          console.warn(
+            `Discarding ${dir} sample without a resource timing entry`,
+            { url: missing[0].url }
+          );
+          if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
+            this.pause();
+            this.#onFatalError(
+              `No resource timing entries for ${missing[0].url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
+            );
+            return;
+          }
+          this.#scheduleNextMeasurement();
           return;
         }
+        this.#missingEntries = 0;
 
-        const status = error instanceof HttpError ? error.status : undefined;
-        const message =
-          status === 429
-            ? `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
-            : status === undefined
-              ? `Connection failed to ${url}.`
-              : `Request failed with ${status}: ${url}`;
-        this.#skipFailedRequest(message, status);
+        const timing = aggregateBatchTiming(
+          entries.map((perf, i) => ({ perf, serverTime: serverTimes[i] })),
+          {
+            isDown,
+            numBytes,
+            estimatedServerTime: this.#estimatedServerTime,
+            serverTimeDelta: this.#serverTimeDelta
+          }
+        );
+
+        console.log(isDown ? 'download' : 'upload', {
+          bytes: numBytes * parallel,
+          parallel,
+          bps: timing.bps,
+          ttfb: timing.ttfb,
+          ping: timing.ping
+        });
+
+        if (hasUsableSpeed(timing, numBytes)) {
+          this.#saveMeasurementResults(measIdx, timing);
+          this.#minDuration =
+            this.#minDuration < 0
+              ? timing.duration
+              : Math.min(this.#minDuration, timing.duration);
+        } else {
+          console.warn(`Discarding ${dir} sample without a speed`, {
+            bytes: numBytes * parallel,
+            ...timing
+          });
+        }
+
+        this.#scheduleNextMeasurement();
+      })
+      .catch(error => {
+        // Failed requests abort the batch once handled, so this is anything else
+        if (!signal.aborted) this.#handleRequestError(error, requests[0].url);
       });
+  }
+
+  /** Next API URL for `dir`, round-robin. */
+  #nextApiUrl(dir: 'down' | 'up'): string {
+    const apis = this.#apis[dir];
+    const url = apis[this.#apiIdx[dir] % apis.length];
+    this.#apiIdx[dir] += 1;
+    return url;
+  }
+
+  #buildRequest(
+    dir: 'down' | 'up',
+    numBytes: number,
+    extraParams: Record<string, string> = {}
+  ): { url: string; qsParams: Record<string, string>; fetchOpt: RequestInit } {
+    const qsParams: Record<string, string> = {
+      ...this.#qsParams,
+      ...extraParams,
+      bytes: `${numBytes}`
+    };
+
+    const urlObj = new URL(this.#nextApiUrl(dir), window.location.origin);
+    Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
+    const url = urlObj.href;
+
+    const fetchOpt: RequestInit = withAuthorizationHeader(
+      Object.assign(
+        {},
+        dir === 'down'
+          ? {}
+          : {
+              method: 'POST',
+              body: genContent(numBytes)
+            },
+        this.#fetchOptions
+      ),
+      this.#authorization,
+      url
+    );
+
+    return { url, qsParams, fetchOpt };
+  }
+
+  /**
+   * Returns the controller for the next request, keeping the current one
+   * while retrying, and arms the abort timer for `description`.
+   */
+  #prepareAbortController(description: string): AbortController {
+    if (
+      this.#retries === 0 ||
+      !this.#currentAbortController ||
+      this.#currentAbortController.signal.aborted
+    ) {
+      // abort existing abort controller
+      this.#currentAbortController?.abort('restarting engine');
+      clearTimeout(this.#abortTimeout);
+
+      // create new abort controller
+      const controller = (this.#currentAbortController = new AbortController());
+      if (this.abortRequestDuration) {
+        this.#abortTimeout = setTimeout(() => {
+          const errorMessage = `${description} aborted. Request exceeded abortRequestDuration (${this.abortRequestDuration}ms)`;
+          controller.abort(errorMessage);
+          this.#skipFailedRequest(errorMessage);
+        }, this.abortRequestDuration);
+      }
+    }
+    return this.#currentAbortController;
+  }
+
+  #handleRequestError(error: unknown, url: string): void {
+    console.warn(`Error fetching ${url}: ${error}`);
+
+    if (
+      error instanceof HttpError &&
+      error.status === 429 &&
+      this.#retries++ < MAX_RETRIES
+    ) {
+      this.#retryTimeout = setTimeout(() => {
+        this.#retryTimeout = undefined;
+        if (this.#running) this.#nextMeasurement();
+      }, getRetryDelay(error.retryAfter));
+      return;
+    }
+
+    const status = error instanceof HttpError ? error.status : undefined;
+    const message =
+      status === 429
+        ? `Connection failed to ${url}. Gave up after ${MAX_RETRIES} retries.`
+        : status === undefined
+          ? `Connection failed to ${url}.`
+          : `Request failed with ${status}: ${url}`;
+    this.#skipFailedRequest(message, status);
   }
 
   // Reports a failed request and moves on, so one failure can't end the set
