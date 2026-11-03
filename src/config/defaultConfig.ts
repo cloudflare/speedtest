@@ -17,7 +17,8 @@ export interface BandwidthMeasurementConfig {
    * one sample of `bytes * parallel` bytes, timed like a sequential request
    * from the first request start to the last completion: downloads exclude
    * the smallest server time in the batch, and uploads end at the last
-   * response. Default: `1`.
+   * response. Every duration threshold treats a batch as a single request.
+   * Default: `1`.
    *
    * @experimental Unstable — may change or be removed in any release.
    */
@@ -165,8 +166,9 @@ export interface Config {
   /** Minimum interval between loaded-latency pings (ms). Default: `400`. */
   loadedLatencyThrottle: number;
   /**
-   * Per-request duration threshold (ms) that, once reached, stops further
-   * measurement rounds of that bandwidth type. Default: `1000`.
+   * Per-request duration threshold (ms), or per batch for `parallel` steps,
+   * that once reached stops further measurement rounds of that bandwidth type.
+   * Default: `1000`.
    */
   bandwidthFinishRequestDuration: number;
   /**

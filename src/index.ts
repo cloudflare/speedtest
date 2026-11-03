@@ -35,7 +35,7 @@ interface MeasurementStep {
   numPackets?: number;
   /** Payload size per request in bytes (download/upload types). */
   bytes?: number;
-  /** Number of requests to issue at this payload size (download/upload types). */
+  /** Number of samples: requests, or batches of `parallel` requests (download/upload types). */
   count?: number;
   /** Skip the minimum-duration filter for this round (download/upload types). */
   bypassMinDuration?: boolean;
