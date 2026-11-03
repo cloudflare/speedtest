@@ -76,7 +76,8 @@ export interface Config {
    * measurement set. An entry that isn't a bare http(s) origin throws a
    * `TypeError` on construction. Latency and jitter are measured across all
    * targets, so they should be equivalent endpoints of one service. Targets on
-   * another origin must send `Timing-Allow-Origin`. Default: `[]`.
+   * another origin must send `Timing-Allow-Origin`, or their samples are
+   * discarded. Packet loss under load only uses the first target. Default: `[]`.
    */
   measurementTargets: string[];
   /**

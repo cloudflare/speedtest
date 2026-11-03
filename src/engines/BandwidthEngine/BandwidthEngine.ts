@@ -76,6 +76,15 @@ const getRequestEntries = (url: string, since: number) =>
     .getEntriesByName(url)
     .filter(entry => entry.startTime >= since) as PerformanceResourceTiming[];
 
+/**
+ * Whether an entry has detailed timings. Browsers zero them for cross-origin
+ * responses without `Timing-Allow-Origin`, which would make the duration the
+ * time since page load.
+ */
+const hasDetailedTiming = (
+  perf: Pick<PerformanceResourceTiming, 'requestStart' | 'responseStart'>
+): boolean => perf.requestStart !== 0 || perf.responseStart !== 0;
+
 /** Time to first byte: time from request start to the final response (ms). */
 const getTtfb = (perf: PerformanceResourceTiming): number =>
   getFinalResponseStart(perf) - perf.requestStart;
@@ -650,8 +659,8 @@ class BandwidthMeasurementEngine implements Engine {
         if (signal.aborted) return;
 
         const [perf] = entries;
-        if (!perf) {
-          this.#discardMissingEntry(dir, url);
+        if (!perf || !hasDetailedTiming(perf)) {
+          this.#discardMissingEntry(dir, url, !!perf);
           return;
         }
         this.#missingEntries = 0;
@@ -796,9 +805,15 @@ class BandwidthMeasurementEngine implements Engine {
         }
         if (signal.aborted) return;
 
-        const missing = requests.find((_, i) => !entries[i]);
-        if (missing) {
-          this.#discardMissingEntry(dir, missing.url);
+        const missingIdx = entries.findIndex(
+          entry => !entry || !hasDetailedTiming(entry)
+        );
+        if (missingIdx >= 0) {
+          this.#discardMissingEntry(
+            dir,
+            requests[missingIdx].url,
+            !!entries[missingIdx]
+          );
           return;
         }
         this.#missingEntries = 0;
@@ -879,16 +894,34 @@ class BandwidthMeasurementEngine implements Engine {
     return true;
   }
 
-  /** Skips a sample whose resource timing entry is missing. */
-  #discardMissingEntry(dir: 'down' | 'up', url: string): void {
-    // A full or cleared buffer, or a runtime that doesn't record entries
-    console.warn(`Discarding ${dir} sample without a resource timing entry`, {
-      url
-    });
+  /**
+   * Skips a sample whose resource timing entry is missing, or `restricted`:
+   * present but without detailed timings.
+   */
+  #discardMissingEntry(
+    dir: 'down' | 'up',
+    url: string,
+    restricted = false
+  ): void {
+    if (restricted) {
+      console.warn(
+        `Discarding ${dir} sample without detailed resource timing`,
+        {
+          url
+        }
+      );
+    } else {
+      // A full or cleared buffer, or a runtime that doesn't record entries
+      console.warn(`Discarding ${dir} sample without a resource timing entry`, {
+        url
+      });
+    }
     if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
       this.pause();
       this.#onFatalError(
-        `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
+        restricted
+          ? `No detailed resource timing for ${url}. A cross-origin target must send a Timing-Allow-Origin header.`
+          : `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
       );
       return;
     }

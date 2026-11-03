@@ -119,6 +119,8 @@ describe('BandwidthEngine parallel batches', () => {
   let hangAfterCalls: number;
   let responseDelay: number;
   let bodyFor: (url: string) => string;
+  // Requests whose entries lack detailed timings, as without Timing-Allow-Origin
+  let restrictedUrl: RegExp | undefined;
 
   beforeEach(() => {
     inFlight = 0;
@@ -131,6 +133,7 @@ describe('BandwidthEngine parallel batches', () => {
     hangAfterCalls = Infinity;
     responseDelay = 0;
     bodyFor = () => '';
+    restrictedUrl = undefined;
     vi.stubGlobal('window', {
       location: { origin: 'https://speed.example.com' }
     });
@@ -160,7 +163,9 @@ describe('BandwidthEngine parallel batches', () => {
         entries.push({
           name: url,
           startTime,
-          ...perf(10, 20, 220, 1e5),
+          ...(restrictedUrl?.test(url)
+            ? perf(0, 0, 5000, 0)
+            : perf(10, 20, 220, 1e5)),
           connectStart: 0,
           connectEnd: 0,
           secureConnectionStart: 0,
@@ -387,6 +392,71 @@ describe('BandwidthEngine parallel batches', () => {
       { url: expect.stringMatching(/req=1/) }
     );
     expect(results.down[2e5].timings).toHaveLength(1);
+  });
+
+  it.each(['down', 'up'] as const)(
+    'discards a sequential %s sample without detailed timings',
+    async dir => {
+      restrictedUrl = /b\.example\.com/;
+      const { results } = await run([{ dir, bytes: 1e5, count: 2 }], {
+        downloadApiUrl: [
+          'https://a.example.com/__down',
+          'https://b.example.com/__down'
+        ],
+        uploadApiUrl: [
+          'https://a.example.com/__up',
+          'https://b.example.com/__up'
+        ]
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        `Discarding ${dir} sample without detailed resource timing`,
+        { url: expect.stringContaining('b.example.com') }
+      );
+      expect(results[dir][1e5].timings).toHaveLength(1);
+    }
+  );
+
+  it('discards a batch with a request without detailed timings', async () => {
+    restrictedUrl = /b\.example\.com/;
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 2, parallel: 2 }],
+      {
+        downloadApiUrl: [
+          'https://a.example.com/__down',
+          'https://b.example.com/__down'
+        ]
+      }
+    );
+
+    expect(console.warn).toHaveBeenCalledWith(
+      'Discarding down sample without detailed resource timing',
+      { url: expect.stringContaining('b.example.com') }
+    );
+    expect(results.down[2e5]?.timings ?? []).toHaveLength(0);
+  });
+
+  it('ends the set after repeated samples without detailed timings', async () => {
+    restrictedUrl = /./;
+    const onFatalError = vi.fn();
+    const engine = new BandwidthEngine(
+      [{ dir: 'down', bytes: 1e5, count: 5, parallel: 2 }],
+      {
+        downloadApiUrl: 'https://a.example.com/__down',
+        uploadApiUrl: 'https://a.example.com/__up'
+      }
+    );
+    engine.getServerTime = null;
+    await new Promise<void>(resolve => {
+      engine.onFatalError = error => {
+        onFatalError(error);
+        resolve();
+      };
+      engine.play();
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(onFatalError.mock.calls[0][0]).toMatch(/Timing-Allow-Origin/);
   });
 
   it('reports each batch request with its own timing and response tail', async () => {
