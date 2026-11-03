@@ -141,6 +141,32 @@ const genContent = (() => {
   };
 })();
 
+/** Bytes kept from the end of a batch response, which carries its token. */
+const BODY_TAIL_BYTES = 1024;
+
+/**
+ * Reads a response to the end, keeping only its tail as text, so concurrent
+ * downloads don't hold their whole payloads in memory.
+ */
+const readBodyTail = async (r: Response): Promise<string> => {
+  if (!r.body) return '';
+  const reader = r.body.getReader();
+  let tail = new Uint8Array(0);
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value.length >= BODY_TAIL_BYTES) {
+      tail = value.slice(-BODY_TAIL_BYTES);
+    } else {
+      const merged = new Uint8Array(tail.length + value.length);
+      merged.set(tail);
+      merged.set(value, tail.length);
+      tail = merged.slice(-BODY_TAIL_BYTES);
+    }
+  }
+  return new TextDecoder().decode(tail);
+};
+
 //
 
 export interface BandwidthMeasurement {
@@ -396,6 +422,20 @@ class BandwidthMeasurementEngine implements Engine {
   ) {
     this.#onMeasurementResult = f;
   }
+  #onRequestResult: (
+    result: BandwidthTimingResult,
+    response: ResponseHookPayload
+  ) => void = () => {};
+  /**
+   * Invoked for each request with a usable speed, with its own timing and
+   * response. A parallel batch invokes it once per request, while
+   * `onMeasurementResult` gets the batch's single sample.
+   */
+  set onRequestResult(
+    f: (result: BandwidthTimingResult, response: ResponseHookPayload) => void
+  ) {
+    this.#onRequestResult = f;
+  }
   #onFinished: (results: BandwidthEngineResults) => void = () => {}; // callback invoked when all the measurements are finished
   set onFinished(f: (results: BandwidthEngineResults) => void) {
     this.#onFinished = f;
@@ -572,6 +612,7 @@ class BandwidthMeasurementEngine implements Engine {
     );
 
     let serverTime: number | undefined;
+    let response: ResponseHookPayload;
     const requestedAt = performance.now();
     fetch(url, {
       ...fetchOpt,
@@ -591,11 +632,8 @@ class BandwidthMeasurementEngine implements Engine {
       })
       .then(r =>
         r.text().then(body => {
-          this.#responseHook({
-            url,
-            headers: r.headers,
-            body
-          });
+          response = { url, headers: r.headers, body };
+          this.#responseHook(response);
 
           return body;
         })
@@ -668,7 +706,7 @@ class BandwidthMeasurementEngine implements Engine {
 
         isDown && this.#warnSizeMismatch(timing.transferSize, numBytes);
 
-        this.#recordSample(measIdx, timing, {
+        const saved = this.#recordSample(measIdx, timing, {
           perf: {
             startTime: perf.startTime,
             requestStart: perf.requestStart,
@@ -682,6 +720,11 @@ class BandwidthMeasurementEngine implements Engine {
             entries: entries.length
           }
         });
+        saved &&
+          this.#onRequestResult(
+            { type: dir, bytes: numBytes, ...timing },
+            response
+          );
 
         this.#scheduleNextMeasurement();
       })
@@ -701,10 +744,15 @@ class BandwidthMeasurementEngine implements Engine {
       // Distinct URLs, so each request's resource timing entry can be told apart
       this.#buildRequest(dir, numBytes, { req: `${i}` })
     );
-    const controller = this.#prepareAbortController(
+    const { signal: setSignal } = this.#prepareAbortController(
       `${isDown ? 'Download' : 'Upload'} batch of ${parallel}x${numBytes} bytes`
     );
-    const signal = controller.signal;
+    // A failed request aborts only its batch, so retries keep the set's abort timer
+    const batchController = new AbortController();
+    const abortBatch = () => batchController.abort(setSignal.reason);
+    if (setSignal.aborted) abortBatch();
+    else setSignal.addEventListener('abort', abortBatch, { once: true });
+    const signal = batchController.signal;
     const requestedAt = performance.now();
 
     Promise.all(
@@ -720,21 +768,25 @@ class BandwidthMeasurementEngine implements Engine {
           })
           .then(async r => {
             const serverTime = this.getServerTime?.(r) ?? undefined;
-            const body = await r.text();
-            this.#responseHook({ url, headers: r.headers, body });
-            return serverTime;
+            const response = {
+              url,
+              headers: r.headers,
+              body: await readBodyTail(r)
+            };
+            this.#responseHook(response);
+            return { serverTime, response };
           })
           .catch(error => {
             if (!signal.aborted) {
               // One failed request voids the batch, so stop the rest
-              controller.abort('batch request failed');
+              batchController.abort('batch request failed');
               this.#handleRequestError(error, url);
             }
             throw error;
           })
       )
     )
-      .then(async serverTimes => {
+      .then(async responses => {
         const findEntries = () =>
           requests.map(({ url }) => getRequestEntries(url, requestedAt)[0]);
         let entries = findEntries();
@@ -751,20 +803,21 @@ class BandwidthMeasurementEngine implements Engine {
         }
         this.#missingEntries = 0;
 
-        entries.forEach((perf, i) => {
-          this.#calibrateServerTimeDelta(perf, serverTimes[i]);
+        const timingOptions = {
+          isDown,
+          numBytes,
+          estimatedServerTime: this.#estimatedServerTime
+        };
+        const batch = entries.map((perf, i) => {
+          this.#calibrateServerTimeDelta(perf, responses[i].serverTime);
           isDown && this.#warnSizeMismatch(perf.transferSize, numBytes);
+          return { perf, serverTime: responses[i].serverTime };
         });
-
-        const timing = aggregateBatchTiming(
-          entries.map((perf, i) => ({ perf, serverTime: serverTimes[i] })),
-          {
-            isDown,
-            numBytes,
-            estimatedServerTime: this.#estimatedServerTime,
-            serverTimeDelta: this.#serverTimeDelta
-          }
-        );
+        const serverTimeDelta = this.#serverTimeDelta;
+        const timing = aggregateBatchTiming(batch, {
+          ...timingOptions,
+          serverTimeDelta
+        });
 
         console.log(isDown ? 'download' : 'upload', {
           bytes: numBytes * parallel,
@@ -775,23 +828,39 @@ class BandwidthMeasurementEngine implements Engine {
         });
 
         this.#recordSample(measIdx, timing, { parallel });
+
+        // Each request is reported on its own, e.g. for per-request logging
+        batch.forEach((request, i) => {
+          const requestTiming = aggregateBatchTiming([request], {
+            ...timingOptions,
+            serverTimeDelta
+          });
+          hasUsableSpeed(requestTiming, numBytes) &&
+            this.#onRequestResult(
+              { type: dir, bytes: numBytes, ...requestTiming },
+              responses[i].response
+            );
+        });
+
         this.#scheduleNextMeasurement();
       })
       .catch(error => {
         // Failed requests abort the batch once handled, so this is anything else
         if (!signal.aborted) this.#handleRequestError(error, requests[0].url);
-      });
+      })
+      .finally(() => setSignal.removeEventListener('abort', abortBatch));
   }
 
   /**
-   * Stores a sample and tracks the set's shortest duration. Samples without a
-   * speed are counted but not stored or retried, so they can't skew results.
+   * Stores a sample and tracks the set's shortest duration, returning whether
+   * it was stored. Samples without a speed are counted but not stored or
+   * retried, so they can't skew results.
    */
   #recordSample(
     measIdx: number,
     timing: BandwidthMeasurementTiming,
     debug: Record<string, unknown>
-  ): void {
+  ): boolean {
     const meas = this.#measurements[measIdx];
     const bytes = getSampleBytes(meas);
     if (!hasUsableSpeed(timing, bytes)) {
@@ -800,13 +869,14 @@ class BandwidthMeasurementEngine implements Engine {
         ...timing,
         ...debug
       });
-      return;
+      return false;
     }
     this.#saveMeasurementResults(measIdx, timing);
     this.#minDuration =
       this.#minDuration < 0
         ? timing.duration
         : Math.min(this.#minDuration, timing.duration);
+    return true;
   }
 
   /** Skips a sample whose resource timing entry is missing. */

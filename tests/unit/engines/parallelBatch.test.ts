@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import LoggingBandwidthEngine from '../../../src/engines/BandwidthEngine/LoggingBandwidthEngine';
 import BandwidthEngine, {
   aggregateBatchTiming,
   getParallelism,
@@ -112,6 +113,12 @@ describe('BandwidthEngine parallel batches', () => {
   let clock: number;
   let failUrl: RegExp | undefined;
   let failResponse: () => Response;
+  // Requests whose resource timing entry is never recorded
+  let skipEntryUrl: RegExp | undefined;
+  // Requests after this many calls never settle unless aborted
+  let hangAfterCalls: number;
+  let responseDelay: number;
+  let bodyFor: (url: string) => string;
 
   beforeEach(() => {
     inFlight = 0;
@@ -120,20 +127,35 @@ describe('BandwidthEngine parallel batches', () => {
     clock = 0;
     failUrl = undefined;
     failResponse = () => new Response(null, { status: 500 });
+    skipEntryUrl = undefined;
+    hangAfterCalls = Infinity;
+    responseDelay = 0;
+    bodyFor = () => '';
     vi.stubGlobal('window', {
       location: { origin: 'https://speed.example.com' }
     });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string) => {
+      vi.fn(async (url: string, init?: RequestInit) => {
         const startTime = clock;
+        if (vi.mocked(fetch).mock.calls.length > hangAfterCalls) {
+          return new Promise<Response>((_, reject) =>
+            init?.signal?.addEventListener('abort', () =>
+              reject(init.signal!.reason)
+            )
+          );
+        }
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
-        await new Promise(resolve => setTimeout(resolve));
+        await new Promise(resolve => setTimeout(resolve, responseDelay));
         inFlight -= 1;
         if (failUrl?.test(url)) {
           failUrl = undefined;
           return failResponse();
+        }
+        if (skipEntryUrl?.test(url)) {
+          skipEntryUrl = undefined;
+          return new Response('');
         }
         entries.push({
           name: url,
@@ -144,7 +166,9 @@ describe('BandwidthEngine parallel batches', () => {
           secureConnectionStart: 0,
           nextHopProtocol: 'h2'
         } as (typeof entries)[number]);
-        return new Response('');
+        return new Response(bodyFor(url), {
+          headers: { 'cf-meta-request-time': '1700000000000' }
+        });
       })
     );
     vi.stubGlobal('performance', {
@@ -165,7 +189,8 @@ describe('BandwidthEngine parallel batches', () => {
 
   const run = (
     measurements: BandwidthMeasurement[],
-    options: BandwidthEngineOptions = {}
+    options: BandwidthEngineOptions = {},
+    setup: (engine: BandwidthEngine) => void = () => {}
   ) => {
     const engine = new BandwidthEngine(measurements, {
       downloadApiUrl: 'https://a.example.com/__down',
@@ -187,6 +212,7 @@ describe('BandwidthEngine parallel batches', () => {
           resolve({ results, onConnectionError, onNewMeasurementStarted })
         );
       engine.play();
+      setup(engine);
     });
   };
 
@@ -299,5 +325,174 @@ describe('BandwidthEngine parallel batches', () => {
           String(msg).startsWith('Requested 50000B')
         )
     ).toHaveLength(2);
+  });
+
+  it('keeps the abort timer across a 429 retry of the batch', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      failUrl = /req=1/;
+      failResponse = () =>
+        new Response(null, { status: 429, headers: { 'retry-after': '0' } });
+      const onConnectionError = vi.fn();
+      const engine = new BandwidthEngine(
+        [{ dir: 'down', bytes: 1e5, count: 1, parallel: 2 }],
+        {
+          downloadApiUrl: 'https://a.example.com/__down',
+          uploadApiUrl: 'https://a.example.com/__up'
+        }
+      );
+      engine.getServerTime = null;
+      engine.abortRequestDuration = 50;
+      engine.onConnectionError = onConnectionError;
+      // The 429 arrives at 30ms and the retried batch never settles, so only
+      // the original 50ms abort timer can end it before 55ms
+      responseDelay = 30;
+      hangAfterCalls = 2;
+      engine.play();
+      await vi.advanceTimersByTimeAsync(55);
+
+      expect(fetch).toHaveBeenCalledTimes(4);
+      expect(onConnectionError).toHaveBeenCalledTimes(1);
+      expect(onConnectionError.mock.calls[0][0]).toMatch(
+        /exceeded abortRequestDuration \(50ms\)/
+      );
+      engine.pause();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reruns a batch interrupted by pause()', async () => {
+    const { results } = await run(
+      [{ dir: 'down', bytes: 1e5, count: 1, parallel: 2 }],
+      {},
+      engine => {
+        engine.pause();
+        engine.play();
+      }
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(results.down[2e5].timings).toHaveLength(1);
+  });
+
+  it('discards a batch with a request missing its resource timing entry', async () => {
+    skipEntryUrl = /req=1/;
+    const { results } = await run([
+      { dir: 'down', bytes: 1e5, count: 2, parallel: 2 }
+    ]);
+
+    expect(console.warn).toHaveBeenCalledWith(
+      'Discarding down sample without a resource timing entry',
+      { url: expect.stringMatching(/req=1/) }
+    );
+    expect(results.down[2e5].timings).toHaveLength(1);
+  });
+
+  it('reports each batch request with its own timing and response tail', async () => {
+    bodyFor = url =>
+      `${'0'.repeat(5000)}___token-${new URL(url).searchParams.get('req')}`;
+    const onRequestResult = vi.fn();
+    await run(
+      [{ dir: 'down', bytes: 1e5, count: 1, parallel: 3 }],
+      {},
+      engine => {
+        engine.onRequestResult = onRequestResult;
+      }
+    );
+
+    expect(onRequestResult).toHaveBeenCalledTimes(3);
+    onRequestResult.mock.calls.forEach(([result, response], i) => {
+      expect(result).toMatchObject({ type: 'down', bytes: 1e5 });
+      expect(result.duration).toBe(210);
+      expect(response.url).toContain(`req=${i}`);
+      expect(response.body.length).toBeLessThanOrEqual(1024);
+      expect(response.body.endsWith(`___token-${i}`)).toBe(true);
+    });
+  });
+});
+
+describe('LoggingBandwidthEngine with parallel batches', () => {
+  const LOG_URL = 'https://log.example.com/__log';
+
+  beforeEach(() => {
+    const entries: { name: string; startTime: number }[] = [];
+    let clock = 0;
+    vi.stubGlobal('window', {
+      location: { origin: 'https://speed.example.com' }
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === LOG_URL) return new Response('ok');
+        const req = new URL(url).searchParams.get('req');
+        entries.push({
+          name: url,
+          startTime: clock,
+          requestStart: 10,
+          responseStart: 20,
+          responseEnd: 220,
+          transferSize: 1e5,
+          connectStart: 0,
+          connectEnd: 0,
+          secureConnectionStart: 0,
+          nextHopProtocol: 'h2'
+        } as { name: string; startTime: number });
+        return new Response(`${'0'.repeat(100)}___token-${req}`, {
+          headers: { 'cf-meta-request-time': `${1700000000000 + Number(req)}` }
+        });
+      })
+    );
+    vi.stubGlobal('performance', {
+      now: () => ++clock,
+      getEntriesByName: (name: string) =>
+        entries.filter(entry => entry.name === name),
+      clearResourceTimings: vi.fn()
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('logs each request with its own size, token and request time', async () => {
+    const engine = new LoggingBandwidthEngine(
+      [{ dir: 'down', bytes: 1e5, count: 1, parallel: 2 }],
+      {
+        downloadApiUrl: 'https://a.example.com/__down',
+        uploadApiUrl: 'https://a.example.com/__up',
+        logApiUrl: LOG_URL,
+        measurementId: 'meas-1'
+      }
+    );
+    engine.getServerTime = null;
+    await new Promise(resolve => {
+      engine.onFinished = resolve;
+      engine.play();
+    });
+
+    const logged = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => url === LOG_URL)
+      .map(([, init]) => JSON.parse(init!.body as string));
+    expect(logged).toHaveLength(2);
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          bytes: 1e5,
+          token: 'token-0',
+          requestTime: 1700000000000,
+          measId: 'meas-1'
+        }),
+        expect.objectContaining({
+          bytes: 1e5,
+          token: 'token-1',
+          requestTime: 1700000000001,
+          measId: 'meas-1'
+        })
+      ])
+    );
   });
 });

@@ -30,13 +30,24 @@ export const resolveApiUrls = (
   { path, option }: { path: string; option: string },
   fallbackUrl: string
 ): string[] => {
-  // `//` would make the path a protocol-relative URL to another host
-  if (!path.startsWith('/') || path.startsWith('//')) {
-    throw new TypeError(
-      `Invalid ${option} "${path}": expected a path starting with /`
-    );
-  }
+  const resolve = (origin: string): string => {
+    let url: URL | undefined;
+    try {
+      url = path.startsWith('/') ? new URL(path, origin) : undefined;
+    } catch {
+      // Reported below with the other invalid shapes
+    }
+    // Rejects paths such as `//host` or `/\host`, which switch hosts
+    if (!url || url.origin !== origin) {
+      throw new TypeError(
+        `Invalid ${option} "${path}": expected a path starting with /`
+      );
+    }
+    return url.href;
+  };
+  // Checked even when unused, so a bad path fails on construction regardless
+  resolve('https://placeholder.invalid');
   return targets.length
-    ? targets.map(target => new URL(path, parseOrigin(target)).href)
+    ? targets.map(target => resolve(parseOrigin(target)))
     : [fallbackUrl];
 };

@@ -816,10 +816,24 @@ class MeasurementEngine {
               msmResults.finished = true;
               this.onResultsChange({ type });
 
-              // record optimal load size
-              const largestSize = Object.keys(msmResults.results)
-                .map(n => +n)
-                .sort((a, b) => b - a)[0];
+              // Record optimal load size from the largest request sent. Results
+              // key batches by their total bytes, but load is sent one request
+              // at a time.
+              const largestSize = Math.max(
+                ...(this.#config.measurements as MeasurementStep[])
+                  .slice(0, this.#curMsmIdx + 1)
+                  .filter(
+                    m =>
+                      m.type === type &&
+                      msmResults.results.hasOwnProperty(
+                        getSampleBytes({
+                          bytes: m.bytes!,
+                          parallel: m.parallel
+                        })
+                      )
+                  )
+                  .map(m => m.bytes!)
+              );
               const optimalSize = largestSize * OPTIMAL_SIZE_RATIO;
 
               type === 'download' &&

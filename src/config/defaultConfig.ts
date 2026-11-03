@@ -89,7 +89,10 @@ export interface Config {
    * on construction. Default: `/__up`.
    */
   measurementUploadPath: string;
-  /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
+  /**
+   * URL for per-request logging, including each request of a parallel batch.
+   * Set to `null` to disable. Default: `null`.
+   */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
   logAimApiUrl: string | null;

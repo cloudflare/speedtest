@@ -58,22 +58,25 @@ describe('resolveApiUrls', () => {
     );
   });
 
-  it.each(['__down', '', '//other.example.com/__down'])(
-    'rejects the path "%s", which does not start with a single /',
-    path => {
-      expect(() =>
-        resolveApiUrls(
-          ['https://a.example.com'],
-          { ...DOWN, path },
-          'https://fallback.example.com'
-        )
-      ).toThrow(
-        new TypeError(
-          `Invalid measurementDownloadPath "${path}": expected a path starting with /`
-        )
-      );
-    }
-  );
+  it.each([
+    '__down',
+    '',
+    '//other.example.com/__down',
+    '/\\other.example.com/__down',
+    '/\t/other.example.com/__down'
+  ])('rejects the path "%s", which does not start with a single /', path => {
+    expect(() =>
+      resolveApiUrls(
+        ['https://a.example.com'],
+        { ...DOWN, path },
+        'https://fallback.example.com'
+      )
+    ).toThrow(
+      new TypeError(
+        `Invalid measurementDownloadPath "${path}": expected a path starting with /`
+      )
+    );
+  });
 });
 
 describe('measurementTargets config', () => {
@@ -85,6 +88,16 @@ describe('measurementTargets config', () => {
           measurementTargets: ['https://a.example.com', 'b.example.com']
         })
     ).toThrow(/Invalid measurementTargets entry "b\.example\.com"/);
+  });
+
+  it('rejects a host-switching path even without targets', () => {
+    expect(
+      () =>
+        new SpeedTest({
+          autoStart: false,
+          measurementDownloadPath: '/\\other.example.com'
+        })
+    ).toThrow(/Invalid measurementDownloadPath/);
   });
 
   it('rejects an invalid path when the engine is created', () => {
