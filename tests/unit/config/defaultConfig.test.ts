@@ -13,6 +13,7 @@ describe('defaultConfig', () => {
     expect(defaultConfig.uploadApiUrl).toBe(
       'https://speed.cloudflare.com/__up'
     );
+    expect(defaultConfig.measurementTargets).toEqual([]);
   });
 
   it('has a measurements array with expected types', () => {

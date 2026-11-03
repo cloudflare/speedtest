@@ -17,6 +17,7 @@ import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
 import type { AuthorizationOptions } from './utils/authorization';
+import { resolveApiUrls } from './utils/measurementTargets';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -414,7 +415,17 @@ class MeasurementEngine {
       measurement: { type, ...msmConfig } as MeasurementConfig
     });
 
-    const { downloadApiUrl, uploadApiUrl, estimatedServerTime } = this.#config;
+    const { measurementTargets, estimatedServerTime } = this.#config;
+    const downloadApiUrl = resolveApiUrls(
+      measurementTargets,
+      '/__down',
+      this.#config.downloadApiUrl
+    );
+    const uploadApiUrl = resolveApiUrls(
+      measurementTargets,
+      '/__up',
+      this.#config.uploadApiUrl
+    );
 
     let engine: Engine | undefined;
     switch (type) {
@@ -513,8 +524,8 @@ class MeasurementEngine {
                 ? this.#optimalUploadChunkSize
                 : undefined,
               // The load generator takes a single URL
-              downloadApiUrl: [downloadApiUrl].flat()[0],
-              uploadApiUrl: [uploadApiUrl].flat()[0],
+              downloadApiUrl: downloadApiUrl[0],
+              uploadApiUrl: uploadApiUrl[0],
 
               ...ptCfg
             }) as Engine;

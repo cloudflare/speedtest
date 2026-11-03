@@ -1,12 +1,8 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import SpeedTest from '../../src/index.ts';
 
-// Two URLs on the same origin, so requests can be told apart without a second host
-const DOWNLOAD_URLS = [
-  'https://speed.cloudflare.com/__down?host=a',
-  'https://speed.cloudflare.com/__down?host=b'
-];
-const UPLOAD_URL = 'https://speed.cloudflare.com/__up';
+// Spreading requests across several targets is covered by the unit tests
+const TARGETS = ['https://speed.cloudflare.com'];
 
 describe('SpeedTest E2E with parallel bandwidth steps', () => {
   afterEach(() => {
@@ -20,8 +16,7 @@ describe('SpeedTest E2E with parallel bandwidth steps', () => {
       const fetchSpy = vi.spyOn(window, 'fetch');
       const engine = new SpeedTest({
         autoStart: false,
-        downloadApiUrl: DOWNLOAD_URLS,
-        uploadApiUrl: UPLOAD_URL,
+        measurementTargets: TARGETS,
         logAimApiUrl: null,
         logMeasurementApiUrl: null,
         measureDownloadLoadedLatency: false,
@@ -68,10 +63,11 @@ describe('SpeedTest E2E with parallel bandwidth steps', () => {
       expect(downUrls).toHaveLength(8);
       expect(upUrls).toHaveLength(6);
 
-      // Each batch alternates between the two download URLs
-      const hosts = downUrls.map(url => url.searchParams.get('host'));
-      expect(hosts.filter(host => host === 'a')).toHaveLength(4);
-      hosts.slice(1).forEach((host, i) => expect(host).not.toBe(hosts[i]));
+      expect(
+        [...downUrls, ...upUrls].every(
+          url => url.origin === 'https://speed.cloudflare.com'
+        )
+      ).toBe(true);
 
       // Requests of a batch overlap: every one starts before any finishes
       const downEntries = downUrls
