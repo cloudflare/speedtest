@@ -133,6 +133,17 @@ class MeasurementEngine {
       enabled: this.#config.authorizationEnabled,
       allowInsecure: this.#config.allowInsecureAuthorizationToken
     };
+    // Resolved upfront, so an invalid target fails here rather than mid-test
+    this.#downloadApiUrls = resolveApiUrls(
+      this.#config.measurementTargets,
+      '/__down',
+      this.#config.downloadApiUrl
+    );
+    this.#uploadApiUrls = resolveApiUrls(
+      this.#config.measurementTargets,
+      '/__up',
+      this.#config.uploadApiUrl
+    );
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -232,6 +243,8 @@ class MeasurementEngine {
   #curEngine: Engine | undefined;
   #optimalDownloadChunkSize: number = DEFAULT_OPTIMAL_DOWNLOAD_SIZE;
   #optimalUploadChunkSize: number = DEFAULT_OPTIMAL_UPLOAD_SIZE;
+  #downloadApiUrls: string[];
+  #uploadApiUrls: string[];
 
   /**
    * High-resolution timestamp (from performance.now()) of the test start or
@@ -415,17 +428,9 @@ class MeasurementEngine {
       measurement: { type, ...msmConfig } as MeasurementConfig
     });
 
-    const { measurementTargets, estimatedServerTime } = this.#config;
-    const downloadApiUrl = resolveApiUrls(
-      measurementTargets,
-      '/__down',
-      this.#config.downloadApiUrl
-    );
-    const uploadApiUrl = resolveApiUrls(
-      measurementTargets,
-      '/__up',
-      this.#config.uploadApiUrl
-    );
+    const { estimatedServerTime } = this.#config;
+    const downloadApiUrl = this.#downloadApiUrls;
+    const uploadApiUrl = this.#uploadApiUrls;
 
     let engine: Engine | undefined;
     switch (type) {

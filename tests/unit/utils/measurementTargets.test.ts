@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import SpeedTest from '../../../src';
 import { resolveApiUrls } from '../../../src/utils/measurementTargets';
 
 describe('resolveApiUrls', () => {
@@ -26,5 +27,33 @@ describe('resolveApiUrls', () => {
     expect(
       resolveApiUrls([], '/__up', 'https://fallback.example.com/custom-up')
     ).toEqual(['https://fallback.example.com/custom-up']);
+  });
+
+  it.each([
+    'speed.example.com',
+    'ftp://speed.example.com',
+    'https://speed.example.com/prefix',
+    'https://speed.example.com/?a=1',
+    'https://speed.example.com/#a'
+  ])('rejects %s, which is not an http(s) origin', target => {
+    expect(() =>
+      resolveApiUrls([target], '/__down', 'https://fallback.example.com')
+    ).toThrow(
+      new TypeError(
+        `Invalid measurementTargets entry "${target}": expected an origin such as https://speed.cloudflare.com`
+      )
+    );
+  });
+});
+
+describe('measurementTargets config', () => {
+  it('rejects an invalid target when the engine is created', () => {
+    expect(
+      () =>
+        new SpeedTest({
+          autoStart: false,
+          measurementTargets: ['https://a.example.com', 'b.example.com']
+        })
+    ).toThrow(/Invalid measurementTargets entry "b\.example\.com"/);
   });
 });

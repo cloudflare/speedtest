@@ -29,7 +29,9 @@ describe('getParallelism', () => {
     [2.7, 2],
     [0, 1],
     [-3, 1],
-    [NaN, 1]
+    [NaN, 1],
+    [Infinity, 1],
+    [-Infinity, 1]
   ])('maps %s to %s', (parallel, expected) => {
     expect(getParallelism({ parallel })).toBe(expected);
   });
@@ -285,5 +287,17 @@ describe('BandwidthEngine parallel batches', () => {
     expect(onConnectionError).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(4);
     expect(results.down[2e5].timings).toHaveLength(1);
+  });
+
+  it('warns about each batch request with an unexpected size', async () => {
+    await run([{ dir: 'down', bytes: 5e4, count: 1, parallel: 2 }]);
+
+    expect(
+      vi
+        .mocked(console.warn)
+        .mock.calls.filter(([msg]) =>
+          String(msg).startsWith('Requested 50000B')
+        )
+    ).toHaveLength(2);
   });
 });

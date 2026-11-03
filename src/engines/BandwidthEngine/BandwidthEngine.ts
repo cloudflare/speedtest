@@ -153,11 +153,13 @@ export interface BandwidthMeasurement {
   parallel?: number;
 }
 
-/** Concurrent requests per sample, as a positive integer. */
+/** Concurrent requests per sample, as a positive integer. Invalid values are `1`. */
 export const getParallelism = ({
   parallel
 }: Pick<BandwidthMeasurement, 'parallel'>): number =>
-  Math.max(1, Math.floor(parallel ?? 1) || 1);
+  typeof parallel === 'number' && Number.isFinite(parallel) && parallel >= 1
+    ? Math.floor(parallel)
+    : 1;
 
 /** Bytes one sample transfers: the payload of every request in its batch. */
 export const getSampleBytes = (
@@ -611,21 +613,7 @@ class BandwidthMeasurementEngine implements Engine {
 
         const [perf] = entries;
         if (!perf) {
-          // A full or cleared buffer, or a runtime that doesn't record entries
-          console.warn(
-            `Discarding ${dir} sample without a resource timing entry`,
-            {
-              url
-            }
-          );
-          if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
-            this.pause();
-            this.#onFatalError(
-              `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
-            );
-            return;
-          }
-          this.#scheduleNextMeasurement();
+          this.#discardMissingEntry(dir, url);
           return;
         }
         this.#missingEntries = 0;
@@ -640,37 +628,7 @@ class BandwidthMeasurementEngine implements Engine {
           duration: 0,
           bps: undefined
         };
-        // Detect new TCP connection from handshake timings.
-        let connectTime = 0;
-        if (perf.secureConnectionStart > perf.connectStart) {
-          connectTime = perf.secureConnectionStart - perf.connectStart;
-        } else {
-          connectTime = perf.connectEnd - perf.connectStart;
-        }
-
-        const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
-        const httpVersion = protoMatch ? +protoMatch[1] : 0;
-
-        // Calibrate serverTimeDelta from new TCP connections (HTTP/1.1)
-        if (serverTime && connectTime && httpVersion > 0 && httpVersion < 2) {
-          const derivedTotalServerTime = Math.max(0, timing.ttfb - connectTime);
-          const delta = derivedTotalServerTime - serverTime;
-          if (
-            delta > 0 &&
-            delta <= SERVER_TIME_DELTA_MAX &&
-            delta <= serverTime &&
-            serverTime <= SERVER_TIME_CALIBRATION_MAX
-          ) {
-            this.#serverTimeDelta =
-              this.#serverTimeDelta * (1 - SERVER_TIME_DELTA_WEIGHT) +
-              delta * SERVER_TIME_DELTA_WEIGHT;
-            console.log(
-              `serverTimeDelta (estimated): ${this.#serverTimeDelta.toFixed(2)}ms`
-            );
-          } else if (delta > 0) {
-            console.log(`serverTimeDelta (skipped): ${delta.toFixed(2)}ms`);
-          }
-        }
+        this.#calibrateServerTimeDelta(perf, serverTime);
 
         const baseServerTime = serverTime || this.#estimatedServerTime;
         timing.ping = timing.ttfb - baseServerTime - this.#serverTimeDelta;
@@ -708,48 +666,22 @@ class BandwidthMeasurementEngine implements Engine {
           });
         }
 
-        if (isDown && numBytes) {
-          const reqSize = +numBytes;
-          if (
-            timing.transferSize &&
-            (timing.transferSize < reqSize ||
-              timing.transferSize / reqSize > 1.05)
-          ) {
-            // log if transferSize is too different from requested size
-            console.warn(
-              `Requested ${reqSize}B but received ${timing.transferSize}B (${
-                Math.round((timing.transferSize / reqSize) * 1e4) / 1e2
-              }%).`
-            );
-          }
-        }
+        isDown && this.#warnSizeMismatch(timing.transferSize, numBytes);
 
-        if (hasUsableSpeed(timing, numBytes)) {
-          this.#saveMeasurementResults(measIdx, timing);
-          const requestDuration = timing.duration;
-          this.#minDuration =
-            this.#minDuration < 0
-              ? requestDuration
-              : Math.min(this.#minDuration, requestDuration); // carry minimum request duration
-        } else {
-          // Counted but not stored or retried, so it can't skew the results.
-          console.warn(`Discarding ${dir} sample without a speed`, {
-            bytes: +numBytes,
-            ...timing,
-            perf: {
-              startTime: perf.startTime,
-              requestStart: perf.requestStart,
-              responseStart: perf.responseStart,
-              firstInterimResponseStart: (perf as InterimAwareTiming)
-                .firstInterimResponseStart,
-              finalResponseHeadersStart: (perf as InterimAwareTiming)
-                .finalResponseHeadersStart,
-              responseEnd: perf.responseEnd,
-              nextHopProtocol: perf.nextHopProtocol,
-              entries: entries.length
-            }
-          });
-        }
+        this.#recordSample(measIdx, timing, {
+          perf: {
+            startTime: perf.startTime,
+            requestStart: perf.requestStart,
+            responseStart: perf.responseStart,
+            firstInterimResponseStart: (perf as InterimAwareTiming)
+              .firstInterimResponseStart,
+            finalResponseHeadersStart: (perf as InterimAwareTiming)
+              .finalResponseHeadersStart,
+            responseEnd: perf.responseEnd,
+            nextHopProtocol: perf.nextHopProtocol,
+            entries: entries.length
+          }
+        });
 
         this.#scheduleNextMeasurement();
       })
@@ -812,23 +744,17 @@ class BandwidthMeasurementEngine implements Engine {
         }
         if (signal.aborted) return;
 
-        const missing = requests.filter((_, i) => !entries[i]);
-        if (missing.length) {
-          console.warn(
-            `Discarding ${dir} sample without a resource timing entry`,
-            { url: missing[0].url }
-          );
-          if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
-            this.pause();
-            this.#onFatalError(
-              `No resource timing entries for ${missing[0].url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
-            );
-            return;
-          }
-          this.#scheduleNextMeasurement();
+        const missing = requests.find((_, i) => !entries[i]);
+        if (missing) {
+          this.#discardMissingEntry(dir, missing.url);
           return;
         }
         this.#missingEntries = 0;
+
+        entries.forEach((perf, i) => {
+          this.#calibrateServerTimeDelta(perf, serverTimes[i]);
+          isDown && this.#warnSizeMismatch(perf.transferSize, numBytes);
+        });
 
         const timing = aggregateBatchTiming(
           entries.map((perf, i) => ({ perf, serverTime: serverTimes[i] })),
@@ -848,25 +774,106 @@ class BandwidthMeasurementEngine implements Engine {
           ping: timing.ping
         });
 
-        if (hasUsableSpeed(timing, numBytes)) {
-          this.#saveMeasurementResults(measIdx, timing);
-          this.#minDuration =
-            this.#minDuration < 0
-              ? timing.duration
-              : Math.min(this.#minDuration, timing.duration);
-        } else {
-          console.warn(`Discarding ${dir} sample without a speed`, {
-            bytes: numBytes * parallel,
-            ...timing
-          });
-        }
-
+        this.#recordSample(measIdx, timing, { parallel });
         this.#scheduleNextMeasurement();
       })
       .catch(error => {
         // Failed requests abort the batch once handled, so this is anything else
         if (!signal.aborted) this.#handleRequestError(error, requests[0].url);
       });
+  }
+
+  /**
+   * Stores a sample and tracks the set's shortest duration. Samples without a
+   * speed are counted but not stored or retried, so they can't skew results.
+   */
+  #recordSample(
+    measIdx: number,
+    timing: BandwidthMeasurementTiming,
+    debug: Record<string, unknown>
+  ): void {
+    const meas = this.#measurements[measIdx];
+    const bytes = getSampleBytes(meas);
+    if (!hasUsableSpeed(timing, bytes)) {
+      console.warn(`Discarding ${meas.dir} sample without a speed`, {
+        bytes,
+        ...timing,
+        ...debug
+      });
+      return;
+    }
+    this.#saveMeasurementResults(measIdx, timing);
+    this.#minDuration =
+      this.#minDuration < 0
+        ? timing.duration
+        : Math.min(this.#minDuration, timing.duration);
+  }
+
+  /** Skips a sample whose resource timing entry is missing. */
+  #discardMissingEntry(dir: 'down' | 'up', url: string): void {
+    // A full or cleared buffer, or a runtime that doesn't record entries
+    console.warn(`Discarding ${dir} sample without a resource timing entry`, {
+      url
+    });
+    if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
+      this.pause();
+      this.#onFatalError(
+        `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
+      );
+      return;
+    }
+    this.#scheduleNextMeasurement();
+  }
+
+  /** Refines serverTimeDelta from requests on new HTTP/1.1 connections. */
+  #calibrateServerTimeDelta(
+    perf: PerformanceResourceTiming,
+    serverTime: number | undefined
+  ): void {
+    // Detect new TCP connection from handshake timings.
+    const connectTime =
+      perf.secureConnectionStart > perf.connectStart
+        ? perf.secureConnectionStart - perf.connectStart
+        : perf.connectEnd - perf.connectStart;
+
+    const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
+    const httpVersion = protoMatch ? +protoMatch[1] : 0;
+
+    if (!serverTime || !connectTime || httpVersion <= 0 || httpVersion >= 2) {
+      return;
+    }
+    const derivedTotalServerTime = Math.max(0, getTtfb(perf) - connectTime);
+    const delta = derivedTotalServerTime - serverTime;
+    if (
+      delta > 0 &&
+      delta <= SERVER_TIME_DELTA_MAX &&
+      delta <= serverTime &&
+      serverTime <= SERVER_TIME_CALIBRATION_MAX
+    ) {
+      this.#serverTimeDelta =
+        this.#serverTimeDelta * (1 - SERVER_TIME_DELTA_WEIGHT) +
+        delta * SERVER_TIME_DELTA_WEIGHT;
+      console.log(
+        `serverTimeDelta (estimated): ${this.#serverTimeDelta.toFixed(2)}ms`
+      );
+    } else if (delta > 0) {
+      console.log(`serverTimeDelta (skipped): ${delta.toFixed(2)}ms`);
+    }
+  }
+
+  /** Warns when a download's size is too different from the requested size. */
+  #warnSizeMismatch(transferSize: number, numBytes: number): void {
+    if (
+      numBytes &&
+      transferSize &&
+      (transferSize < numBytes || transferSize / numBytes > 1.05)
+    ) {
+      console.warn(
+        `Requested ${numBytes}B but received ${transferSize}B (${
+          Math.round((transferSize / numBytes) * 1e4) / 1e2
+        }%).`
+      );
+    }
   }
 
   /** Next API URL for `dir`, round-robin. */

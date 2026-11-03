@@ -14,8 +14,8 @@ export interface BandwidthMeasurementConfig {
   bypassMinDuration?: boolean;
   /**
    * Concurrent requests per sample. Each batch of `parallel` requests yields
-   * one sample of `bytes * parallel` bytes, timed from the first request start
-   * to the last completion. Default: `1`.
+   * one sample of `bytes * parallel` bytes, timed like a sequential request
+   * spanning from the first request start to the last completion. Default: `1`.
    *
    * @experimental Unstable — may change or be removed in any release.
    */
@@ -70,7 +70,8 @@ export interface Config {
   /**
    * Origins for latency, download and upload requests, which go to their
    * `/__down` and `/__up` paths. Requests round-robin across the origins,
-   * starting at a random one for each measurement set. Default: `[]`.
+   * starting at a random one for each measurement set. An entry that isn't a
+   * bare http(s) origin throws a `TypeError` on construction. Default: `[]`.
    */
   measurementTargets: string[];
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
