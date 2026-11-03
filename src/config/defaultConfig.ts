@@ -15,7 +15,9 @@ export interface BandwidthMeasurementConfig {
   /**
    * Concurrent requests per sample. Each batch of `parallel` requests yields
    * one sample of `bytes * parallel` bytes, timed like a sequential request
-   * spanning from the first request start to the last completion. Default: `1`.
+   * from the first request start to the last completion: downloads exclude
+   * the smallest server time in the batch, and uploads end at the last
+   * response. Default: `1`.
    *
    * @experimental Unstable — may change or be removed in any release.
    */
