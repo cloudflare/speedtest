@@ -89,22 +89,6 @@ const hasDetailedTiming = (
 const getTtfb = (perf: PerformanceResourceTiming): number =>
   getFinalResponseStart(perf) - perf.requestStart;
 
-/** Payload download time: time from the final response to its last byte (ms). */
-const getPayloadDownload = (perf: PerformanceResourceTiming): number =>
-  perf.responseEnd - getFinalResponseStart(perf); // min 1ms
-
-/** Total download duration: TTFB + payload download time (ms). */
-const calcDownloadDuration = ({
-  ping,
-  payloadDownloadTime
-}: {
-  ping: number;
-  payloadDownloadTime: number;
-}): number => ping + payloadDownloadTime; // request duration excluding server time
-
-/** Total upload duration: server reports via TTFB (ms). */
-const calcUploadDuration = ({ ttfb }: { ttfb: number }): number => ttfb;
-
 /** Download speed in bits per second. */
 const calcDownloadSpeed = (
   { duration, transferSize }: { duration: number; transferSize: number },
@@ -150,12 +134,12 @@ const genContent = (() => {
   };
 })();
 
-/** Bytes kept from the end of a batch response, which carries its token. */
+/** Bytes kept from the end of a response, which carries its token. */
 const BODY_TAIL_BYTES = 1024;
 
 /**
- * Reads a response to the end, keeping only its tail as text, so concurrent
- * downloads don't hold their whole payloads in memory.
+ * Reads a response to the end, keeping only its tail as text, so downloads
+ * don't hold their whole payloads in memory.
  */
 const readBodyTail = async (r: Response): Promise<string> => {
   if (!r.body) return '';
@@ -201,7 +185,7 @@ export const getSampleBytes = (
   meas: Pick<BandwidthMeasurement, 'bytes' | 'parallel'>
 ): number => meas.bytes * getParallelism(meas);
 
-/** One request of a parallel batch: its resource timing and server time. */
+/** One request of a sample: its resource timing and server time. */
 export interface BatchRequestTiming {
   perf: Pick<
     InterimAwareTiming,
@@ -215,10 +199,10 @@ export interface BatchRequestTiming {
 }
 
 /**
- * Combines a batch of concurrent requests into one sample, as if it were a
- * single request spanning the first request start to the last completion.
- * Like sequential samples, downloads exclude server time (the smallest of the
- * batch, as that much is certain to overlap) and uploads end at the response.
+ * Times a sample of one or more concurrent requests, as if it were a single
+ * request spanning the first request start to the last completion. Downloads
+ * exclude server time (the smallest of the batch, as that much is certain to
+ * overlap), and uploads end at the last final response.
  */
 export const aggregateBatchTiming = (
   requests: BatchRequestTiming[],
@@ -424,26 +408,17 @@ class BandwidthMeasurementEngine implements Engine {
   }
   #onMeasurementResult: (
     result: BandwidthTimingResult,
-    results: BandwidthEngineResults
+    results: BandwidthEngineResults,
+    measurement: BandwidthMeasurement
   ) => void = () => {}; // callback invoked when a new measurement result arrives
   set onMeasurementResult(
-    f: (result: BandwidthTimingResult, results: BandwidthEngineResults) => void
+    f: (
+      result: BandwidthTimingResult,
+      results: BandwidthEngineResults,
+      measurement: BandwidthMeasurement
+    ) => void
   ) {
     this.#onMeasurementResult = f;
-  }
-  #onRequestResult: (
-    result: BandwidthTimingResult,
-    response: ResponseHookPayload
-  ) => void = () => {};
-  /**
-   * Invoked for each request with a usable speed, with its own timing and
-   * response. A parallel batch invokes it once per request, while
-   * `onMeasurementResult` gets the batch's single sample.
-   */
-  set onRequestResult(
-    f: (result: BandwidthTimingResult, response: ResponseHookPayload) => void
-  ) {
-    this.#onRequestResult = f;
   }
   #onFinished: (results: BandwidthEngineResults) => void = () => {}; // callback invoked when all the measurements are finished
   set onFinished(f: (results: BandwidthEngineResults) => void) {
@@ -552,7 +527,8 @@ class BandwidthMeasurementEngine implements Engine {
             bytes,
             ...measTiming
           },
-          results
+          results,
+          meas
         );
       });
     } else {
@@ -607,154 +583,26 @@ class BandwidthMeasurementEngine implements Engine {
       this.#saveMeasurementResults(measIdx); // register measurement start
     }
 
-    if (getParallelism(meas) > 1) {
-      this.#runBatch(meas, measIdx);
-      return;
-    }
-
-    const { bytes: numBytes, dir } = meas;
-    const isDown = dir === 'down';
-
-    const { url, qsParams, fetchOpt } = this.#buildRequest(dir, numBytes);
-    const { signal } = this.#prepareAbortController(
-      `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes`
-    );
-
-    let serverTime: number | undefined;
-    let response: ResponseHookPayload;
-    const requestedAt = performance.now();
-    fetch(url, {
-      ...fetchOpt,
-      signal
-    })
-      .then(r => {
-        if (r.ok) return r;
-        throw new HttpError(
-          r.status,
-          r.statusText,
-          r.headers.get('retry-after')
-        );
-      })
-      .then(r => {
-        this.getServerTime && (serverTime = this.getServerTime(r));
-        return r;
-      })
-      .then(r =>
-        r.text().then(body => {
-          response = { url, headers: r.headers, body };
-          this.#responseHook(response);
-
-          return body;
-        })
-      )
-      .then(async () => {
-        // Every request in a set shares the URL, so skip earlier requests' entries
-        const entries = getRequestEntries(url, requestedAt);
-        if (entries.length) return entries;
-        // The entry can land a task after the body resolves, so look once more
-        await new Promise(resolve => setTimeout(resolve));
-        return getRequestEntries(url, requestedAt);
-      })
-      .then(entries => {
-        if (signal.aborted) return;
-
-        const [perf] = entries;
-        if (!perf || !hasDetailedTiming(perf)) {
-          this.#discardMissingEntry(dir, url, !!perf);
-          return;
-        }
-        this.#missingEntries = 0;
-
-        const timing: BandwidthMeasurementTiming = {
-          transferSize: perf.transferSize,
-          ttfb: getTtfb(perf),
-          payloadDownloadTime: getPayloadDownload(perf),
-          serverTime: serverTime || -1,
-          measTime: new Date(),
-          ping: 0,
-          duration: 0,
-          bps: undefined
-        };
-        this.#calibrateServerTimeDelta(perf, serverTime);
-
-        const baseServerTime = serverTime || this.#estimatedServerTime;
-        timing.ping = timing.ttfb - baseServerTime - this.#serverTimeDelta;
-
-        // Discard the delta adjustment if it would collapse the ping
-        if (timing.ping <= 1) {
-          timing.ping = Math.max(0, timing.ttfb - baseServerTime);
-        }
-        timing.duration = (isDown ? calcDownloadDuration : calcUploadDuration)(
-          timing
-        );
-        timing.bps = (isDown ? calcDownloadSpeed : calcUploadSpeed)(
-          timing,
-          numBytes
-        );
-
-        // Log measurement details
-        const delta = this.#serverTimeDelta;
-        if (+numBytes === 0) {
-          console.log('latency', {
-            phase: `during ${qsParams.during || 'idle'}`,
-            ttfb: timing.ttfb,
-            serverTime: baseServerTime,
-            ...(delta && { serverTimeDelta: delta }),
-            ping: timing.ping
-          });
-        } else {
-          console.log(isDown ? 'download' : 'upload', {
-            bytes: +numBytes,
-            bps: timing.bps,
-            ttfb: timing.ttfb,
-            serverTime: baseServerTime,
-            ...(delta && { serverTimeDelta: delta }),
-            ping: timing.ping
-          });
-        }
-
-        isDown && this.#warnSizeMismatch(timing.transferSize, numBytes);
-
-        const saved = this.#recordSample(measIdx, timing, {
-          perf: {
-            startTime: perf.startTime,
-            requestStart: perf.requestStart,
-            responseStart: perf.responseStart,
-            firstInterimResponseStart: (perf as InterimAwareTiming)
-              .firstInterimResponseStart,
-            finalResponseHeadersStart: (perf as InterimAwareTiming)
-              .finalResponseHeadersStart,
-            responseEnd: perf.responseEnd,
-            nextHopProtocol: perf.nextHopProtocol,
-            entries: entries.length
-          }
-        });
-        saved &&
-          this.#onRequestResult(
-            { type: dir, bytes: numBytes, ...timing },
-            response
-          );
-
-        this.#scheduleNextMeasurement();
-      })
-      .catch(error => {
-        if (signal.aborted) return;
-        this.#handleRequestError(error, url);
-      });
+    this.#runSample(meas, measIdx);
   }
 
-  /** Runs one batch of concurrent requests and saves it as a single sample. */
-  #runBatch(meas: BandwidthMeasurement, measIdx: number): void {
+  /**
+   * Runs one sample: a single request, or a batch of `parallel` concurrent
+   * requests timed as one. A failed request voids its whole batch.
+   */
+  #runSample(meas: BandwidthMeasurement, measIdx: number): void {
     const { bytes: numBytes, dir } = meas;
     const isDown = dir === 'down';
     const parallel = getParallelism(meas);
 
     const requests = Array.from({ length: parallel }, (_, i) =>
       // Distinct URLs, so each request's resource timing entry can be told apart
-      this.#buildRequest(dir, numBytes, { req: `${i}` })
+      this.#buildRequest(dir, numBytes, parallel > 1 ? { req: `${i}` } : {})
     );
     const { signal: setSignal } = this.#prepareAbortController(
-      `${isDown ? 'Download' : 'Upload'} batch of ${parallel}x${numBytes} bytes`
+      parallel > 1
+        ? `${isDown ? 'Download' : 'Upload'} batch of ${parallel}x${numBytes} bytes`
+        : `${isDown ? 'Download' : 'Upload'} request of ${numBytes} bytes`
     );
     // A failed request aborts only its batch, so retries keep the set's abort timer
     const batchController = new AbortController();
@@ -777,17 +625,15 @@ class BandwidthMeasurementEngine implements Engine {
           })
           .then(async r => {
             const serverTime = this.getServerTime?.(r) ?? undefined;
-            const response = {
+            this.#responseHook({
               url,
               headers: r.headers,
               body: await readBodyTail(r)
-            };
-            this.#responseHook(response);
-            return { serverTime, response };
+            });
+            return serverTime;
           })
           .catch(error => {
             if (!signal.aborted) {
-              // One failed request voids the batch, so stop the rest
               batchController.abort('batch request failed');
               this.#handleRequestError(error, url);
             }
@@ -795,67 +641,89 @@ class BandwidthMeasurementEngine implements Engine {
           })
       )
     )
-      .then(async responses => {
+      .then(async serverTimes => {
+        // Every request in a set shares its URL, so skip earlier requests' entries
         const findEntries = () =>
-          requests.map(({ url }) => getRequestEntries(url, requestedAt)[0]);
+          requests.map(({ url }) => getRequestEntries(url, requestedAt));
         let entries = findEntries();
-        if (entries.some(entry => !entry)) {
+        if (entries.some(found => !found.length)) {
+          // An entry can land a task after the body resolves, so look once more
           await new Promise(resolve => setTimeout(resolve));
           entries = findEntries();
         }
         if (signal.aborted) return;
 
-        const missingIdx = entries.findIndex(
-          entry => !entry || !hasDetailedTiming(entry)
-        );
+        const missingIdx = entries.findIndex(found => !found.length);
         if (missingIdx >= 0) {
-          this.#discardMissingEntry(
-            dir,
-            requests[missingIdx].url,
-            !!entries[missingIdx]
-          );
+          this.#discardMissingEntry(dir, requests[missingIdx].url);
+          return;
+        }
+        const perfs = entries.map(([perf]) => perf);
+        const restrictedIdx = perfs.findIndex(perf => !hasDetailedTiming(perf));
+        if (restrictedIdx >= 0) {
+          const message = `No detailed resource timing for ${requests[restrictedIdx].url}. A cross-origin target must send a Timing-Allow-Origin header.`;
+          console.warn(message);
+          this.#skipFailedRequest(message);
           return;
         }
         this.#missingEntries = 0;
 
-        const timingOptions = {
+        const batch = perfs.map((perf, i) => {
+          this.#calibrateServerTimeDelta(perf, serverTimes[i]);
+          isDown && this.#warnSizeMismatch(perf.transferSize, numBytes);
+          return { perf, serverTime: serverTimes[i] };
+        });
+        const delta = this.#serverTimeDelta;
+        const timing = aggregateBatchTiming(batch, {
           isDown,
           numBytes,
-          estimatedServerTime: this.#estimatedServerTime
-        };
-        const batch = entries.map((perf, i) => {
-          this.#calibrateServerTimeDelta(perf, responses[i].serverTime);
-          isDown && this.#warnSizeMismatch(perf.transferSize, numBytes);
-          return { perf, serverTime: responses[i].serverTime };
-        });
-        const serverTimeDelta = this.#serverTimeDelta;
-        const timing = aggregateBatchTiming(batch, {
-          ...timingOptions,
-          serverTimeDelta
+          estimatedServerTime: this.#estimatedServerTime,
+          serverTimeDelta: delta
         });
 
-        console.log(isDown ? 'download' : 'upload', {
-          bytes: numBytes * parallel,
-          parallel,
-          bps: timing.bps,
-          ttfb: timing.ttfb,
-          ping: timing.ping
-        });
-
-        this.#recordSample(measIdx, timing, { parallel });
-
-        // Each request is reported on its own, e.g. for per-request logging
-        batch.forEach((request, i) => {
-          const requestTiming = aggregateBatchTiming([request], {
-            ...timingOptions,
-            serverTimeDelta
+        const serverTime =
+          timing.serverTime > 0 ? timing.serverTime : this.#estimatedServerTime;
+        if (+numBytes === 0) {
+          console.log('latency', {
+            phase: `during ${requests[0].qsParams.during || 'idle'}`,
+            ttfb: timing.ttfb,
+            serverTime,
+            ...(delta && { serverTimeDelta: delta }),
+            ping: timing.ping
           });
-          hasUsableSpeed(requestTiming, numBytes) &&
-            this.#onRequestResult(
-              { type: dir, bytes: numBytes, ...requestTiming },
-              responses[i].response
-            );
-        });
+        } else {
+          console.log(isDown ? 'download' : 'upload', {
+            bytes: numBytes * parallel,
+            ...(parallel > 1 && { parallel }),
+            bps: timing.bps,
+            ttfb: timing.ttfb,
+            serverTime,
+            ...(delta && { serverTimeDelta: delta }),
+            ping: timing.ping
+          });
+        }
+
+        const [perf] = perfs;
+        this.#recordSample(
+          measIdx,
+          timing,
+          parallel > 1
+            ? { parallel }
+            : {
+                perf: {
+                  startTime: perf.startTime,
+                  requestStart: perf.requestStart,
+                  responseStart: perf.responseStart,
+                  firstInterimResponseStart: (perf as InterimAwareTiming)
+                    .firstInterimResponseStart,
+                  finalResponseHeadersStart: (perf as InterimAwareTiming)
+                    .finalResponseHeadersStart,
+                  responseEnd: perf.responseEnd,
+                  nextHopProtocol: perf.nextHopProtocol,
+                  entries: entries[0].length
+                }
+              }
+        );
 
         this.#scheduleNextMeasurement();
       })
@@ -894,34 +762,16 @@ class BandwidthMeasurementEngine implements Engine {
     return true;
   }
 
-  /**
-   * Skips a sample whose resource timing entry is missing, or `restricted`:
-   * present but without detailed timings.
-   */
-  #discardMissingEntry(
-    dir: 'down' | 'up',
-    url: string,
-    restricted = false
-  ): void {
-    if (restricted) {
-      console.warn(
-        `Discarding ${dir} sample without detailed resource timing`,
-        {
-          url
-        }
-      );
-    } else {
-      // A full or cleared buffer, or a runtime that doesn't record entries
-      console.warn(`Discarding ${dir} sample without a resource timing entry`, {
-        url
-      });
-    }
+  /** Skips a sample whose resource timing entry is missing. */
+  #discardMissingEntry(dir: 'down' | 'up', url: string): void {
+    // A full or cleared buffer, or a runtime that doesn't record entries
+    console.warn(`Discarding ${dir} sample without a resource timing entry`, {
+      url
+    });
     if (++this.#missingEntries >= MAX_MISSING_ENTRIES) {
       this.pause();
       this.#onFatalError(
-        restricted
-          ? `No detailed resource timing for ${url}. A cross-origin target must send a Timing-Allow-Origin header.`
-          : `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
+        `No resource timing entries for ${url}. The host page may be clearing or filling the buffer, or the runtime doesn't record resource timing.`
       );
       return;
     }

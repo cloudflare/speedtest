@@ -1,7 +1,9 @@
 import BandwidthEngine from '.';
+import { getParallelism } from './BandwidthEngine';
 import type {
   BandwidthMeasurement,
   BandwidthTimingResult,
+  BandwidthEngineResults,
   ResponseHookPayload
 } from './BandwidthEngine';
 import type { ParallelLatencyOptions } from './ParallelLatency';
@@ -18,9 +20,10 @@ export interface LoggingBandwidthEngineOptions extends ParallelLatencyOptions {
 
 /**
  * Extends BandwidthWithParallelLatencyEngine to log individual measurement
- * results to a remote endpoint. Each completed HTTP request, including each
- * request of a parallel batch, triggers a POST with its own timing metadata
- * (TTFB, duration, server time) and the token from its response body.
+ * results to a remote endpoint. Each completed HTTP request triggers a POST
+ * with timing metadata (TTFB, duration, server time) and an optional
+ * authentication token extracted from the response body. Parallel steps are
+ * not logged.
  */
 class LoggingBandwidthEngine extends BandwidthEngine {
   constructor(
@@ -42,10 +45,13 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#authorization = authorization ?? null;
 
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
-    super.onRequestResult = (
+    super.responseHook = (r: ResponseHookPayload) =>
+      this.#loggingResponseHook(r);
+    super.onMeasurementResult = (
       meas: BandwidthTimingResult,
-      response: ResponseHookPayload
-    ) => this.#logMeasurement(meas, response);
+      _results: BandwidthEngineResults,
+      measurement: BandwidthMeasurement
+    ) => this.#logMeasurement(meas, measurement);
   }
 
   // Overridden attributes
@@ -55,18 +61,54 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       : qsParams;
   }
 
+  set responseHook(responseHook: (r: ResponseHookPayload) => void) {
+    super.responseHook = (r: ResponseHookPayload) => {
+      responseHook(r);
+      this.#loggingResponseHook(r);
+    };
+  }
+
+  set onMeasurementResult(
+    onMeasurementResult: (
+      meas: BandwidthTimingResult,
+      results: BandwidthEngineResults
+    ) => void
+  ) {
+    super.onMeasurementResult = (
+      meas: BandwidthTimingResult,
+      results: BandwidthEngineResults,
+      measurement: BandwidthMeasurement
+    ) => {
+      onMeasurementResult(meas, results);
+      this.#logMeasurement(meas, measurement);
+    };
+  }
+
   // Internal state
   #measurementId: string | undefined;
+  #token: string | null | undefined;
+  #requestTime: number | null | undefined;
   #logApiUrl: string | undefined;
   #sessionId: string | undefined;
   #authorization: AuthorizationOptions | null;
 
   // Internal methods
+  #loggingResponseHook(r: ResponseHookPayload): void {
+    if (!this.#logApiUrl) return;
+
+    // get request time
+    this.#requestTime = +r.headers.get(`cf-meta-request-time`)!;
+
+    // get token in payload
+    this.#token = r.body.slice(-300).split('___').pop();
+  }
+
   #logMeasurement(
     measData: BandwidthTimingResult,
-    response: ResponseHookPayload
+    measurement: BandwidthMeasurement
   ): void {
-    if (!this.#logApiUrl) return;
+    // The log endpoint takes single requests only
+    if (!this.#logApiUrl || getParallelism(measurement) > 1) return;
 
     const logData = {
       type: measData.type,
@@ -77,12 +119,14 @@ class LoggingBandwidthEngine extends BandwidthEngine {
       duration: Math.round(measData.duration),
       transferSize: Math.round(measData.transferSize),
       serverTime: Math.round(measData.serverTime),
-      // The token and request time of the response this measurement timed
-      token: response.body.slice(-300).split('___').pop(),
-      requestTime: +response.headers.get(`cf-meta-request-time`)!,
+      token: this.#token,
+      requestTime: this.#requestTime,
       measId: this.#measurementId,
       sessionId: this.#sessionId
     };
+
+    this.#token = null;
+    this.#requestTime = null;
 
     // Swallowed: a failed log must not fail the measurement it describes.
     fetch(

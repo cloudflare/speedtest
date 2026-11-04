@@ -395,31 +395,34 @@ describe('BandwidthEngine parallel batches', () => {
   });
 
   it.each(['down', 'up'] as const)(
-    'discards a sequential %s sample without detailed timings',
+    'reports a sequential %s request without detailed timings as an error',
     async dir => {
       restrictedUrl = /b\.example\.com/;
-      const { results } = await run([{ dir, bytes: 1e5, count: 2 }], {
-        downloadApiUrl: [
-          'https://a.example.com/__down',
-          'https://b.example.com/__down'
-        ],
-        uploadApiUrl: [
-          'https://a.example.com/__up',
-          'https://b.example.com/__up'
-        ]
-      });
+      const { results, onConnectionError } = await run(
+        [{ dir, bytes: 1e5, count: 2 }],
+        {
+          downloadApiUrl: [
+            'https://a.example.com/__down',
+            'https://b.example.com/__down'
+          ],
+          uploadApiUrl: [
+            'https://a.example.com/__up',
+            'https://b.example.com/__up'
+          ]
+        }
+      );
 
-      expect(console.warn).toHaveBeenCalledWith(
-        `Discarding ${dir} sample without detailed resource timing`,
-        { url: expect.stringContaining('b.example.com') }
+      expect(onConnectionError).toHaveBeenCalledTimes(1);
+      expect(onConnectionError.mock.calls[0][0]).toMatch(
+        /b\.example\.com.*Timing-Allow-Origin/
       );
       expect(results[dir][1e5].timings).toHaveLength(1);
     }
   );
 
-  it('discards a batch with a request without detailed timings', async () => {
+  it('reports a batch with a request without detailed timings as an error', async () => {
     restrictedUrl = /b\.example\.com/;
-    const { results } = await run(
+    const { results, onConnectionError } = await run(
       [{ dir: 'down', bytes: 1e5, count: 2, parallel: 2 }],
       {
         downloadApiUrl: [
@@ -429,52 +432,40 @@ describe('BandwidthEngine parallel batches', () => {
       }
     );
 
-    expect(console.warn).toHaveBeenCalledWith(
-      'Discarding down sample without detailed resource timing',
-      { url: expect.stringContaining('b.example.com') }
-    );
+    expect(onConnectionError).toHaveBeenCalledTimes(2);
     expect(results.down[2e5]?.timings ?? []).toHaveLength(0);
   });
 
-  it('ends the set after repeated samples without detailed timings', async () => {
+  it('carries on when no request has detailed timings', async () => {
     restrictedUrl = /./;
     const onFatalError = vi.fn();
-    const engine = new BandwidthEngine(
+    const { onConnectionError } = await run(
       [{ dir: 'down', bytes: 1e5, count: 5, parallel: 2 }],
-      {
-        downloadApiUrl: 'https://a.example.com/__down',
-        uploadApiUrl: 'https://a.example.com/__up'
+      {},
+      engine => {
+        engine.onFatalError = onFatalError;
       }
     );
-    engine.getServerTime = null;
-    await new Promise<void>(resolve => {
-      engine.onFatalError = error => {
-        onFatalError(error);
-        resolve();
-      };
-      engine.play();
-    });
 
-    expect(fetch).toHaveBeenCalledTimes(6);
-    expect(onFatalError.mock.calls[0][0]).toMatch(/Timing-Allow-Origin/);
+    expect(fetch).toHaveBeenCalledTimes(10);
+    expect(onConnectionError).toHaveBeenCalledTimes(5);
+    expect(onFatalError).not.toHaveBeenCalled();
   });
 
-  it('reports each batch request with its own timing and response tail', async () => {
+  it('passes each batch response tail to the response hook', async () => {
     bodyFor = url =>
       `${'0'.repeat(5000)}___token-${new URL(url).searchParams.get('req')}`;
-    const onRequestResult = vi.fn();
+    const responseHook = vi.fn();
     await run(
       [{ dir: 'down', bytes: 1e5, count: 1, parallel: 3 }],
       {},
       engine => {
-        engine.onRequestResult = onRequestResult;
+        engine.responseHook = responseHook;
       }
     );
 
-    expect(onRequestResult).toHaveBeenCalledTimes(3);
-    onRequestResult.mock.calls.forEach(([result, response], i) => {
-      expect(result).toMatchObject({ type: 'down', bytes: 1e5 });
-      expect(result.duration).toBe(210);
+    expect(responseHook).toHaveBeenCalledTimes(3);
+    responseHook.mock.calls.forEach(([response], i) => {
       expect(response.url).toContain(`req=${i}`);
       expect(response.body.length).toBeLessThanOrEqual(1024);
       expect(response.body.endsWith(`___token-${i}`)).toBe(true);
@@ -482,7 +473,7 @@ describe('BandwidthEngine parallel batches', () => {
   });
 });
 
-describe('LoggingBandwidthEngine with parallel batches', () => {
+describe('LoggingBandwidthEngine with parallel steps', () => {
   const LOG_URL = 'https://log.example.com/__log';
 
   beforeEach(() => {
@@ -495,6 +486,8 @@ describe('LoggingBandwidthEngine with parallel batches', () => {
       'fetch',
       vi.fn(async (url: string) => {
         if (url === LOG_URL) return new Response('ok');
+        // Logs are posted a task after each result, before the next response
+        await new Promise(resolve => setTimeout(resolve));
         const req = new URL(url).searchParams.get('req');
         entries.push({
           name: url,
@@ -527,9 +520,12 @@ describe('LoggingBandwidthEngine with parallel batches', () => {
     vi.restoreAllMocks();
   });
 
-  it('logs each request with its own size, token and request time', async () => {
+  it('logs sequential requests but skips parallel steps', async () => {
     const engine = new LoggingBandwidthEngine(
-      [{ dir: 'down', bytes: 1e5, count: 1, parallel: 2 }],
+      [
+        { dir: 'down', bytes: 1e5, count: 2 },
+        { dir: 'down', bytes: 2e5, count: 1, parallel: 2 }
+      ],
       {
         downloadApiUrl: 'https://a.example.com/__down',
         uploadApiUrl: 'https://a.example.com/__up',
@@ -538,31 +534,25 @@ describe('LoggingBandwidthEngine with parallel batches', () => {
       }
     );
     engine.getServerTime = null;
+    engine.finishRequestDuration = Infinity;
     await new Promise(resolve => {
       engine.onFinished = resolve;
       engine.play();
     });
+    await new Promise(resolve => setTimeout(resolve));
 
     const logged = vi
       .mocked(fetch)
       .mock.calls.filter(([url]) => url === LOG_URL)
       .map(([, init]) => JSON.parse(init!.body as string));
     expect(logged).toHaveLength(2);
-    expect(logged).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          bytes: 1e5,
-          token: 'token-0',
-          requestTime: 1700000000000,
-          measId: 'meas-1'
-        }),
-        expect.objectContaining({
-          bytes: 1e5,
-          token: 'token-1',
-          requestTime: 1700000000001,
-          measId: 'meas-1'
-        })
-      ])
+    logged.forEach(entry =>
+      expect(entry).toMatchObject({
+        bytes: 1e5,
+        token: 'token-null',
+        requestTime: 1700000000000,
+        measId: 'meas-1'
+      })
     );
   });
 });
