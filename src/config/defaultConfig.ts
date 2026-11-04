@@ -8,17 +8,12 @@ export interface BandwidthMeasurementConfig {
   type: 'download' | 'upload';
   /** Payload size per HTTP request in bytes (e.g., 1e5 = 100KB, 1e7 = 10MB). */
   bytes: number;
-  /** Number of samples to take: requests, or batches of `parallel` requests. */
+  /** Number of requests to issue at this payload size. */
   count: number;
   /** If `true`, skip the minimum-duration filter for this round. */
   bypassMinDuration?: boolean;
   /**
-   * Concurrent requests per sample. Each batch of `parallel` requests yields
-   * one sample of `bytes * parallel` bytes, timed like a sequential request
-   * from the first request start to the last completion: downloads exclude
-   * the smallest server time in the batch, and uploads end at the last
-   * response. Every duration threshold treats a batch as a single request.
-   * Default: `1`.
+   * Concurrent requests per data point. Default: `1`.
    *
    * @experimental Unstable — may change or be removed in any release.
    */
@@ -72,13 +67,11 @@ export interface Config {
   uploadApiUrl: string;
   /**
    * Origins for latency, download and upload requests, which go to
-   * {@link measurementDownloadPath} and {@link measurementUploadPath}.
-   * Requests round-robin across the origins, starting at a random one for each
-   * measurement set. An entry that isn't a bare http(s) origin throws a
-   * `TypeError` on construction. Latency and jitter are measured across all
-   * targets, so they should be equivalent endpoints of one service. Targets on
-   * another origin must send `Timing-Allow-Origin`, or their samples are
-   * discarded. Packet loss under load only uses the first target. Default: `[]`.
+   * {@link measurementDownloadPath} and {@link measurementUploadPath}. The
+   * test iterates over the targets. An entry that isn't a bare http(s) origin
+   * throws a `TypeError` on construction. Targets on another origin must send
+   * `Timing-Allow-Origin`, or their requests are reported as errors and
+   * skipped. Default: `[]`.
    */
   measurementTargets: string[];
   /**
@@ -93,10 +86,7 @@ export interface Config {
    * on construction. Default: `/__up`.
    */
   measurementUploadPath: string;
-  /**
-   * URL for per-request logging, including each request of a parallel batch.
-   * Set to `null` to disable. Default: `null`.
-   */
+  /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
   logAimApiUrl: string | null;
@@ -166,9 +156,8 @@ export interface Config {
   /** Minimum interval between loaded-latency pings (ms). Default: `400`. */
   loadedLatencyThrottle: number;
   /**
-   * Per-request duration threshold (ms), or per batch for `parallel` steps,
-   * that once reached stops further measurement rounds of that bandwidth type.
-   * Default: `1000`.
+   * Per-request duration threshold (ms) that, once reached, stops further
+   * measurement rounds of that bandwidth type. Default: `1000`.
    */
   bandwidthFinishRequestDuration: number;
   /**
@@ -178,9 +167,8 @@ export interface Config {
   estimatedServerTime: number;
 
   /**
-   * Maximum duration (ms) of a single request, or of a whole batch for
-   * `parallel` steps. Longer requests are aborted and skipped. `0` disables
-   * it. Default: `0`.
+   * Maximum duration (ms) of a single request. Longer requests are aborted and
+   * skipped. `0` disables it. Default: `0`.
    */
   abortRequestDuration: number;
 
