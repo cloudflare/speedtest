@@ -16,7 +16,7 @@ pnpm lint:tsc       # tsc type check
 pnpm format         # oxlint --fix && oxfmt (writes in place)
 pnpm test           # run all tests (unit + e2e)
 pnpm test:unit      # run unit tests only (fast, no browser)
-pnpm test:e2e       # run e2e tests only (Playwright, needs Chromium)
+pnpm test:e2e       # run e2e tests only (Playwright: Chromium, WebKit)
 pnpm test:watch     # run tests in watch mode
 ```
 
@@ -26,15 +26,16 @@ Uses **Vitest** with two test projects:
 
 - **Unit tests** (`tests/unit/**/*.test.ts`) — pure function tests for utils,
   config, and Results. Run in Node, no browser needed. Fast.
-- **E2E tests** (`tests/e2e/*.test.ts`) — runs a realistic speed test in a real
-  Chromium browser via Vitest Browser Mode + Playwright. Tests the full library
-  integration (fetch, PerformanceResourceTiming, module loading) with multiple
-  measurement phases (latency, download, upload), loaded latency, AIM scoring,
-  and raw data point validation. Packet loss is skipped (CORS limitation).
+- **E2E tests** (`tests/e2e/*.test.ts`) — runs a realistic speed test in real
+  Chromium and WebKit browsers via Vitest Browser Mode + Playwright.
+  Tests the full library integration (fetch, PerformanceResourceTiming, module
+  loading) with multiple measurement phases (latency, download, upload), loaded
+  latency, AIM scoring, and raw data point validation. Packet loss is skipped
+  (CORS limitation).
 
 Test files are written in TypeScript (`.test.ts`). Source is also TypeScript.
 
-To run e2e tests locally, install Chromium first: `npx playwright install chromium`
+To run e2e tests locally, install the browsers first: `npx playwright install chromium webkit`
 
 ## Key constraints
 

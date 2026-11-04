@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import SpeedTest, { type AimLogResponse } from '../../src/index.ts';
 
 const VALID_CLASSIFICATIONS = ['bad', 'poor', 'average', 'good', 'great'];
@@ -8,12 +8,23 @@ const VALID_CLASSIFICATIONS = ['bad', 'poor', 'average', 'good', 'great'];
 const AIM_LOG_URL = 'https://speed.cloudflare.com/__results';
 const STUB_REQUEST_ID = '11111111-2222-3333-4444-555555555555';
 
+// Marks failures caused by library bugs, which retries would hide.
+const LIBRARY_ERROR = 'Library bug, not retried';
+
 describe('SpeedTest E2E', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it(
     'runs a realistic speed test and produces valid results',
     {
       timeout: 120_000,
-      retry: 2
+      // Retry network flakiness, but not bugs that only show up sometimes
+      retry: {
+        count: 2,
+        condition: error => !error.message?.includes(LIBRARY_ERROR)
+      }
     },
     async () => {
       const engine = new SpeedTest({
@@ -49,6 +60,31 @@ describe('SpeedTest E2E', () => {
       const restoreFetch = () => {
         window.fetch = originalFetch;
       };
+
+      // An `Error fetching` warning that isn't a failed request, an HTTP error or
+      // a failed body read means the library threw. Against the live endpoint,
+      // a sample without a resource timing entry is a bug too.
+      const networkErrors = new Set<string>();
+      const recordNetworkError = (error: unknown): never => {
+        networkErrors.add(String(error));
+        throw error;
+      };
+      const libraryErrors: string[] = [];
+      const originalWarn = console.warn;
+      vi.spyOn(console, 'warn').mockImplementation((...args) => {
+        const message = String(args[0]);
+        const match = /^Error fetching \S+: ([\s\S]*)$/.exec(message);
+        if (match && !networkErrors.has(match[1])) libraryErrors.push(match[1]);
+        if (message.endsWith('without a resource timing entry')) {
+          libraryErrors.push(message);
+        }
+        originalWarn(...args);
+      });
+      // A library bug can surface as a timeout or error, so report it first
+      const libraryError = () =>
+        libraryErrors.length
+          ? new Error(`${LIBRARY_ERROR}: ${libraryErrors.join('; ')}`)
+          : undefined;
       window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
         const url =
           typeof input === 'string'
@@ -64,7 +100,12 @@ describe('SpeedTest E2E', () => {
             })
           );
         }
-        return originalFetch(input, init);
+        return originalFetch(input, init).then(r => {
+          if (!r.ok) networkErrors.add(String(new Error(r.statusText)));
+          const text = r.text.bind(r);
+          r.text = () => text().catch(recordNetworkError);
+          return r;
+        }, recordNetworkError);
       };
 
       // onResultsLogged fires shortly after onFinish (once the log request
@@ -76,21 +117,24 @@ describe('SpeedTest E2E', () => {
       // Run the speed test and wait for completion
       const resultsObj = await new Promise<typeof engine.results>(
         (resolve, reject) => {
-          const timeout = setTimeout(() => {
+          // Stop the engine so its requests can't leak into a retry
+          const fail = (message: string) => {
+            clearTimeout(timeout);
+            engine.pause();
             restoreFetch();
-            reject(new Error('Speed test timed out after 90 seconds'));
-          }, 90_000);
+            reject(libraryError() ?? new Error(message));
+          };
+          const timeout = setTimeout(
+            () => fail('Speed test timed out after 90 seconds'),
+            90_000
+          );
 
           engine.onFinish = results => {
             clearTimeout(timeout);
             resolve(results);
           };
 
-          engine.onError = error => {
-            clearTimeout(timeout);
-            restoreFetch();
-            reject(new Error(`Speed test error: ${error}`));
-          };
+          engine.onError = error => fail(`Speed test error: ${error}`);
 
           engine.play();
         }
@@ -113,10 +157,15 @@ describe('SpeedTest E2E', () => {
       let aimResponse: AimLogResponse;
       try {
         aimResponse = await Promise.race([aimResponsePromise, aimLogTimeout]);
+      } catch (error) {
+        throw libraryError() ?? error;
       } finally {
         clearTimeout(aimLogTimer);
         restoreFetch();
       }
+
+      const bug = libraryError();
+      if (bug) throw bug;
 
       // ── Engine state ──────────────────────────────────────────────
       expect(resultsObj.isFinished).toBe(true);

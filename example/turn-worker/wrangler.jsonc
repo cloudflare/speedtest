@@ -13,6 +13,10 @@
 		// TTL of the generated TURN credentials, in seconds
 		"REALTIME_TURN_TOKEN_TTL_SECONDS": 240,
 	},
+	"secrets": {
+		// Realtime TURN key ID and API token, see README.md
+		"required": ["REALTIME_TURN_TOKEN_ID", "REALTIME_TURN_TOKEN_SECRET"],
+	},
 	//"workers_dev": false,
 	//"routes": [
 	//	{
