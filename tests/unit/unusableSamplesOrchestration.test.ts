@@ -22,8 +22,8 @@ const perfEntry = (ttfb: number) => ({
 
 describe('SpeedTest with discarded bandwidth samples', () => {
   beforeEach(() => {
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});

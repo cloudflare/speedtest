@@ -789,7 +789,7 @@ class BandwidthMeasurementEngine implements Engine {
         ? perf.secureConnectionStart - perf.connectStart
         : perf.connectEnd - perf.connectStart;
 
-    const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
+    const protoMatch = perf.nextHopProtocol?.match(/([0-9.]+)/);
     const httpVersion = protoMatch ? +protoMatch[1] : 0;
 
     if (!serverTime || !connectTime || httpVersion <= 0 || httpVersion >= 2) {
@@ -848,7 +848,7 @@ class BandwidthMeasurementEngine implements Engine {
       bytes: `${numBytes}`
     };
 
-    const urlObj = new URL(this.#nextApiUrl(dir), window.location.origin);
+    const urlObj = new URL(this.#nextApiUrl(dir), globalThis?.location?.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
     const url = urlObj.href;
 

@@ -56,9 +56,9 @@ describe('SpeedTest E2E', () => {
       // Intercept only the AIM log POST so we can deterministically assert that
       // onResultsLogged fires with the endpoint's parsed response. All other
       // requests (download/upload/latency) hit the real network as usual.
-      const originalFetch = window.fetch;
+      const originalFetch = globalThis.fetch;
       const restoreFetch = () => {
-        window.fetch = originalFetch;
+        globalThis.fetch = originalFetch;
       };
 
       // An `Error fetching` warning that isn't a failed request, an HTTP error or
@@ -85,7 +85,7 @@ describe('SpeedTest E2E', () => {
         libraryErrors.length
           ? new Error(`${LIBRARY_ERROR}: ${libraryErrors.join('; ')}`)
           : undefined;
-      window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+      globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
         const url =
           typeof input === 'string'
             ? input

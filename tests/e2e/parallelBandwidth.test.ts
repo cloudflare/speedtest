@@ -13,7 +13,7 @@ describe('SpeedTest E2E with parallel bandwidth steps', () => {
     'reports one data point per batch of concurrent requests',
     { timeout: 60_000, retry: 2 },
     async () => {
-      const fetchSpy = vi.spyOn(window, 'fetch');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
       const engine = new SpeedTest({
         autoStart: false,
         measurementTargets: TARGETS,

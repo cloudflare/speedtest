@@ -23,8 +23,8 @@ describe('parallel step results', () => {
     created.length = 0;
     const entries: { name: string; startTime: number }[] = [];
     let clock = 0;
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     vi.stubGlobal(
       'fetch',
