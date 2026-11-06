@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
  * Tests for the URL construction pattern used in BandwidthEngine and
  * LoadNetworkEngine. Both engines build URLs using the URL API:
  *
- *   const urlObj = new URL(apiUrl, window.location.origin);
+ *   const urlObj = new URL(apiUrl, globalThis.location.origin);
  *   Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
  *   const url = urlObj.href;
  *

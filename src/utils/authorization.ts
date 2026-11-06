@@ -21,7 +21,9 @@ const isSecureApiUrl = (apiUrl: string): boolean => {
     return new URL(apiUrl).protocol === 'https:';
   } catch {
     try {
-      return new URL(apiUrl, window.location.origin).protocol === 'https:';
+      return (
+        new URL(apiUrl, globalThis?.location?.origin).protocol === 'https:'
+      );
     } catch {
       return false;
     }

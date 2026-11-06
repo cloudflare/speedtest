@@ -161,8 +161,8 @@ describe('BandwidthEngine unusable samples', () => {
   let warn: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     vi.spyOn(console, 'log').mockImplementation(() => {});
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

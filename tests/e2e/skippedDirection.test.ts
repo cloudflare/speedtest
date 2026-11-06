@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import SpeedTest from '../../src';
 
-const originalFetch = window.fetch;
+const originalFetch = globalThis.fetch;
 
 afterEach(() => {
-  window.fetch = originalFetch;
+  globalThis.fetch = originalFetch;
   vi.restoreAllMocks();
 });
 
@@ -27,7 +27,7 @@ it('pauses the step that follows a skipped direction', async () => {
 
   let latencySignal: AbortSignal | undefined;
   const latencyStarted = new Promise<void>(resolve => {
-    window.fetch = vi.fn(
+    globalThis.fetch = vi.fn(
       (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = new URL(input.toString());
         if (url.searchParams.get('bytes') !== '0') {
@@ -64,7 +64,7 @@ it('pauses the step that follows a skipped direction', async () => {
 
   expect(latencySignal?.aborted).toBe(true);
   const requested = vi
-    .mocked(window.fetch)
+    .mocked(globalThis.fetch)
     .mock.calls.map(([input]) => input.toString());
   expect(requested).not.toContainEqual(expect.stringContaining('bytes=10000'));
 });

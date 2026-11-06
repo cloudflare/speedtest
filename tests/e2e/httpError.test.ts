@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import SpeedTest, { type ConfigOptions } from '../../src';
 import BandwidthEngine from '../../src/engines/BandwidthEngine/BandwidthEngine';
 
-const originalFetch = window.fetch;
+const originalFetch = globalThis.fetch;
 
 afterEach(() => {
-  window.fetch = originalFetch;
+  globalThis.fetch = originalFetch;
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -97,7 +97,7 @@ describe.each([
 ])('bandwidth %s', (_label, respond, status, reason) => {
   it('skips each failed request and runs every step', async () => {
     const fetchMock = vi.fn(respond);
-    window.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const engine = createEngine([
@@ -140,7 +140,7 @@ it('stops when paused from onError and retries the request on resume', async () 
   const fetchMock = vi.fn(() =>
     Promise.resolve(new Response(null, { status: 401 }))
   );
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
   const engine = createEngine([
@@ -203,7 +203,7 @@ it('skips each request that exceeds abortRequestDuration and runs every step', a
       return Promise.resolve(new Response('ok'));
     }
   );
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
 
   const engine = createEngine(
     [
@@ -261,7 +261,7 @@ it.each([500, 401, 403])(
 
     const requests: string[] = [];
     let downloads = 0;
-    window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+    globalThis.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
       const url = new URL(input.toString());
       requests.push(
         `${url.pathname.slice(1)} ${url.searchParams.get('bytes')}`
@@ -326,7 +326,7 @@ it('reports a failed loaded-latency request and keeps measuring bandwidth', asyn
       resolveBandwidthRequest = resolve;
     });
   });
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
 
   const engine = createEngine([{ type: 'download', bytes: 1_000, count: 1 }], {
     measureDownloadLoadedLatency: true
@@ -355,7 +355,7 @@ it('ends the test without logging after three missing resource timing entries', 
   vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   const fetchMock = vi.fn(() => Promise.resolve(new Response('ok')));
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
 
   const engine = createEngine(
     [
@@ -392,7 +392,7 @@ it('does not log a test ended by missing entries when resumed from onError', asy
   vi.spyOn(performance, 'getEntriesByName').mockReturnValue([]);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   const fetchMock = vi.fn(() => Promise.resolve(new Response('ok')));
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
 
   const engine = createEngine([{ type: 'download', bytes: 1e5, count: 5 }], {
     logAimApiUrl: 'https://example.com/__results'
@@ -425,7 +425,7 @@ it('keeps sampling loaded latency after a failed request', async () => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
   let pings = 0;
-  window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+  globalThis.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
     const url = new URL(input.toString());
     if (url.searchParams.get('bytes') === '0') {
       const status = ++pings === 1 ? 500 : 200;
@@ -462,7 +462,7 @@ it('aborts a loaded-latency ping that exceeds abortRequestDuration', async () =>
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
   let pings = 0;
-  window.fetch = vi.fn(
+  globalThis.fetch = vi.fn(
     (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = new URL(input.toString());
       if (url.searchParams.get('bytes') === '0' && ++pings === 1) {
@@ -510,7 +510,7 @@ it('does not abort a loaded-latency ping that succeeded during the throttle wait
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-  window.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+  globalThis.fetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
     const url = new URL(input.toString());
     const delay = url.searchParams.get('bytes') === '0' ? 10 : 60;
     return new Promise(resolve =>
@@ -540,7 +540,7 @@ it('stops loaded-latency pings when the step ends after an aborted ping', async 
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
   let pings = 0;
-  window.fetch = vi.fn(
+  globalThis.fetch = vi.fn(
     (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = new URL(input.toString());
       if (url.searchParams.get('bytes') === '0' && ++pings === 1) {
@@ -593,7 +593,7 @@ describe('abortTestDuration', () => {
         );
       }
     );
-    window.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
 
     const engine = createEngine(
       [
@@ -630,7 +630,7 @@ describe('abortTestDuration', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    window.fetch = vi.fn(
+    globalThis.fetch = vi.fn(
       (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
         new URL(input.toString()).pathname === '/__results'
           ? Promise.resolve(Response.json({ requestId: 'abc' }))
@@ -660,7 +660,7 @@ describe('abortTestDuration', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    window.fetch = vi.fn(
+    globalThis.fetch = vi.fn(
       (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
         new Promise((_resolve, reject) =>
           init!.signal!.addEventListener('abort', () =>
@@ -691,7 +691,7 @@ describe('abortTestDuration', () => {
   it('is disabled by a negative value', async () => {
     mockPerformanceTiming();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    window.fetch = vi.fn(async () => new Response('ok'));
+    globalThis.fetch = vi.fn(async () => new Response('ok'));
 
     const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
       abortTestDuration: -1
@@ -711,7 +711,7 @@ describe('abortTestDuration', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     let hang = true;
-    window.fetch = vi.fn(
+    globalThis.fetch = vi.fn(
       (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
         hang
           ? new Promise((_resolve, reject) =>
@@ -756,7 +756,7 @@ describe('abortTestDuration', () => {
             )
           : Promise.resolve(new Response('ok'))
     );
-    window.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
 
     const engine = createEngine([{ type: 'download', bytes: 1e5, count: 1 }], {
       abortTestDuration: 50
@@ -793,7 +793,7 @@ describe('abortTestDuration', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    window.fetch = vi.fn(
+    globalThis.fetch = vi.fn(
       (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
         new Promise((_resolve, reject) =>
           init!.signal!.addEventListener('abort', () =>
@@ -844,7 +844,7 @@ it('ends the test when loaded latency gets no resource timing entries', async ()
       );
     }
   );
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
 
   const engine = createEngine(
     [
@@ -889,7 +889,7 @@ describe.each([
         })
       )
     );
-    window.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 1 }], {
@@ -928,7 +928,7 @@ it('cancels a pending 429 retry when paused', async () => {
       })
     )
   );
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
   const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 1 }], {
@@ -960,7 +960,7 @@ it('drops a pending 429 retry when the request is aborted', async () => {
       );
     }
   );
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
   const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 5 }], {
@@ -988,7 +988,7 @@ it('cancels the old engine 429 retry when restarted', async () => {
       })
     )
     .mockResolvedValue(new Response(null, { status: 401 }));
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
   const engine = createEngine([{ type: 'download', bytes: 1_000, count: 1 }]);
@@ -1003,7 +1003,7 @@ it('cancels the old engine 429 retry when restarted', async () => {
 
 it('fails without retrying after a network failure', async () => {
   const fetchMock = vi.fn(() => Promise.reject(new TypeError('fetch failed')));
-  window.fetch = fetchMock;
+  globalThis.fetch = fetchMock;
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
   const engine = new BandwidthEngine([{ dir: 'down', bytes: 0, count: 1 }], {
