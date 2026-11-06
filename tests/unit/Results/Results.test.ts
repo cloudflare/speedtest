@@ -145,6 +145,37 @@ describe('Results', () => {
       expect(results.getDownloadBandwidth()).toBe(10e6);
     });
 
+    it('includes parallel results in the bandwidth getters', () => {
+      const results = createResults();
+      const download = results.raw.download as RawMeasurementEntry;
+      download.started = true;
+      download.results = {};
+      download.parallelResults = {
+        4: {
+          100000: {
+            bytes: 400000,
+            parallel: 4,
+            numMeasurements: 1,
+            timings: [
+              {
+                bps: 20e6,
+                duration: 50,
+                ping: 10,
+                measTime: new Date(100),
+                serverTime: 5,
+                transferSize: 400000
+              }
+            ]
+          }
+        }
+      };
+
+      expect(results.getDownloadBandwidth()).toBe(20e6);
+      expect(results.getDownloadBandwidthPoints()).toEqual([
+        expect.objectContaining({ bytes: 400000, parallel: 4 })
+      ]);
+    });
+
     it('returns packet loss details with error when error exists', () => {
       const results = createResults({ measurements: WITH_PACKET_LOSS });
       const packetLoss = results.raw.packetLoss as RawMeasurementEntry;

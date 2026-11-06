@@ -44,8 +44,15 @@ describe('SpeedTest E2E with parallel bandwidth steps', () => {
       expect(downPoints).toHaveLength(2);
       downPoints.forEach(point => {
         expect(point.bytes).toBe(4e5);
+        expect(point.parallel).toBe(4);
         expect(point.bps).toBeGreaterThan(0);
         expect(point.duration).toBeGreaterThan(0);
+      });
+
+      expect(results.raw.download!.results).toEqual({});
+      expect(results.raw.download!.parallelResults![4][1e5]).toMatchObject({
+        bytes: 4e5,
+        parallel: 4
       });
 
       const upPoints = results.getUploadBandwidthPoints();

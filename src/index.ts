@@ -8,7 +8,7 @@ import {
 } from './config';
 import { type Engine } from './engines/Engine';
 import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
-import { getSampleBytes } from './engines/BandwidthEngine/BandwidthEngine';
+import { getParallelism } from './engines/BandwidthEngine/BandwidthEngine';
 import PacketLossEngine from './engines/PacketLossEngine';
 import ReachabilityEngine from './engines/ReachabilityEngine';
 
@@ -73,7 +73,15 @@ interface MeasurementResult {
   finishedCurrentRound?: boolean;
   error?: unknown;
   results: Record<string, unknown>;
+  parallelResults?: Record<string, Record<string, unknown>>;
   [key: string]: unknown;
+}
+
+/** Results of one download/upload step, as stored in its bucket. */
+interface BandwidthStepBucket {
+  timings: unknown[];
+  numMeasurements: number;
+  sideLatency?: unknown[];
 }
 
 /** Payload emitted when the engine advances to a new measurement phase. */
@@ -727,27 +735,37 @@ class MeasurementEngine {
             engine as Engine & { abortRequestDuration: number }
           ).abortRequestDuration = this.#config.abortRequestDuration;
 
+          const requestBytes = msmConfig.bytes!;
+          const parallel = getParallelism({ parallel: msmConfig.parallel });
+          /**
+           * The step's bucket, created on first use. Parallel steps get their
+           * own map so they stay apart from sequential steps. Containers are
+           * copied so consumers can detect changes.
+           */
+          const getBucket = (): BandwidthStepBucket => {
+            const newBucket = {
+              timings: [],
+              numMeasurements: 0,
+              sideLatency: measureParallelLatency ? [] : undefined
+            };
+            if (parallel === 1) {
+              const res = (msmResults.results = { ...msmResults.results });
+              return (res[requestBytes] ??= newBucket) as BandwidthStepBucket;
+            }
+            const all = (msmResults.parallelResults = {
+              ...msmResults.parallelResults
+            });
+            const byBytes = (all[parallel] = { ...all[parallel] });
+            return (byBytes[requestBytes] ??= {
+              bytes: requestBytes * parallel,
+              parallel,
+              ...newBucket
+            }) as BandwidthStepBucket;
+          };
+
           engine.onNewMeasurementStarted = (...args: unknown[]) => {
-            const { count, bytes } = args[0] as {
-              count: number;
-              bytes: number;
-            };
-            const res = (msmResults.results = Object.assign(
-              {},
-              msmResults.results
-            ));
-
-            !res.hasOwnProperty(bytes) &&
-              (res[bytes] = {
-                timings: [],
-                numMeasurements: 0,
-                sideLatency: measureParallelLatency ? [] : undefined
-              });
-
-            const bucket = res[bytes] as {
-              timings: unknown[];
-              numMeasurements: number;
-            };
+            const { count } = args[0] as { count: number };
+            const bucket = getBucket();
             // check if count hasn't already been added
             if (bucket.numMeasurements - bucket.timings.length !== count) {
               bucket.numMeasurements += count;
@@ -756,31 +774,17 @@ class MeasurementEngine {
           };
 
           engine.onMeasurementResult = (...args: unknown[]) => {
-            const { bytes, ...timing } = args[0] as {
-              bytes: number;
-              [key: string]: unknown;
+            // The bucket already says which bytes the sample covers
+            const timing: Record<string, unknown> = {
+              ...(args[0] as Record<string, unknown>)
             };
-            // merge in new result
-            (msmResults.results[bytes] as { timings: unknown[] }).timings.push(
-              timing
-            );
-            msmResults.results = Object.assign({}, msmResults.results);
+            delete timing.bytes;
+            getBucket().timings.push(timing);
             this.onResultsChange({ type });
           };
 
           engine.onParallelLatencyResult = (res: unknown) => {
-            // merge in new latency result
-            (
-              msmResults.results[
-                getSampleBytes({
-                  bytes: msmConfig.bytes!,
-                  parallel: msmConfig.parallel
-                })
-              ] as {
-                sideLatency: unknown[];
-              }
-            ).sideLatency.push(res);
-            msmResults.results = Object.assign({}, msmResults.results);
+            getBucket().sideLatency!.push(res);
             this.onResultsChange({ type });
           };
 
@@ -821,22 +825,21 @@ class MeasurementEngine {
               msmResults.finished = true;
               this.onResultsChange({ type });
 
-              // Record optimal load size from the largest request sent. Results
-              // key batches by their total bytes, but load is sent one request
-              // at a time.
+              // Record optimal load size from the largest request sent by a
+              // step that ran, as load is sent one request at a time
+              const ran = ({ bytes, parallel }: MeasurementStep): boolean => {
+                const n = getParallelism({ parallel });
+                return Object.hasOwn(
+                  (n === 1
+                    ? msmResults.results
+                    : msmResults.parallelResults?.[n]) ?? {},
+                  bytes!
+                );
+              };
               const largestSize = Math.max(
                 ...(this.#config.measurements as MeasurementStep[])
                   .slice(0, this.#curMsmIdx + 1)
-                  .filter(
-                    m =>
-                      m.type === type &&
-                      msmResults.results.hasOwnProperty(
-                        getSampleBytes({
-                          bytes: m.bytes!,
-                          parallel: m.parallel
-                        })
-                      )
-                  )
+                  .filter(m => m.type === type && ran(m))
                   .map(m => m.bytes!)
               );
               const optimalSize = largestSize * OPTIMAL_SIZE_RATIO;
@@ -961,6 +964,8 @@ export { type default as Results } from './Results';
 export type {
   BandwidthPoint,
   BandwidthTiming,
+  ParallelBandwidthBucket,
+  ParallelBandwidthResults,
   PacketLossResults,
   ReachabilityResults,
   LatencyTiming
