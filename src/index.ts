@@ -8,6 +8,7 @@ import {
 } from './config';
 import { type Engine } from './engines/Engine';
 import BandwidthEngine from './engines/BandwidthEngine/LoggingBandwidthEngine';
+import { getParallelism } from './engines/BandwidthEngine/BandwidthEngine';
 import PacketLossEngine from './engines/PacketLossEngine';
 import ReachabilityEngine from './engines/ReachabilityEngine';
 
@@ -16,6 +17,7 @@ import logFinalResults, {
   type AimLogResponse
 } from './logging/logFinalResults';
 import type { AuthorizationOptions } from './utils/authorization';
+import { resolveApiUrls } from './utils/measurementTargets';
 
 const DEFAULT_OPTIMAL_DOWNLOAD_SIZE = 1e6;
 const DEFAULT_OPTIMAL_UPLOAD_SIZE = 1e6;
@@ -37,6 +39,8 @@ interface MeasurementStep {
   count?: number;
   /** Skip the minimum-duration filter for this round (download/upload types). */
   bypassMinDuration?: boolean;
+  /** Concurrent requests per sample (download/upload types). */
+  parallel?: number;
   /** Number of packets sent per batch (packetLoss types). */
   batchSize?: number;
   /** Delay between batches in ms (packetLoss types). */
@@ -69,7 +73,15 @@ interface MeasurementResult {
   finishedCurrentRound?: boolean;
   error?: unknown;
   results: Record<string, unknown>;
+  parallelResults?: Record<string, Record<string, unknown>>;
   [key: string]: unknown;
+}
+
+/** Results of one download/upload step, as stored in its bucket. */
+interface BandwidthStepBucket {
+  timings: unknown[];
+  numMeasurements: number;
+  sideLatency?: unknown[];
 }
 
 /** Payload emitted when the engine advances to a new measurement phase. */
@@ -122,6 +134,11 @@ class MeasurementEngine {
       options.abortRequestDuration ??
       bandwidthAbortRequestDuration ??
       defaultConfig.abortRequestDuration;
+    // An explicit `undefined` would otherwise replace the default
+    this.#config.measurementTargets ??= defaultConfig.measurementTargets;
+    this.#config.measurementDownloadPath ??=
+      defaultConfig.measurementDownloadPath;
+    this.#config.measurementUploadPath ??= defaultConfig.measurementUploadPath;
     // Built once: the insecure-transport warning is latched per object, so a
     // fresh one per access would warn on every request.
     this.#authorization = {
@@ -129,6 +146,23 @@ class MeasurementEngine {
       enabled: this.#config.authorizationEnabled,
       allowInsecure: this.#config.allowInsecureAuthorizationToken
     };
+    // Resolved upfront, so an invalid target fails here rather than mid-test
+    this.#downloadApiUrls = resolveApiUrls(
+      this.#config.measurementTargets,
+      {
+        path: this.#config.measurementDownloadPath,
+        option: 'measurementDownloadPath'
+      },
+      this.#config.downloadApiUrl
+    );
+    this.#uploadApiUrls = resolveApiUrls(
+      this.#config.measurementTargets,
+      {
+        path: this.#config.measurementUploadPath,
+        option: 'measurementUploadPath'
+      },
+      this.#config.uploadApiUrl
+    );
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -228,6 +262,8 @@ class MeasurementEngine {
   #curEngine: Engine | undefined;
   #optimalDownloadChunkSize: number = DEFAULT_OPTIMAL_DOWNLOAD_SIZE;
   #optimalUploadChunkSize: number = DEFAULT_OPTIMAL_UPLOAD_SIZE;
+  #downloadApiUrls: string[];
+  #uploadApiUrls: string[];
 
   /**
    * High-resolution timestamp (from performance.now()) of the test start or
@@ -411,7 +447,9 @@ class MeasurementEngine {
       measurement: { type, ...msmConfig } as MeasurementConfig
     });
 
-    const { downloadApiUrl, uploadApiUrl, estimatedServerTime } = this.#config;
+    const { estimatedServerTime } = this.#config;
+    const downloadApiUrl = this.#downloadApiUrls;
+    const uploadApiUrl = this.#uploadApiUrls;
 
     let engine: Engine | undefined;
     switch (type) {
@@ -509,8 +547,9 @@ class MeasurementEngine {
               uploadChunkSize: msmConfig.loadUp
                 ? this.#optimalUploadChunkSize
                 : undefined,
-              downloadApiUrl,
-              uploadApiUrl,
+              // The load generator takes a single URL
+              downloadApiUrl: downloadApiUrl[0],
+              uploadApiUrl: uploadApiUrl[0],
 
               ...ptCfg
             }) as Engine;
@@ -696,27 +735,37 @@ class MeasurementEngine {
             engine as Engine & { abortRequestDuration: number }
           ).abortRequestDuration = this.#config.abortRequestDuration;
 
+          const requestBytes = msmConfig.bytes!;
+          const parallel = getParallelism({ parallel: msmConfig.parallel });
+          /**
+           * The step's bucket, created on first use. Parallel steps get their
+           * own map so they stay apart from sequential steps. Containers are
+           * copied so consumers can detect changes.
+           */
+          const getBucket = (): BandwidthStepBucket => {
+            const newBucket = {
+              timings: [],
+              numMeasurements: 0,
+              sideLatency: measureParallelLatency ? [] : undefined
+            };
+            if (parallel === 1) {
+              const res = (msmResults.results = { ...msmResults.results });
+              return (res[requestBytes] ??= newBucket) as BandwidthStepBucket;
+            }
+            const all = (msmResults.parallelResults = {
+              ...msmResults.parallelResults
+            });
+            const byBytes = (all[parallel] = { ...all[parallel] });
+            return (byBytes[requestBytes] ??= {
+              bytes: requestBytes * parallel,
+              parallel,
+              ...newBucket
+            }) as BandwidthStepBucket;
+          };
+
           engine.onNewMeasurementStarted = (...args: unknown[]) => {
-            const { count, bytes } = args[0] as {
-              count: number;
-              bytes: number;
-            };
-            const res = (msmResults.results = Object.assign(
-              {},
-              msmResults.results
-            ));
-
-            !res.hasOwnProperty(bytes) &&
-              (res[bytes] = {
-                timings: [],
-                numMeasurements: 0,
-                sideLatency: measureParallelLatency ? [] : undefined
-              });
-
-            const bucket = res[bytes] as {
-              timings: unknown[];
-              numMeasurements: number;
-            };
+            const { count } = args[0] as { count: number };
+            const bucket = getBucket();
             // check if count hasn't already been added
             if (bucket.numMeasurements - bucket.timings.length !== count) {
               bucket.numMeasurements += count;
@@ -725,26 +774,17 @@ class MeasurementEngine {
           };
 
           engine.onMeasurementResult = (...args: unknown[]) => {
-            const { bytes, ...timing } = args[0] as {
-              bytes: number;
-              [key: string]: unknown;
+            // The bucket already says which bytes the sample covers
+            const timing: Record<string, unknown> = {
+              ...(args[0] as Record<string, unknown>)
             };
-            // merge in new result
-            (msmResults.results[bytes] as { timings: unknown[] }).timings.push(
-              timing
-            );
-            msmResults.results = Object.assign({}, msmResults.results);
+            delete timing.bytes;
+            getBucket().timings.push(timing);
             this.onResultsChange({ type });
           };
 
           engine.onParallelLatencyResult = (res: unknown) => {
-            // merge in new latency result
-            (
-              msmResults.results[msmConfig.bytes!] as {
-                sideLatency: unknown[];
-              }
-            ).sideLatency.push(res);
-            msmResults.results = Object.assign({}, msmResults.results);
+            getBucket().sideLatency!.push(res);
             this.onResultsChange({ type });
           };
 
@@ -785,10 +825,23 @@ class MeasurementEngine {
               msmResults.finished = true;
               this.onResultsChange({ type });
 
-              // record optimal load size
-              const largestSize = Object.keys(msmResults.results)
-                .map(n => +n)
-                .sort((a, b) => b - a)[0];
+              // Record optimal load size from the largest request sent by a
+              // step that ran, as load is sent one request at a time
+              const ran = ({ bytes, parallel }: MeasurementStep): boolean => {
+                const n = getParallelism({ parallel });
+                return Object.hasOwn(
+                  (n === 1
+                    ? msmResults.results
+                    : msmResults.parallelResults?.[n]) ?? {},
+                  bytes!
+                );
+              };
+              const largestSize = Math.max(
+                ...(this.#config.measurements as MeasurementStep[])
+                  .slice(0, this.#curMsmIdx + 1)
+                  .filter(m => m.type === type && ran(m))
+                  .map(m => m.bytes!)
+              );
               const optimalSize = largestSize * OPTIMAL_SIZE_RATIO;
 
               type === 'download' &&
@@ -911,6 +964,8 @@ export { type default as Results } from './Results';
 export type {
   BandwidthPoint,
   BandwidthTiming,
+  ParallelBandwidthBucket,
+  ParallelBandwidthResults,
   PacketLossResults,
   ReachabilityResults,
   LatencyTiming

@@ -63,6 +63,32 @@ export interface BandwidthBucket {
 export type BandwidthResults = Record<string, BandwidthBucket>;
 
 /**
+ * The results of a parallel step, where each sample is a batch of requests.
+ *
+ * @experimental Unstable — may change or be removed in any release.
+ */
+export interface ParallelBandwidthBucket extends BandwidthBucket {
+  /** Bytes per sample: each request's payload times {@link parallel}. */
+  bytes: number;
+
+  /** Concurrent requests per sample. */
+  parallel: number;
+
+  /** Number of samples the step was configured to take. */
+  numMeasurements: number;
+}
+
+/**
+ * Parallel step results, keyed by parallelism and then by per-request bytes.
+ *
+ * @experimental Unstable — may change or be removed in any release.
+ */
+export type ParallelBandwidthResults = Record<
+  string,
+  Record<string, ParallelBandwidthBucket>
+>;
+
+/**
  * A single data point derived from a bandwidth measurement, enriched with the
  * originating payload size. Returned by `getBandwidthPoints()`.
  */
@@ -87,6 +113,13 @@ export interface BandwidthPoint {
 
   /** From `PerformanceResourceTiming`. */
   transferSize: number;
+
+  /**
+   * Concurrent requests in the sample, only set for parallel steps.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  parallel?: number;
 }
 
 /** Results from a packet-loss measurement via WebRTC TURN relay. */

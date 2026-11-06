@@ -44,8 +44,11 @@ them.
 | Config option | Description | Default |
 | --- | --- | :--: |
 | **autoStart**: *boolean* | Whether to automatically start the measurements on instantiation. | `true` |
-| **downloadApiUrl**: *string* | The URL of the API for performing download GET requests. | `https://speed.cloudflare.com/__down` |
-| **uploadApiUrl**: *string* | The URL of the API for performing upload POST requests. | `https://speed.cloudflare.com/__up` |
+| **measurementTargets**: *string[]* | The origins to send latency, download and upload requests to, at `measurementDownloadPath` and `measurementUploadPath`. The test iterates over the targets. When empty, `downloadApiUrl` and `uploadApiUrl` are used instead. An entry that isn't a bare `http(s)` origin throws a `TypeError` when the engine is created. Targets on a different origin from the page must send a `Timing-Allow-Origin` header: requests to a target without it are reported through `onError` and skipped. | `[]` |
+| **measurementDownloadPath**: *string* | The path for latency and download requests on each of the `measurementTargets`. It may include a query string. A path that doesn't start with `/` throws a `TypeError` when the engine is created. | `/__down` |
+| **measurementUploadPath**: *string* | The path for upload requests on each of the `measurementTargets`. It may include a query string. A path that doesn't start with `/` throws a `TypeError` when the engine is created. | `/__up` |
+| **downloadApiUrl**: *string* | *Deprecated: use `measurementTargets`.* The URL of the API for performing download GET requests, used when `measurementTargets` is empty. | `https://speed.cloudflare.com/__down` |
+| **uploadApiUrl**: *string* | *Deprecated: use `measurementTargets`.* The URL of the API for performing upload POST requests, used when `measurementTargets` is empty. | `https://speed.cloudflare.com/__up` |
 | **turnServerUri**: *string* | The URI of the TURN server used to measure packet loss, e.g. `turn.cloudflare.com:3478`. See [packetLoss](#packetloss). | `null` |
 | **turnServerCredsApiUrl**: *string* | A URI that returns TURN server credentials. Expects a JSON response with `username` and `credential` keys. See [packetLoss](#packetloss). | `null` |
 | **turnServerUser**: *string* | The username for the TURN server credentials. | - |
@@ -127,13 +130,13 @@ Here are the fields available per measurement type:
 
 #### download / upload
 
-Each of these measurement sets are bound to a specific file size. The engine follows a ramp-up methodology per direction (download or upload). Whenever there are multiple measurement sets (with increasing file sizes) for a direction, the engine will keep on performing them until it reaches the condition specified by `bandwidthMinRequestDuration`, at which point further sets in the same direction are ignored.
+Each of these measurement sets are bound to a specific file size. The engine follows a ramp-up methodology per direction (download or upload). Whenever there are multiple measurement sets (with increasing file sizes) for a direction, the engine will keep on performing them until it reaches the condition specified by `bandwidthFinishRequestDuration`, at which point further sets in the same direction are ignored.
 
 | Field | Required | Description | Default |
 | --- | :--: | --- | :--: |
 | **bytes**: *number* | yes | The file size to request from the download API, or post to the upload API. The bandwidth (calculated as bits per second, or bps) for each request is calculated by dividing the `transferSize` (in bits) by the request duration (excluding the server processing time). Durations are measured from the final response headers where the browser reports them (`finalResponseHeadersStart`), so interim `1xx` responses do not shorten them. | - |
 | **count**: *number* | yes | The number of requests to perform for this file size. A request whose reported duration is zero or negative, or that has no resource timing entry, has no measurable bandwidth: it still counts towards `count`, but is discarded from the results with a console warning, so a set can return fewer data points than requested. If three requests in a row within one measurement set have no resource timing entry, the test ends with the results collected so far, and reports it through `onError`. | - |
-| **bypassMinDuration**: *boolean* | no | Whether the `bandwidthMinRequestDuration` check should be ignored, and the engine is instructed to proceed with the measurements of this direction in any case. | `false` |
+| **bypassMinDuration**: *boolean* | no | Whether the `bandwidthFinishRequestDuration` check should be ignored, and the engine is instructed to proceed with the measurements of this direction in any case. | `false` |
 
 #### packetLoss
 

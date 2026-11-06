@@ -74,8 +74,9 @@ re-indent every workflow.
   - `LoadNetworkEngine/` — parallel fetch load generator
   - `ReachabilityEngine/` — simple fetch with timeout
 - `src/Results/` — aggregation, stats (percentile, jitter), and AIM scoring.
-- `src/utils/` — small helpers: math (`sum`, `avg`, `percentile`, `scaleThreshold`)
-  and `authorization` (attaches the `authorizationToken` as an `Authorization`
+- `src/utils/` — small helpers: math (`sum`, `avg`, `percentile`, `scaleThreshold`),
+  `measurementTargets` (validates `measurementTargets` and the measurement
+  paths, and builds the request URLs from them) and `authorization` (attaches the `authorizationToken` as an `Authorization`
   header to the requests that carry it, gated on `authorizationEnabled` and
   withheld from non-HTTPS endpoints unless `allowInsecureAuthorizationToken`
   is set). The whole authorization feature is **experimental/unstable** —

@@ -5,6 +5,7 @@ import type {
   MeasurementCalcConfig,
   PacketLossResults
 } from './MeasurementCalculations';
+import type { ParallelBandwidthResults } from '../types';
 import ScoresCalculations from './ScoresCalculations';
 import type {
   MeasurementSummary,
@@ -30,6 +31,14 @@ export interface RawMeasurementEntry {
   finished: boolean;
   /** Keyed by byte-size or measurement-specific keys. */
   results: Record<string, unknown>;
+  /**
+   * Bandwidth types only, when a parallel step ran: its results, keyed by
+   * parallelism and then per-request bytes. Sequential steps stay in
+   * `results`.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  parallelResults?: ParallelBandwidthResults;
   /** Bandwidth types only — indicates the current round is done but more rounds remain. */
   finishedCurrentRound?: boolean;
   error?: string;
@@ -250,7 +259,8 @@ class Results {
     if (surfaceError && measEntry.error) return { error: measEntry.error };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.#measCalc[calcFn] as (...args: any[]) => unknown)(
-      measEntry.results
+      measEntry.results,
+      measEntry.parallelResults
     );
   };
 
