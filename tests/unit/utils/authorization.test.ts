@@ -6,7 +6,7 @@ import {
 
 /** The helper resolves relative URLs against the page origin, like the engines do. */
 const stubOrigin = (origin: string): void => {
-  vi.stubGlobal('window', { location: { origin } });
+  vi.stubGlobal('location', { origin });
 };
 
 const TOKEN = 'eyJhbGciOiJFUzI1NiJ9.payload.signature';

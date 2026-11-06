@@ -51,8 +51,8 @@ async function runPacketLoss(config: ConfigOptions = {}) {
 describe('SpeedTest packetLoss TURN config', () => {
   beforeEach(() => {
     const entries: ReturnType<typeof perfEntry>[] = [];
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     vi.stubGlobal(
       'fetch',

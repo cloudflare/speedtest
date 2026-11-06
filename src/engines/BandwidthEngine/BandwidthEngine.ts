@@ -454,7 +454,7 @@ class BandwidthMeasurementEngine implements Engine {
     const qsParams: Record<string, string> = Object.assign({}, this.#qsParams);
     qsParams.bytes = `${numBytes}`;
 
-    const urlObj = new URL(apiUrl, window.location.origin);
+    const urlObj = new URL(apiUrl, globalThis?.location?.origin);
     Object.entries(qsParams).forEach(([k, v]) => urlObj.searchParams.set(k, v));
     const url = urlObj.href;
 
@@ -573,7 +573,7 @@ class BandwidthMeasurementEngine implements Engine {
           connectTime = perf.connectEnd - perf.connectStart;
         }
 
-        const protoMatch = perf.nextHopProtocol.match(/([0-9.]+)/);
+        const protoMatch = perf.nextHopProtocol?.match(/([0-9.]+)/);
         const httpVersion = protoMatch ? +protoMatch[1] : 0;
 
         // Calibrate serverTimeDelta from new TCP connections (HTTP/1.1)
