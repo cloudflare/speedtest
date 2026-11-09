@@ -13,6 +13,9 @@ describe('defaultConfig', () => {
     expect(defaultConfig.uploadApiUrl).toBe(
       'https://speed.cloudflare.com/__up'
     );
+    expect(defaultConfig.measurementTargets).toEqual([]);
+    expect(defaultConfig.measurementDownloadPath).toBe('/__down');
+    expect(defaultConfig.measurementUploadPath).toBe('/__up');
   });
 
   it('has a measurements array with expected types', () => {

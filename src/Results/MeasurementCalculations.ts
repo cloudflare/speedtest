@@ -4,6 +4,7 @@ import type {
   LatencyResults,
   LatencyTiming,
   PacketLossResults,
+  ParallelBandwidthResults,
   ReachabilityResults
 } from '../types';
 import { percentile } from '../utils/numbers';
@@ -78,22 +79,25 @@ class MeasurementCalculations {
           (pings.length - 1);
   }
 
-  getBandwidthPoints = (bandwidthResults: BandwidthResults): BandwidthPoint[] =>
-    Object.entries(bandwidthResults)
-      .map(([bytes, { timings }]) =>
-        timings.map(
+  getBandwidthPoints = (
+    bandwidthResults: BandwidthResults,
+    parallelResults?: ParallelBandwidthResults
+  ): BandwidthPoint[] =>
+    this.#getBuckets(bandwidthResults, parallelResults).flatMap(
+      ({ bytes, parallel, bucket }) =>
+        bucket.timings.map(
           ({ bps, duration, ping, measTime, serverTime, transferSize }) => ({
-            bytes: +bytes,
+            bytes,
             bps,
             duration,
             ping,
             measTime,
             serverTime,
-            transferSize
+            transferSize,
+            ...(parallel && { parallel })
           })
         )
-      )
-      .flat();
+    );
 
   /**
    * Computes bandwidth (bits per second) as the configured percentile of all
@@ -102,9 +106,12 @@ class MeasurementCalculations {
    * Short requests are filtered out because they don't saturate the
    * connection and would skew the result downward.
    */
-  getBandwidth = (bandwidthResults: BandwidthResults): number =>
+  getBandwidth = (
+    bandwidthResults: BandwidthResults,
+    parallelResults?: ParallelBandwidthResults
+  ): number =>
     percentile(
-      this.getBandwidthPoints(bandwidthResults)
+      this.getBandwidthPoints(bandwidthResults, parallelResults)
         .filter(d => d.duration >= this.#config.bandwidthMinRequestDuration)
         .map(d => d.bps)
         .filter(bps => bps),
@@ -117,19 +124,32 @@ class MeasurementCalculations {
    * duration exceeds `loadedRequestMinDuration`, and keeps only the last
    * `loadedLatencyMaxPoints` samples (most recent are most accurate).
    */
-  getLoadedLatency = (loadedResults: BandwidthResults): number =>
-    this.getLatency({ timings: this.#extractLoadedLatencies(loadedResults) });
+  getLoadedLatency = (
+    loadedResults: BandwidthResults,
+    parallelResults?: ParallelBandwidthResults
+  ): number =>
+    this.getLatency({
+      timings: this.#extractLoadedLatencies(loadedResults, parallelResults)
+    });
 
   /**
    * Computes loaded jitter (ms) using the same filtered side-channel pings
    * as {@link getLoadedLatency}. Returns `null` if fewer than 2 samples.
    */
-  getLoadedJitter = (loadedResults: BandwidthResults): number | null =>
-    this.getJitter({ timings: this.#extractLoadedLatencies(loadedResults) });
+  getLoadedJitter = (
+    loadedResults: BandwidthResults,
+    parallelResults?: ParallelBandwidthResults
+  ): number | null =>
+    this.getJitter({
+      timings: this.#extractLoadedLatencies(loadedResults, parallelResults)
+    });
 
-  getLoadedLatencyPoints = (loadedResults: BandwidthResults): number[] =>
+  getLoadedLatencyPoints = (
+    loadedResults: BandwidthResults,
+    parallelResults?: ParallelBandwidthResults
+  ): number[] =>
     this.getLatencyPoints({
-      timings: this.#extractLoadedLatencies(loadedResults)
+      timings: this.#extractLoadedLatencies(loadedResults, parallelResults)
     });
 
   /** @returns Packet loss ratio (0–1). */
@@ -153,10 +173,35 @@ class MeasurementCalculations {
   #config: MeasurementCalcConfig;
 
   // Internal methods
+  /**
+   * Sequential and parallel buckets, sorted by bytes per sample. Results
+   * loaded from older sources may have no `parallelResults`.
+   */
+  #getBuckets = (
+    results: BandwidthResults,
+    parallelResults: ParallelBandwidthResults = {}
+  ) =>
+    [
+      ...Object.entries(results).map(([bytes, bucket]) => ({
+        bytes: +bytes,
+        parallel: undefined as number | undefined,
+        bucket
+      })),
+      ...Object.values(parallelResults)
+        .flatMap(byBytes => Object.values(byBytes))
+        .map(bucket => ({
+          bytes: bucket.bytes,
+          parallel: bucket.parallel as number | undefined,
+          bucket
+        }))
+    ].sort((a, b) => a.bytes - b.bytes);
+
   #extractLoadedLatencies = (
-    loadedResults: BandwidthResults
+    loadedResults: BandwidthResults,
+    parallelResults?: ParallelBandwidthResults
   ): LatencyTiming[] =>
-    Object.values(loadedResults)
+    this.#getBuckets(loadedResults, parallelResults)
+      .map(({ bucket }) => bucket)
       .filter(
         // keep only file sizes that saturated the connection
         d =>

@@ -1,4 +1,5 @@
 import BandwidthEngine from '.';
+import { getParallelism } from './BandwidthEngine';
 import type {
   BandwidthMeasurement,
   BandwidthTimingResult,
@@ -21,7 +22,8 @@ export interface LoggingBandwidthEngineOptions extends ParallelLatencyOptions {
  * Extends BandwidthWithParallelLatencyEngine to log individual measurement
  * results to a remote endpoint. Each completed HTTP request triggers a POST
  * with timing metadata (TTFB, duration, server time) and an optional
- * authentication token extracted from the response body.
+ * authentication token extracted from the response body. Parallel steps are
+ * not logged.
  */
 class LoggingBandwidthEngine extends BandwidthEngine {
   constructor(
@@ -45,8 +47,11 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     super.qsParams = logApiUrl ? { measId: this.#measurementId! } : {};
     super.responseHook = (r: ResponseHookPayload) =>
       this.#loggingResponseHook(r);
-    super.onMeasurementResult = (meas: BandwidthTimingResult) =>
-      this.#logMeasurement(meas);
+    super.onMeasurementResult = (
+      meas: BandwidthTimingResult,
+      _results: BandwidthEngineResults,
+      measurement: BandwidthMeasurement
+    ) => this.#logMeasurement(meas, measurement);
   }
 
   // Overridden attributes
@@ -71,10 +76,11 @@ class LoggingBandwidthEngine extends BandwidthEngine {
   ) {
     super.onMeasurementResult = (
       meas: BandwidthTimingResult,
-      ...restArgs: [BandwidthEngineResults]
+      results: BandwidthEngineResults,
+      measurement: BandwidthMeasurement
     ) => {
-      onMeasurementResult(meas, ...restArgs);
-      this.#logMeasurement(meas);
+      onMeasurementResult(meas, results);
+      this.#logMeasurement(meas, measurement);
     };
   }
 
@@ -97,8 +103,12 @@ class LoggingBandwidthEngine extends BandwidthEngine {
     this.#token = r.body.slice(-300).split('___').pop();
   }
 
-  #logMeasurement(measData: BandwidthTimingResult): void {
-    if (!this.#logApiUrl) return;
+  #logMeasurement(
+    measData: BandwidthTimingResult,
+    measurement: BandwidthMeasurement
+  ): void {
+    // The log endpoint takes single requests only
+    if (!this.#logApiUrl || getParallelism(measurement) > 1) return;
 
     const logData = {
       type: measData.type,

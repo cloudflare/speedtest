@@ -119,6 +119,43 @@ describe('MeasurementCalculations', () => {
       expect(result[0].bytes).toBe(100000);
       expect(result[1].bytes).toBe(1000000);
     });
+
+    it('includes parallel buckets by bytes per sample, marked as parallel', () => {
+      const calc = createCalc();
+      const timing = (bps: number) => ({ bps }) as BandwidthTiming;
+      const result = calc.getBandwidthPoints(
+        {
+          100000: { timings: [timing(1)] },
+          4000000: { timings: [timing(2)] }
+        },
+        {
+          4: {
+            100000: {
+              bytes: 400000,
+              parallel: 4,
+              numMeasurements: 1,
+              timings: [timing(3)]
+            },
+            1000000: {
+              bytes: 4000000,
+              parallel: 4,
+              numMeasurements: 1,
+              timings: [timing(4)]
+            }
+          }
+        }
+      );
+
+      expect(
+        result.map(({ bytes, bps, parallel }) => ({ bytes, bps, parallel }))
+      ).toEqual([
+        { bytes: 100000, bps: 1, parallel: undefined },
+        { bytes: 400000, bps: 3, parallel: 4 },
+        { bytes: 4000000, bps: 2, parallel: undefined },
+        { bytes: 4000000, bps: 4, parallel: 4 }
+      ]);
+      expect(result[0]).not.toHaveProperty('parallel');
+    });
   });
 
   describe('getBandwidth', () => {
@@ -230,6 +267,34 @@ describe('MeasurementCalculations', () => {
       });
 
       expect(result).toBe(50); // median of [40, 60] from the 1M size only
+    });
+
+    it('keeps the latest samples across parallel and sequential buckets', () => {
+      const calc = createCalc({
+        loadedRequestMinDuration: 100,
+        loadedLatencyMaxPoints: 2
+      });
+      const saturated = [{ duration: 300 } as BandwidthTiming];
+
+      const result = calc.getLoadedLatencyPoints(
+        {
+          100000: { timings: saturated, sideLatency: [{ ping: 1 }] },
+          1000000: { timings: saturated, sideLatency: [{ ping: 3 }] }
+        },
+        {
+          2: {
+            250000: {
+              bytes: 500000,
+              parallel: 2,
+              numMeasurements: 1,
+              timings: saturated,
+              sideLatency: [{ ping: 2 }]
+            }
+          }
+        }
+      );
+
+      expect(result).toEqual([2, 3]);
     });
   });
 

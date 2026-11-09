@@ -12,6 +12,12 @@ export interface BandwidthMeasurementConfig {
   count: number;
   /** If `true`, skip the minimum-duration filter for this round. */
   bypassMinDuration?: boolean;
+  /**
+   * Concurrent requests per data point. Default: `1`.
+   *
+   * @experimental Unstable — may change or be removed in any release.
+   */
+  parallel?: number;
 }
 
 /** WebRTC TURN-based packet loss measurement phase. */
@@ -45,10 +51,41 @@ export interface Config {
   /** Whether to start the test immediately on construction. Default: `true`. */
   autoStart: boolean;
 
-  /** URL for download requests. Default: `https://speed.cloudflare.com/__down`. */
+  /**
+   * URL for download requests, used when {@link measurementTargets} is empty.
+   * Default: `https://speed.cloudflare.com/__down`.
+   *
+   * @deprecated Use {@link measurementTargets}.
+   */
   downloadApiUrl: string;
-  /** URL for upload requests. Default: `https://speed.cloudflare.com/__up`. */
+  /**
+   * URL for upload requests, used when {@link measurementTargets} is empty.
+   * Default: `https://speed.cloudflare.com/__up`.
+   *
+   * @deprecated Use {@link measurementTargets}.
+   */
   uploadApiUrl: string;
+  /**
+   * Origins for latency, download and upload requests, which go to
+   * {@link measurementDownloadPath} and {@link measurementUploadPath}. The
+   * test iterates over the targets. An entry that isn't a bare http(s) origin
+   * throws a `TypeError` on construction. Targets on another origin must send
+   * `Timing-Allow-Origin`, or their requests are reported as errors and
+   * skipped. Default: `[]`.
+   */
+  measurementTargets: string[];
+  /**
+   * Path for latency and download requests on each of the
+   * {@link measurementTargets}. May include a query string. A path not starting
+   * with `/` throws a `TypeError` on construction. Default: `/__down`.
+   */
+  measurementDownloadPath: string;
+  /**
+   * Path for upload requests on each of the {@link measurementTargets}. May
+   * include a query string. A path not starting with `/` throws a `TypeError`
+   * on construction. Default: `/__up`.
+   */
+  measurementUploadPath: string;
   /** URL for per-measurement logging. Set to `null` to disable. Default: `null`. */
   logMeasurementApiUrl: string | null;
   /** URL for logging test results. Set to `null` to disable. Default: `https://speed.cloudflare.com/__results`. */
@@ -175,6 +212,9 @@ const defaultConfig: Config = {
   // APIs
   downloadApiUrl: `${REL_API_URL}/__down`,
   uploadApiUrl: `${REL_API_URL}/__up`,
+  measurementTargets: [],
+  measurementDownloadPath: '/__down',
+  measurementUploadPath: '/__up',
   logMeasurementApiUrl: null,
   logAimApiUrl: `${REL_API_URL}/__results`,
   turnServerUri: null,
