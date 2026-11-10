@@ -131,6 +131,28 @@ describe('SpeedTest relative API URLs', () => {
     expect(engine.isFinished).toBe(true);
   });
 
+  it('waits for play() to report one when paused right after construction', async () => {
+    stubNetwork(nodeEntry);
+
+    const engine = new SpeedTest(config);
+    const onError = vi.fn();
+    engine.onError = onError;
+    engine.pause();
+    // Gives the deferred report its chance to run
+    await new Promise(resolve => setTimeout(resolve));
+
+    expect(onError).not.toHaveBeenCalled();
+
+    const finished = new Promise(resolve => {
+      engine.onFinish = resolve;
+    });
+    engine.play();
+    await finished;
+
+    expect(onError).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('resolves one against the page origin in a browser', async () => {
     vi.stubGlobal('location', { origin: 'https://speed.example.com' });
     stubNetwork(browserEntry);
