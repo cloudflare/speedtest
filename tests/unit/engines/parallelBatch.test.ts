@@ -134,8 +134,8 @@ describe('BandwidthEngine parallel batches', () => {
     responseDelay = 0;
     bodyFor = () => '';
     restrictedUrl = undefined;
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     vi.stubGlobal(
       'fetch',
@@ -479,8 +479,8 @@ describe('LoggingBandwidthEngine with parallel steps', () => {
   beforeEach(() => {
     const entries: { name: string; startTime: number }[] = [];
     let clock = 0;
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     vi.stubGlobal(
       'fetch',

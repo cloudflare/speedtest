@@ -59,8 +59,8 @@ describe('SpeedTest packet loss phase', () => {
     instances.length = 0;
     throwOnCreate = false;
     const entries: ReturnType<typeof perfEntry>[] = [];
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     fetchMock = vi.fn(async () => {
       entries.push({ ...perfEntry(), startTime: entries.length + 1 });

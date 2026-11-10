@@ -31,8 +31,8 @@ const fetchedWithAuth = (): [string, string | null][] =>
 
 describe('LoadNetworkEngine authorization', () => {
   beforeEach(() => {
-    vi.stubGlobal('window', {
-      location: { origin: 'https://speed.example.com' }
+    vi.stubGlobal('location', {
+      origin: 'https://speed.example.com'
     });
     // Never resolves: one iteration per engine is enough, and the loop cannot
     // schedule another while the previous fetch is pending.

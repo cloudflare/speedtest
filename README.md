@@ -9,6 +9,8 @@
 The module performs test requests against the [Cloudflare](https://www.cloudflare.com/) edge network and relies on the [PerformanceResourceTiming browser api](https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming) to extract timing results.
 The network connection is characterized by items such as download/upload bandwidth, latency and packet loss.
 
+Node.js 20.13+ is supported on a best-effort basis for latency, download and upload (earlier versions don't report request timings for `fetch`). Packet loss still needs a browser, as it relies on `RTCPeerConnection`. Outside a browser there's no page origin to resolve a relative URL against, so API URLs must be absolute: a relative `downloadApiUrl` or `uploadApiUrl` is reported through `onError` and ends the test.
+
 Please note that measurement results are collected by Cloudflare on completion for the purpose of calculating aggregated insights regarding Internet connection quality.
 
 ## Installation

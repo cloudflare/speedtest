@@ -107,6 +107,16 @@ const pausableTypes: MeasurementType[] = [
 // TODO: consider replacing with crypto.randomUUID() for better uniqueness
 const genMeasId = (): string => `${Math.round(Math.random() * 1e16)}`;
 
+/** Whether `url` is absolute, so it resolves without a page origin. */
+const isAbsoluteUrl = (url: string): boolean => {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Core speed test engine that orchestrates measurement phases (latency,
  * download, upload, packet loss, reachability) and exposes results via
@@ -163,6 +173,18 @@ class MeasurementEngine {
       },
       this.#config.uploadApiUrl
     );
+    // Outside a browser there's no page origin to resolve a relative URL
+    // against, and its requests would throw where nothing can catch them.
+    // Found here, and reported through onError when the test starts.
+    if (!globalThis.location) {
+      const relativeUrl = [
+        ...this.#downloadApiUrls,
+        ...this.#uploadApiUrls
+      ].find(url => !isAbsoluteUrl(url));
+      if (relativeUrl !== undefined) {
+        this.#apiUrlError = `Cannot resolve API URL "${relativeUrl}" outside a browser: downloadApiUrl and uploadApiUrl must be absolute URLs`;
+      }
+    }
     this.#results = new Results(this.#config);
     this.#config.autoStart && this.play();
   }
@@ -264,6 +286,7 @@ class MeasurementEngine {
   #optimalUploadChunkSize: number = DEFAULT_OPTIMAL_UPLOAD_SIZE;
   #downloadApiUrls: string[];
   #uploadApiUrls: string[];
+  #apiUrlError: string | undefined;
 
   /**
    * High-resolution timestamp (from performance.now()) of the test start or
@@ -421,6 +444,19 @@ class MeasurementEngine {
       !resumeResults.finishedCurrentRound
     ) {
       this.#curEngine?.play?.();
+      return;
+    }
+
+    if (this.#curMsmIdx < 0 && this.#apiUrlError) {
+      const message = this.#apiUrlError;
+      const measurementId = this.#measurementId;
+      // Deferred so that, with autoStart, the caller can set onError first
+      queueMicrotask(() => {
+        // Skipped if paused or restarted since
+        if (measurementId === this.#measurementId && this.#running) {
+          this.#endTest(message, { skipLog: true });
+        }
+      });
       return;
     }
 

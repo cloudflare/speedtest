@@ -130,7 +130,7 @@ class LoadNetworkEngine {
           qsParams,
           this.qsParams
         );
-        const urlObj = new URL(apiUrl, window.location.origin);
+        const urlObj = new URL(apiUrl, globalThis?.location?.origin);
         Object.entries(fetchQsParams).forEach(([k, v]) =>
           urlObj.searchParams.set(k, v)
         );
